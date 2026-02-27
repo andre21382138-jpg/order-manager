@@ -129,24 +129,170 @@ function parseWorkbook(wb, malls) {
   });
 
   if (unknownMalls.size > 0) warnings.push(`미등록 쇼핑몰: ${[...unknownMalls].join(", ")} — 앱에 먼저 추가하거나 업로드 후 연결하세요.`);
-  warnings.push(isFormatA ? `✅ 센스바디 형식으로 파싱했습니다. (주문단위 결제금액 적용)` : `✅ 일반 형식으로 파싱했습니다.`);
+  warnings.push(isFormatA ? `✅ 센스바디 형식으로 파싱했습니다.` : `✅ 일반 형식으로 파싱했습니다.`);
   return { orders: allOrders, warnings };
 }
 
+// ── 쇼핑몰 추가 모달 (카테고리 포함) ──────────────────────
+function MallModal({ onClose, onSave, existingCount }) {
+  const [name, setName] = useState("");
+  const [catInput, setCatInput] = useState("");
+  const [cats, setCats] = useState([]);
+
+  function addCat() {
+    const v = catInput.trim();
+    if (!v || cats.includes(v)) return;
+    setCats([...cats, v]);
+    setCatInput("");
+  }
+  function removeCat(c) { setCats(cats.filter(x => x !== c)); }
+
+  function handleSave() {
+    if (!name.trim()) return;
+    onSave({ name: name.trim(), categories: cats });
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}>
+      <div style={{background:"white",borderRadius:18,padding:28,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.18)"}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 18px",fontSize:16,fontWeight:800,color:"#1E293B"}}>🏪 쇼핑몰 추가</h3>
+
+        {/* 쇼핑몰 이름 */}
+        <div style={{marginBottom:18}}>
+          <label style={smallLabel}>쇼핑몰 이름 *</label>
+          <input
+            autoFocus value={name} onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&handleSave()}
+            placeholder="예) 스마트스토어, 쿠팡"
+            style={inp}
+          />
+        </div>
+
+        {/* 카테고리 */}
+        <div style={{marginBottom:20}}>
+          <label style={smallLabel}>카테고리 <span style={{color:"#94A3B8",fontWeight:400}}>(선택 · 이 쇼핑몰에서만 사용)</span></label>
+          <div style={{display:"flex",gap:6,marginBottom:8}}>
+            <input
+              value={catInput} onChange={e=>setCatInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addCat())}
+              placeholder="카테고리 입력 후 Enter 또는 + 버튼"
+              style={{...inp,flex:1}}
+            />
+            <button onClick={addCat} style={{padding:"8px 14px",background:"#3B82F6",color:"white",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+</button>
+          </div>
+
+          {/* 기본 카테고리 추천 */}
+          <div style={{marginBottom:8}}>
+            <span style={{fontSize:11,color:"#94A3B8",marginBottom:4,display:"block"}}>빠른 추가:</span>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {DEFAULT_CATEGORIES.filter(c=>!cats.includes(c)).map(c=>(
+                <button key={c} onClick={()=>setCats([...cats,c])} style={{padding:"2px 9px",borderRadius:20,border:"1px dashed #CBD5E1",background:"transparent",cursor:"pointer",fontSize:11,color:"#64748B"}}>
+                  + {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 추가된 카테고리 */}
+          {cats.length > 0 && (
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"10px 12px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>
+              {cats.map(c=>(
+                <span key={c} style={{display:"flex",alignItems:"center",gap:4,background:"#E0F2FE",color:"#0369A1",padding:"3px 9px",borderRadius:20,fontSize:12,fontWeight:600}}>
+                  {c}
+                  <span onClick={()=>removeCat(c)} style={{cursor:"pointer",fontSize:11,opacity:0.7}}>✕</span>
+                </span>
+              ))}
+            </div>
+          )}
+          {cats.length === 0 && (
+            <div style={{fontSize:11,color:"#CBD5E1",textAlign:"center",padding:"8px 0"}}>
+              카테고리를 추가하지 않으면 기본 카테고리가 사용됩니다
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={handleSave} style={{flex:1,padding:"11px",background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:14}}>저장</button>
+          <button onClick={onClose} style={{flex:1,padding:"11px",background:"#F1F5F9",color:"#64748B",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:14}}>취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 쇼핑몰 편집 모달 ──────────────────────────────────────
+function MallEditModal({ mall, onClose, onSave }) {
+  const [catInput, setCatInput] = useState("");
+  const [cats, setCats] = useState(mall.categories || []);
+
+  function addCat() {
+    const v = catInput.trim();
+    if (!v || cats.includes(v)) return;
+    setCats([...cats, v]);
+    setCatInput("");
+  }
+  function removeCat(c) { setCats(cats.filter(x => x !== c)); }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}>
+      <div style={{background:"white",borderRadius:18,padding:28,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.18)"}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 4px",fontSize:16,fontWeight:800,color:"#1E293B"}}>✏️ 카테고리 편집</h3>
+        <div style={{fontSize:13,color:mall.color,fontWeight:700,marginBottom:18}}>{mall.name}</div>
+
+        <div style={{marginBottom:20}}>
+          <label style={smallLabel}>카테고리</label>
+          <div style={{display:"flex",gap:6,marginBottom:8}}>
+            <input value={catInput} onChange={e=>setCatInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addCat())} placeholder="카테고리 입력" style={{...inp,flex:1}} />
+            <button onClick={addCat} style={{padding:"8px 14px",background:"#3B82F6",color:"white",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+</button>
+          </div>
+          <div style={{marginBottom:8}}>
+            <span style={{fontSize:11,color:"#94A3B8",marginBottom:4,display:"block"}}>빠른 추가:</span>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {DEFAULT_CATEGORIES.filter(c=>!cats.includes(c)).map(c=>(
+                <button key={c} onClick={()=>setCats([...cats,c])} style={{padding:"2px 9px",borderRadius:20,border:"1px dashed #CBD5E1",background:"transparent",cursor:"pointer",fontSize:11,color:"#64748B"}}>+ {c}</button>
+              ))}
+            </div>
+          </div>
+          {cats.length > 0 ? (
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"10px 12px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>
+              {cats.map(c=>(
+                <span key={c} style={{display:"flex",alignItems:"center",gap:4,background:"#E0F2FE",color:"#0369A1",padding:"3px 9px",borderRadius:20,fontSize:12,fontWeight:600}}>
+                  {c}<span onClick={()=>removeCat(c)} style={{cursor:"pointer",fontSize:11,opacity:0.7}}>✕</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{fontSize:11,color:"#CBD5E1",textAlign:"center",padding:"8px 0"}}>카테고리 없음 → 기본 카테고리 사용</div>
+          )}
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>onSave(cats)} style={{flex:1,padding:"11px",background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:14}}>저장</button>
+          <button onClick={onClose} style={{flex:1,padding:"11px",background:"#F1F5F9",color:"#64748B",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:14}}>취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
 export default function App() {
   const [malls, setMalls] = useState([]);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES); // 전역 카테고리 (미등록 쇼핑몰용)
   const [orders, setOrders] = useState([]);
   const [tab, setTab] = useState("입력");
   const [loaded, setLoaded] = useState(false);
   const [form, setForm] = useState({ date: today(), mallId: "", orderNo: "", note: "" });
   const [items, setItems] = useState([emptyItem()]);
   const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), mallId: "", category: "" });
+
+  const [activeMallId, setActiveMallId] = useState(""); // 입력 탭 선택 쇼핑몰
   const [showMallModal, setShowMallModal] = useState(false);
-  const [newMall, setNewMall] = useState("");
+  const [editingMall, setEditingMall] = useState(null); // 편집 중인 쇼핑몰
   const [showCatModal, setShowCatModal] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [expandedOrder, setExpandedOrder] = useState(null);
+
   const [showXlsxModal, setShowXlsxModal] = useState(false);
   const [xlsxPreview, setXlsxPreview] = useState(null);
   const [xlsxDragOver, setXlsxDragOver] = useState(false);
@@ -172,15 +318,40 @@ export default function App() {
   useEffect(() => { if (loaded) localStorage.setItem("orders", JSON.stringify(orders)); }, [orders, loaded]);
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
 
-  function addMall() {
-    if (!newMall.trim()) return;
-    setMalls([...malls, { id: Date.now().toString(), name: newMall.trim(), color: COLORS[malls.length % COLORS.length] }]);
-    setNewMall(""); setShowMallModal(false);
+  // 입력 탭 쇼핑몰 선택 시 form에 자동 반영
+  useEffect(() => {
+    setForm(f => ({ ...f, mallId: activeMallId }));
+    setItems([emptyItem()]);
+  }, [activeMallId]);
+
+  // 현재 선택된 쇼핑몰의 카테고리 (없으면 전역 카테고리)
+  const currentCategories = useMemo(() => {
+    const mall = malls.find(m => m.id === form.mallId);
+    if (mall && mall.categories && mall.categories.length > 0) return mall.categories;
+    return categories;
+  }, [form.mallId, malls, categories]);
+
+  function addMall({ name, categories: cats }) {
+    setMalls([...malls, {
+      id: Date.now().toString(),
+      name,
+      color: COLORS[malls.length % COLORS.length],
+      categories: cats,
+    }]);
+    setShowMallModal(false);
   }
+
   function deleteMall(id) {
     if (!window.confirm("쇼핑몰을 삭제하면 해당 주문도 모두 삭제됩니다.")) return;
-    setMalls(malls.filter(m => m.id !== id)); setOrders(orders.filter(o => o.mallId !== id));
+    setMalls(malls.filter(m => m.id !== id));
+    setOrders(orders.filter(o => o.mallId !== id));
   }
+
+  function saveMallCategories(mallId, cats) {
+    setMalls(malls.map(m => m.id === mallId ? { ...m, categories: cats } : m));
+    setEditingMall(null);
+  }
+
   function addCategory() {
     if (!newCat.trim() || categories.includes(newCat.trim())) return;
     setCategories([...categories, newCat.trim()]); setNewCat(""); setShowCatModal(false);
@@ -257,6 +428,13 @@ export default function App() {
     && (!filter.category || o.items.some(it => it.category === filter.category))
   ), [orders, filter]);
 
+  // 조회 필터용 카테고리: 선택된 쇼핑몰의 카테고리
+  const filterCategories = useMemo(() => {
+    const mall = malls.find(m => m.id === filter.mallId);
+    if (mall && mall.categories && mall.categories.length > 0) return mall.categories;
+    return categories;
+  }, [filter.mallId, malls, categories]);
+
   const stats = useMemo(() => {
     let totalAmount=0, totalQty=0;
     const byMall={}, byCategory={}, byDate={};
@@ -275,12 +453,16 @@ export default function App() {
     return { totalAmount, totalQty, totalOrders:filtered.length, byMall, byCategory, byDate };
   }, [filtered]);
 
-  const todayOrders = useMemo(() => orders.filter(o => o.date === form.date).sort((a,b) => b.id.localeCompare(a.id)), [orders, form.date]);
+  const todayOrders = useMemo(() => orders
+    .filter(o => o.date === form.date && (!activeMallId || o.mallId === activeMallId))
+    .sort((a,b) => b.id.localeCompare(a.id)),
+    [orders, form.date, activeMallId]);
 
   if (!loaded) return <div style={centerStyle}>로딩 중...</div>;
 
   return (
     <div style={{ minHeight:"100vh", background:"#F0F4F8", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif" }}>
+      {/* Header */}
       <div style={{ background:"#1E293B", color:"white", padding:"0 24px" }}>
         <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", height:60 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -291,44 +473,120 @@ export default function App() {
             {["입력","조회","결산"].map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ padding:"7px 20px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, background: tab===t ? "#3B82F6":"transparent", color: tab===t ? "white":"#94A3B8" }}>{t}</button>
             ))}
-            <div style={{ width:1, height:20, background:"#334155", margin:"0 4px" }} />
-            <button onClick={() => { setXlsxPreview(null); setLoadedWb(null); setSheetNames([]); setShowXlsxModal(true); }} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:8, border:"1px solid #334155", background:"#0F172A", color:"#7DD3FC", cursor:"pointer", fontSize:13, fontWeight:700 }}>
-              <span>📊</span> 엑셀 업로드
-            </button>
+
           </div>
         </div>
       </div>
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px 16px" }}>
-        <div style={{ background:"white", borderRadius:14, padding:"12px 18px", marginBottom:18, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+
+        {/* 쇼핑몰 & 전역 카테고리 칩 영역 */}
+        <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+          {/* 쇼핑몰 */}
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
             <span style={labelStyle}>쇼핑몰</span>
-            {malls.map(m => <Chip key={m.id} label={m.name} color={m.color} onDelete={() => deleteMall(m.id)} />)}
+            {malls.map(m => (
+              <div key={m.id} style={{ display:"flex", alignItems:"center", gap:0 }}>
+                <span style={{ display:"flex", alignItems:"center", gap:5, background:m.color+"18", border:`1px solid ${m.color}40`, color:m.color, padding:"3px 8px 3px 10px", borderRadius:"20px 0 0 20px", fontSize:12, fontWeight:700 }}>
+                  {m.name}
+                  {m.categories && m.categories.length > 0 && (
+                    <span style={{ fontSize:10, background:m.color+"30", padding:"1px 5px", borderRadius:8, marginLeft:2 }}>{m.categories.length}개</span>
+                  )}
+                </span>
+                <button onClick={() => setEditingMall(m)} title="카테고리 편집" style={{ background:m.color+"18", border:`1px solid ${m.color}40`, borderLeft:"none", padding:"3px 5px", cursor:"pointer", fontSize:11, color:m.color }}>✏️</button>
+                <button onClick={() => deleteMall(m.id)} title="삭제" style={{ background:m.color+"18", border:`1px solid ${m.color}40`, borderLeft:"none", padding:"3px 6px", borderRadius:"0 20px 20px 0", cursor:"pointer", fontSize:11, color:m.color, opacity:0.7 }}>✕</button>
+              </div>
+            ))}
             <button onClick={() => setShowMallModal(true)} style={addChipBtn}>+ 추가</button>
           </div>
-          <div style={{ width:1, background:"#E2E8F0", alignSelf:"stretch" }} />
+
+          {/* 구분선 */}
+          <div style={{ height:1, background:"#F1F5F9", margin:"8px 0" }} />
+
+          {/* 전역 카테고리 */}
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-            <span style={labelStyle}>카테고리</span>
+            <span style={{...labelStyle, fontSize:11, color:"#94A3B8"}}>기본 카테고리</span>
             {categories.map(c => <Chip key={c} label={c} color="#64748B" onDelete={() => deleteCategory(c)} />)}
             <button onClick={() => setShowCatModal(true)} style={addChipBtn}>+ 추가</button>
           </div>
         </div>
 
+        {/* ── 입력 탭 ── */}
         {tab === "입력" && (
+          <div>
+          {/* 쇼핑몰 선택 바 */}
+          <div style={{ background:"white", borderRadius:14, padding:"14px 20px", marginBottom:16, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏪 쇼핑몰 선택</div>
+            {malls.length === 0 ? (
+              <div style={{ fontSize:13, color:"#CBD5E1", padding:"8px 0" }}>
+                등록된 쇼핑몰이 없습니다. 상단에서 쇼핑몰을 먼저 추가해주세요.
+              </div>
+            ) : (
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {malls.map(m => {
+                  const isActive = activeMallId === m.id;
+                  const todayCount = orders.filter(o => o.mallId === m.id && o.date === form.date).length;
+                  return (
+                    <button key={m.id} onClick={() => setActiveMallId(isActive ? "" : m.id)} style={{
+                      display:"flex", flexDirection:"column", alignItems:"flex-start",
+                      padding:"10px 16px", borderRadius:12, cursor:"pointer",
+                      border: isActive ? `2px solid ${m.color}` : "2px solid #E2E8F0",
+                      background: isActive ? m.color+"12" : "white",
+                      transition:"all 0.15s", minWidth:100,
+                    }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background: m.color }} />
+                        <span style={{ fontSize:14, fontWeight:700, color: isActive ? m.color : "#1E293B" }}>{m.name}</span>
+                      </div>
+                      <span style={{ fontSize:11, color:"#94A3B8" }}>오늘 {todayCount}건</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {activeMallId && (
+              <div style={{ marginTop:10, fontSize:12, color: getMall(activeMallId)?.color, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
+                ✅ <strong>{getMall(activeMallId)?.name}</strong> 선택됨 — 엑셀 업로드와 주문 입력에 적용됩니다
+              </div>
+            )}
+          </div>
+
           <div style={{ display:"grid", gridTemplateColumns:"1.15fr 1fr", gap:18 }}>
             <div style={card}>
-              <h2 style={cardTitle}>📦 주문 입력</h2>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                <h2 style={{...cardTitle, marginBottom:0}}>📦 주문 입력</h2>
+                <button onClick={() => { setXlsxPreview(null); setLoadedWb(null); setSheetNames([]); setShowXlsxModal(true); }} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+                  <span>📊</span> 엑셀 업로드
+                </button>
+              </div>
               <form onSubmit={submitOrder}>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1.2fr", gap:10, marginBottom:14 }}>
                   <Field label="날짜 *"><input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={inp} /></Field>
-                  <Field label="쇼핑몰 *">
-                    <select value={form.mallId} onChange={e=>setForm({...form,mallId:e.target.value})} style={inp}>
-                      <option value="">선택</option>
-                      {malls.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                    </select>
-                  </Field>
+                  {!activeMallId && (
+                    <Field label="쇼핑몰 *">
+                      <select value={form.mallId} onChange={e=>setForm({...form,mallId:e.target.value})} style={inp}>
+                        <option value="">선택</option>
+                        {malls.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </Field>
+                  )}
                   <Field label="주문번호 *"><input placeholder="예) 776904" value={form.orderNo} onChange={e=>setForm({...form,orderNo:e.target.value})} style={inp} /></Field>
                 </div>
+
+                {/* 쇼핑몰 카테고리 안내 */}
+                {form.mallId && (() => {
+                  const mall = getMall(form.mallId);
+                  if (mall && mall.categories && mall.categories.length > 0) {
+                    return (
+                      <div style={{ marginBottom:10, padding:"7px 12px", background:"#EFF6FF", borderRadius:8, fontSize:12, color:"#1E40AF", display:"flex", alignItems:"center", gap:6 }}>
+                        <span>🏷️</span>
+                        <span><strong>{mall.name}</strong> 카테고리 적용 중 ({mall.categories.join(", ")})</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                     <span style={{ fontSize:12, fontWeight:700, color:"#64748B" }}>상품 목록 *</span>
@@ -342,7 +600,7 @@ export default function App() {
                       <div key={it.id} style={{ display:"grid", gridTemplateColumns:"110px 1fr 68px 105px 26px", gap:6, alignItems:"center" }}>
                         <select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} style={{...inp,fontSize:12}}>
                           <option value="">카테고리</option>
-                          {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                          {currentCategories.map(c=><option key={c} value={c}>{c}</option>)}
                         </select>
                         <input placeholder="상품명 *" value={it.productName} onChange={e=>updateItem(idx,"productName",e.target.value)} style={{...inp,fontSize:12}} />
                         <input type="number" min="1" placeholder="수량" value={it.qty} onChange={e=>updateItem(idx,"qty",e.target.value)} style={{...inp,fontSize:12}} />
@@ -362,6 +620,7 @@ export default function App() {
                 <button type="submit" style={{ marginTop:14,width:"100%",padding:"13px",background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontSize:15,fontWeight:700,cursor:"pointer" }}>+ 주문 저장</button>
               </form>
             </div>
+
             <div style={card}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                 <h2 style={{...cardTitle,marginBottom:0}}>📋 오늘 주문 목록</h2>
@@ -376,15 +635,17 @@ export default function App() {
               </>}
             </div>
           </div>
+          </div>
         )}
 
+        {/* 공통 필터 */}
         {(tab==="조회"||tab==="결산") && (
           <>
             <div style={{...card,padding:"14px 20px",marginBottom:14,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
               <Field label="시작일"><input type="date" value={filter.from} onChange={e=>setFilter({...filter,from:e.target.value})} style={{...inp,width:130}} /></Field>
               <Field label="종료일"><input type="date" value={filter.to} onChange={e=>setFilter({...filter,to:e.target.value})} style={{...inp,width:130}} /></Field>
               <Field label="쇼핑몰">
-                <select value={filter.mallId} onChange={e=>setFilter({...filter,mallId:e.target.value})} style={{...inp,width:120}}>
+                <select value={filter.mallId} onChange={e=>setFilter({...filter,mallId:e.target.value,category:""})} style={{...inp,width:120}}>
                   <option value="">전체</option>
                   {malls.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
@@ -392,7 +653,7 @@ export default function App() {
               <Field label="카테고리">
                 <select value={filter.category} onChange={e=>setFilter({...filter,category:e.target.value})} style={{...inp,width:120}}>
                   <option value="">전체</option>
-                  {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                  {filterCategories.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </Field>
               <div style={{ display:"flex",gap:6 }}>
@@ -410,6 +671,7 @@ export default function App() {
           </>
         )}
 
+        {/* 조회 탭 */}
         {tab==="조회" && (
           <div style={card}>
             <h2 style={{...cardTitle,marginBottom:14}}>주문 목록 ({filtered.length}건)</h2>
@@ -418,6 +680,7 @@ export default function App() {
           </div>
         )}
 
+        {/* 결산 탭 */}
         {tab==="결산" && (
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
             <div style={card}>
@@ -457,6 +720,7 @@ export default function App() {
         )}
       </div>
 
+      {/* 엑셀 업로드 모달 */}
       {showXlsxModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={()=>{if(!xlsxPreview&&!xlsxLoading)setShowXlsxModal(false);}}>
           <div style={{background:"white",borderRadius:20,width:"min(960px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 25px 80px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
@@ -472,11 +736,11 @@ export default function App() {
                 <>
                   <div onDragOver={e=>{e.preventDefault();setXlsxDragOver(true);}} onDragLeave={()=>setXlsxDragOver(false)} onDrop={handleFileDrop} onClick={()=>fileInputRef.current.click()}
                     style={{border:`2px dashed ${xlsxDragOver?"#3B82F6":"#CBD5E1"}`,borderRadius:16,padding:"48px 24px",textAlign:"center",cursor:"pointer",background:xlsxDragOver?"#EFF6FF":"#F8FAFC",marginBottom:20}}>
-                    {xlsxLoading ? <div style={{fontSize:14,color:"#64748B"}}>⏳ 파일 읽는 중...</div> : <><div style={{fontSize:40,marginBottom:12}}>📂</div><div style={{fontSize:15,fontWeight:700,color:"#1E293B",marginBottom:6}}>파일을 드래그하거나 클릭해서 선택</div><div style={{fontSize:13,color:"#94A3B8"}}>.xlsx, .xls 파일 지원 · 여러 시트 선택 가능</div></>}
+                    {xlsxLoading ? <div style={{fontSize:14,color:"#64748B"}}>⏳ 파일 읽는 중...</div> : <><div style={{fontSize:40,marginBottom:12}}>📂</div><div style={{fontSize:15,fontWeight:700,color:"#1E293B",marginBottom:6}}>파일을 드래그하거나 클릭해서 선택</div><div style={{fontSize:13,color:"#94A3B8"}}>.xlsx, .xls 파일 지원</div></>}
                     <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{if(e.target.files[0]){setLoadedWb(null);setSheetNames([]);setXlsxPreview(null);loadFile(e.target.files[0]);}}} />
                   </div>
                   <div style={{background:"#EFF6FF",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#1E40AF",border:"1px solid #BFDBFE"}}>
-                    💡 <strong>센스바디 형식 자동 지원:</strong> 주문번호가 빈 연속 행(다상품 주문)을 자동으로 하나의 주문으로 합산합니다. 여러 시트가 있으면 원하는 시트를 선택할 수 있습니다.
+                    💡 <strong>센스바디 형식 자동 지원:</strong> 주문번호가 빈 연속 행(다상품 주문)을 자동으로 하나의 주문으로 합산합니다.
                   </div>
                 </>
               )}
@@ -498,7 +762,7 @@ export default function App() {
                   {xlsxPreview.warnings.length > 0 && (
                     <div style={{marginBottom:14,display:"flex",flexDirection:"column",gap:6}}>
                       {xlsxPreview.warnings.map((w,i)=>(
-                        <div key={i} style={{padding:"10px 14px",borderRadius:10,fontSize:12,background:w.startsWith("✅")?"#F0FDF4":w.startsWith("💡")?"#EFF6FF":"#FFFBEB",border:w.startsWith("✅")?"1px solid #BBF7D0":w.startsWith("💡")?"1px solid #BFDBFE":"1px solid #FCD34D",color:w.startsWith("✅")?"#166534":w.startsWith("💡")?"#1E40AF":"#78350F"}}>{w}</div>
+                        <div key={i} style={{padding:"10px 14px",borderRadius:10,fontSize:12,background:w.startsWith("✅")?"#F0FDF4":"#FFFBEB",border:w.startsWith("✅")?"1px solid #BBF7D0":"1px solid #FCD34D",color:w.startsWith("✅")?"#166534":"#78350F"}}>{w}</div>
                       ))}
                     </div>
                   )}
@@ -517,7 +781,7 @@ export default function App() {
                           <input type="checkbox" checked={o.selected} onChange={()=>toggleSelectRow(idx)} onClick={e=>e.stopPropagation()} style={{width:15,height:15,cursor:"pointer",flexShrink:0}} />
                           <span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.date}</span>
                           {mall ? <span style={{padding:"2px 8px",borderRadius:10,background:mall.color+"20",color:mall.color,fontWeight:700,fontSize:11,whiteSpace:"nowrap",flexShrink:0}}>{mall.name}</span>
-                            : o.mallName ? <span style={{padding:"2px 8px",borderRadius:10,background:"#FEF2F2",color:"#EF4444",fontWeight:700,fontSize:11,whiteSpace:"nowrap",flexShrink:0}}>{o.mallName} ⚠️미연결</span> : null}
+                            : o.mallName ? <span style={{padding:"2px 8px",borderRadius:10,background:"#FEF2F2",color:"#EF4444",fontWeight:700,fontSize:11,whiteSpace:"nowrap",flexShrink:0}}>{o.mallName} ⚠️</span> : null}
                           <span style={{fontSize:11,color:"#94A3B8",fontFamily:"monospace",flexShrink:0}}>{o.orderNo}</span>
                           <span style={{fontSize:13,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.items.slice(0,2).map(it=>it.productName).join(", ")}{o.items.length>2&&` 외 ${o.items.length-2}종`}</span>
                           <span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.items.length}종 {o.totalQty}개</span>
@@ -540,14 +804,22 @@ export default function App() {
         </div>
       )}
 
-      {showMallModal && (<Modal title="쇼핑몰 추가" onClose={()=>setShowMallModal(false)}>
-        <input autoFocus value={newMall} onChange={e=>setNewMall(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addMall()} placeholder="예) 스마트스토어, 쿠팡" style={{...inp,marginBottom:14}} />
-        <div style={{display:"flex",gap:8}}><button onClick={addMall} style={primaryBtn}>추가</button><button onClick={()=>setShowMallModal(false)} style={secondaryBtn}>취소</button></div>
-      </Modal>)}
-      {showCatModal && (<Modal title="카테고리 추가" onClose={()=>setShowCatModal(false)}>
-        <input autoFocus value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCategory()} placeholder="예) 스포츠, 홈리빙" style={{...inp,marginBottom:14}} />
-        <div style={{display:"flex",gap:8}}><button onClick={addCategory} style={primaryBtn}>추가</button><button onClick={()=>setShowCatModal(false)} style={secondaryBtn}>취소</button></div>
-      </Modal>)}
+      {/* 쇼핑몰 추가 모달 */}
+      {showMallModal && <MallModal onClose={()=>setShowMallModal(false)} onSave={addMall} existingCount={malls.length} />}
+
+      {/* 쇼핑몰 카테고리 편집 모달 */}
+      {editingMall && <MallEditModal mall={editingMall} onClose={()=>setEditingMall(null)} onSave={(cats)=>saveMallCategories(editingMall.id, cats)} />}
+
+      {/* 전역 카테고리 추가 모달 */}
+      {showCatModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={()=>setShowCatModal(false)}>
+          <div style={{background:"white",borderRadius:16,padding:28,width:320,boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700,color:"#1E293B"}}>기본 카테고리 추가</h3>
+            <input autoFocus value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCategory()} placeholder="예) 스포츠, 홈리빙" style={{...inp,marginBottom:14}} />
+            <div style={{display:"flex",gap:8}}><button onClick={addCategory} style={primaryBtn}>추가</button><button onClick={()=>setShowCatModal(false)} style={secondaryBtn}>취소</button></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -576,7 +848,7 @@ function OrderList({ orders, expandedOrder, setExpandedOrder, getMall, deleteOrd
             </div>
             {isExp&&hasMultiItems&&(
               <div style={{background:"#F8FAFC",borderTop:"1px solid #F1F5F9",padding:"10px 14px"}}>
-                {isOrderLevelAmount&&<div style={{fontSize:11,color:"#64748B",marginBottom:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:6}}>ℹ️ 이 주문은 상품별 금액이 없으며, 결제금액({fmt(o.totalAmount)})은 주문 전체 합계입니다.</div>}
+                {isOrderLevelAmount&&<div style={{fontSize:11,color:"#64748B",marginBottom:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:6}}>ℹ️ 상품별 금액 없음 · 결제금액({fmt(o.totalAmount)})은 주문 전체 합계</div>}
                 {o.items.map((it,i)=>(
                   <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:13,borderBottom:i<o.items.length-1?"1px solid #F1F5F9":"none",alignItems:"center"}}>
                     <span>{it.category&&<span style={{fontSize:11,background:"#E2E8F0",color:"#475569",padding:"1px 6px",borderRadius:5,marginRight:5,fontWeight:600}}>{it.category}</span>}{it.productName}</span>
@@ -594,17 +866,17 @@ function OrderList({ orders, expandedOrder, setExpandedOrder, getMall, deleteOrd
 }
 
 function Chip({label,color,onDelete}){return <span style={{display:"flex",alignItems:"center",gap:5,background:color+"20",border:`1px solid ${color}40`,color,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700}}>{label}<span onClick={onDelete} style={{cursor:"pointer",opacity:0.6,fontSize:11}}>✕</span></span>;}
-function Modal({title,children,onClose}){return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}><div style={{background:"white",borderRadius:16,padding:28,width:320,boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}><h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700,color:"#1E293B"}}>{title}</h3>{children}</div></div>;}
 function Field({label,children}){return <div style={{display:"flex",flexDirection:"column",gap:4}}><label style={{fontSize:11,fontWeight:700,color:"#64748B"}}>{label}</label>{children}</div>;}
 function Empty({text}){return <div style={{textAlign:"center",color:"#CBD5E1",padding:"40px 0",fontSize:14}}>{text}</div>;}
 
 const card={background:"white",borderRadius:16,padding:22,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"};
 const cardTitle={margin:"0 0 16px",fontSize:15,fontWeight:700,color:"#1E293B"};
 const inp={padding:"8px 10px",borderRadius:8,border:"1px solid #E2E8F0",fontSize:13,outline:"none",background:"#F8FAFC",color:"#1E293B",width:"100%",boxSizing:"border-box"};
+const smallLabel={fontSize:11,fontWeight:700,color:"#64748B",display:"block",marginBottom:6};
 const addChipBtn={padding:"3px 10px",borderRadius:20,border:"1px dashed #CBD5E1",background:"transparent",cursor:"pointer",fontSize:12,color:"#64748B",fontWeight:600};
 const addItemBtn={padding:"4px 12px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700};
 const quickBtn={padding:"7px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",fontSize:13,cursor:"pointer",fontWeight:600,color:"#475569"};
 const primaryBtn={padding:"10px 20px",background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13};
 const secondaryBtn={padding:"10px 20px",background:"#F1F5F9",color:"#64748B",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13};
-const labelStyle={fontSize:12,color:"#64748B",fontWeight:700,whiteSpace:"nowrap"};
+const labelStyle={fontSize:12,color:"#475569",fontWeight:700,whiteSpace:"nowrap"};
 const centerStyle={display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"sans-serif",color:"#64748b"};
