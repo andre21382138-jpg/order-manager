@@ -641,15 +641,53 @@ export default function App() {
         {/* 공통 필터 */}
         {(tab==="조회"||tab==="결산") && (
           <>
+            {/* 쇼핑몰 선택 바 */}
+            <div style={{ background:"white", borderRadius:14, padding:"14px 20px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏪 쇼핑몰 선택</div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {/* 전체 버튼 */}
+                <button onClick={() => setFilter(f=>({...f, mallId:"", category:""}))} style={{
+                  display:"flex", flexDirection:"column", alignItems:"flex-start",
+                  padding:"10px 16px", borderRadius:12, cursor:"pointer",
+                  border: filter.mallId==="" ? "2px solid #1E293B" : "2px solid #E2E8F0",
+                  background: filter.mallId==="" ? "#1E293B12" : "white",
+                  minWidth:80,
+                }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:"#64748B" }} />
+                    <span style={{ fontSize:14, fontWeight:700, color: filter.mallId==="" ? "#1E293B" : "#64748B" }}>전체</span>
+                  </div>
+                  <span style={{ fontSize:11, color:"#94A3B8" }}>
+                    {orders.filter(o => o.date >= filter.from && o.date <= filter.to).length}건
+                  </span>
+                </button>
+                {/* 쇼핑몰별 버튼 */}
+                {malls.map(m => {
+                  const isActive = filter.mallId === m.id;
+                  const count = orders.filter(o => o.mallId === m.id && o.date >= filter.from && o.date <= filter.to).length;
+                  return (
+                    <button key={m.id} onClick={() => setFilter(f=>({...f, mallId: isActive ? "" : m.id, category:""}))} style={{
+                      display:"flex", flexDirection:"column", alignItems:"flex-start",
+                      padding:"10px 16px", borderRadius:12, cursor:"pointer",
+                      border: isActive ? `2px solid ${m.color}` : "2px solid #E2E8F0",
+                      background: isActive ? m.color+"12" : "white",
+                      transition:"all 0.15s", minWidth:80,
+                    }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background:m.color }} />
+                        <span style={{ fontSize:14, fontWeight:700, color: isActive ? m.color : "#1E293B" }}>{m.name}</span>
+                      </div>
+                      <span style={{ fontSize:11, color:"#94A3B8" }}>{count}건</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 기간 및 카테고리 필터 */}
             <div style={{...card,padding:"14px 20px",marginBottom:14,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
               <Field label="시작일"><input type="date" value={filter.from} onChange={e=>setFilter({...filter,from:e.target.value})} style={{...inp,width:130}} /></Field>
               <Field label="종료일"><input type="date" value={filter.to} onChange={e=>setFilter({...filter,to:e.target.value})} style={{...inp,width:130}} /></Field>
-              <Field label="쇼핑몰">
-                <select value={filter.mallId} onChange={e=>setFilter({...filter,mallId:e.target.value,category:""})} style={{...inp,width:120}}>
-                  <option value="">전체</option>
-                  {malls.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </Field>
               <Field label="카테고리">
                 <select value={filter.category} onChange={e=>setFilter({...filter,category:e.target.value})} style={{...inp,width:120}}>
                   <option value="">전체</option>
@@ -657,7 +695,11 @@ export default function App() {
                 </select>
               </Field>
               <div style={{ display:"flex",gap:6 }}>
-                {[["이번달",()=>{const n=new Date();setFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],["올해",()=>{setFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}]].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
+                {[
+                  ["이번달",()=>{const n=new Date();setFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],
+                  ["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],
+                  ["올해",()=>{setFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}],
+                ].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
               </div>
             </div>
             <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14 }}>
