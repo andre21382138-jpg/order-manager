@@ -1,25 +1,610 @@
-import logo from './logo.svg';
-import './App.css';
+import { useState, useEffect, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 
-function App() {
+const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const DEFAULT_CATEGORIES = ["상의","하의","아우터","신발","가방","액세서리","뷰티","식품","가전","기타"];
+
+const fmt = (n) => new Intl.NumberFormat("ko-KR").format(n) + "원";
+const today = () => new Date().toISOString().slice(0, 10);
+const pad = n => String(n).padStart(2,"0");
+const emptyItem = () => ({ id: Date.now() + Math.random(), category: "", productName: "", qty: "", amount: "" });
+
+function parseDate(val) {
+  if (!val && val !== 0) return today();
+  if (typeof val === "number") {
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d) return `${d.y}-${pad(d.m)}-${pad(d.d)}`;
+  }
+  const s = String(val).trim();
+  const m = s.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if (m) return `${m[1]}-${pad(Number(m[2]))}-${pad(Number(m[3]))}`;
+  return today();
+}
+
+function num(v) { return Number(String(v ?? "0").replace(/,/g, "")) || 0; }
+const norm = s => String(s ?? "").replace(/\s/g, "").toLowerCase();
+
+function parseWorkbook(wb, malls) {
+  const warnings = [];
+  const allOrders = [];
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  if (raw.length < 2) return { orders: [], warnings: ["데이터가 없습니다."] };
+
+  const headers = raw[0].map(h => String(h ?? "").trim());
+  warnings.push(`시트 "${sheetName}" 파싱 중 (${raw.length - 1}행)`);
+
+  const colIdx = {};
+  const candidates = {
+    date:       ["주문일시","날짜","주문날짜","orderdate","date"],
+    orderNo:    ["주문번호","주문no","주문id","ordernumber","orderid"],
+    product:    ["상품명","상품이름","productname","product","상품"],
+    qty:        ["수량","quantity","qty","개수"],
+    totalQty:   ["총수량","totalqty","total_qty"],
+    totalPrice: ["총상품가격","총상품가","상품가격","totalprice"],
+    payment:    ["결제금액","결제","payment","amount","금액"],
+    category:   ["카테고리","category","분류"],
+    mall:       ["쇼핑몰","몰","mall","shop","channel","판매채널"],
+    note:       ["메모","note","비고","memo"],
+  };
+  for (const [field, cands] of Object.entries(candidates)) {
+    const idx = headers.findIndex(h => cands.includes(norm(h)));
+    if (idx >= 0) colIdx[field] = idx;
+  }
+
+  const get = (row, field) => {
+    const i = colIdx[field];
+    return i !== undefined ? row[i] ?? "" : "";
+  };
+
+  const isFormatA = colIdx.date !== undefined && (() => {
+    for (let r = 2; r < Math.min(raw.length, 30); r++) {
+      if (!String(raw[r][colIdx.date] ?? "").trim() && String(raw[r][colIdx.product] ?? "").trim()) return true;
+    }
+    return false;
+  })();
+
+  const unknownMalls = new Set();
+  const findMall = (name) => {
+    const n = String(name ?? "").trim();
+    if (!n) return { id: "", name: "" };
+    const m = malls.find(m => m.name === n || m.name.includes(n) || n.includes(m.name));
+    if (!m) unknownMalls.add(n);
+    return { id: m?.id || "", name: n };
+  };
+
+  if (isFormatA) {
+    let currentOrder = null;
+    for (let r = 1; r < raw.length; r++) {
+      const row = raw[r];
+      const dateVal = get(row, "date");
+      const orderNoVal = String(get(row, "orderNo")).trim();
+      const productVal = String(get(row, "product")).trim();
+      if (!productVal) continue;
+      const isNewOrder = !!String(dateVal).trim() || !!orderNoVal;
+      if (isNewOrder) {
+        if (currentOrder) allOrders.push(currentOrder);
+        const dateStr = parseDate(dateVal);
+        const paymentAmt = num(get(row, "payment"));
+        const mallName = String(get(row, "mall") ?? "").trim();
+        const { id: mallId, name: mallNameResolved } = findMall(mallName);
+        currentOrder = {
+          date: dateStr, orderNo: orderNoVal || `R${r+1}`, mallId, mallName: mallNameResolved,
+          note: String(get(row, "note") ?? "").trim(), totalAmount: paymentAmt,
+          totalQty: num(get(row, "totalQty")) || num(get(row, "qty")),
+          items: [{ id: Date.now() + Math.random(), category: String(get(row, "category") ?? "").trim(), productName: productVal, qty: num(get(row, "qty")) || 1, amount: paymentAmt, _isFirst: true }],
+        };
+      } else if (currentOrder) {
+        if (currentOrder.items.length === 1 && currentOrder.items[0]._isFirst) currentOrder.items[0].amount = 0;
+        currentOrder.items.push({ id: Date.now() + Math.random(), category: String(get(row, "category") ?? "").trim(), productName: productVal, qty: num(get(row, "qty")) || 1, amount: 0, _isFirst: false });
+        if (!currentOrder.totalQty) currentOrder.totalQty += num(get(row, "qty"));
+      }
+    }
+    if (currentOrder) allOrders.push(currentOrder);
+  } else {
+    const orderMap = new Map();
+    for (let r = 1; r < raw.length; r++) {
+      const row = raw[r];
+      const productVal = String(get(row, "product")).trim();
+      if (!productVal) continue;
+      const dateStr = parseDate(get(row, "date"));
+      const orderNoVal = String(get(row, "orderNo")).trim() || `R${r+1}`;
+      const mallName = String(get(row, "mall") ?? "").trim();
+      const { id: mallId, name: mallNameResolved } = findMall(mallName);
+      const key = `${dateStr}__${orderNoVal}`;
+      if (!orderMap.has(key)) orderMap.set(key, { date: dateStr, orderNo: orderNoVal, mallId, mallName: mallNameResolved, note: String(get(row, "note") ?? "").trim(), totalAmount: num(get(row, "payment")), totalQty: 0, items: [] });
+      const order = orderMap.get(key);
+      const itemQty = num(get(row, "qty")) || 1;
+      order.items.push({ id: Date.now() + Math.random(), category: String(get(row, "category") ?? "").trim(), productName: productVal, qty: itemQty, amount: num(get(row, "payment")) });
+      order.totalQty += itemQty;
+    }
+    allOrders.push(...orderMap.values());
+  }
+
+  allOrders.forEach(o => {
+    o.items.forEach(it => { delete it._isFirst; });
+    if (!o.totalQty || o.totalQty === 0) o.totalQty = o.items.reduce((s, it) => s + it.qty, 0);
+    if (!isFormatA) o.totalAmount = o.items.reduce((s, it) => s + it.amount, 0);
+  });
+
+  if (unknownMalls.size > 0) warnings.push(`미등록 쇼핑몰: ${[...unknownMalls].join(", ")} — 앱에 먼저 추가하거나 업로드 후 연결하세요.`);
+  warnings.push(isFormatA ? `✅ 센스바디 형식으로 파싱했습니다. (주문단위 결제금액 적용)` : `✅ 일반 형식으로 파싱했습니다.`);
+  return { orders: allOrders, warnings };
+}
+
+export default function App() {
+  const [malls, setMalls] = useState([]);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [orders, setOrders] = useState([]);
+  const [tab, setTab] = useState("입력");
+  const [loaded, setLoaded] = useState(false);
+  const [form, setForm] = useState({ date: today(), mallId: "", orderNo: "", note: "" });
+  const [items, setItems] = useState([emptyItem()]);
+  const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), mallId: "", category: "" });
+  const [showMallModal, setShowMallModal] = useState(false);
+  const [newMall, setNewMall] = useState("");
+  const [showCatModal, setShowCatModal] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  const [showXlsxModal, setShowXlsxModal] = useState(false);
+  const [xlsxPreview, setXlsxPreview] = useState(null);
+  const [xlsxDragOver, setXlsxDragOver] = useState(false);
+  const [xlsxLoading, setXlsxLoading] = useState(false);
+  const [selectedSheet, setSelectedSheet] = useState("");
+  const [sheetNames, setSheetNames] = useState([]);
+  const [loadedWb, setLoadedWb] = useState(null);
+  const fileInputRef = useRef();
+
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem("malls");
+      const o = localStorage.getItem("orders");
+      const c = localStorage.getItem("categories");
+      if (m) setMalls(JSON.parse(m));
+      if (o) setOrders(JSON.parse(o));
+      if (c) setCategories(JSON.parse(c));
+    } catch (e) {}
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => { if (loaded) localStorage.setItem("malls", JSON.stringify(malls)); }, [malls, loaded]);
+  useEffect(() => { if (loaded) localStorage.setItem("orders", JSON.stringify(orders)); }, [orders, loaded]);
+  useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
+
+  function addMall() {
+    if (!newMall.trim()) return;
+    setMalls([...malls, { id: Date.now().toString(), name: newMall.trim(), color: COLORS[malls.length % COLORS.length] }]);
+    setNewMall(""); setShowMallModal(false);
+  }
+  function deleteMall(id) {
+    if (!window.confirm("쇼핑몰을 삭제하면 해당 주문도 모두 삭제됩니다.")) return;
+    setMalls(malls.filter(m => m.id !== id)); setOrders(orders.filter(o => o.mallId !== id));
+  }
+  function addCategory() {
+    if (!newCat.trim() || categories.includes(newCat.trim())) return;
+    setCategories([...categories, newCat.trim()]); setNewCat(""); setShowCatModal(false);
+  }
+  function deleteCategory(c) { setCategories(categories.filter(x => x !== c)); }
+  function updateItem(idx, field, value) { setItems(items.map((it, i) => i === idx ? { ...it, [field]: value } : it)); }
+  function addItem() { setItems([...items, emptyItem()]); }
+  function removeItem(idx) { if (items.length > 1) setItems(items.filter((_, i) => i !== idx)); }
+
+  function submitOrder(e) {
+    e.preventDefault();
+    if (!form.mallId || !form.orderNo) { alert("쇼핑몰과 주문번호를 입력해주세요."); return; }
+    const validItems = items.filter(it => it.productName && it.qty && it.amount);
+    if (validItems.length === 0) { alert("상품 정보를 최소 1개 이상 입력해주세요."); return; }
+    const parsed = validItems.map(it => ({ ...it, qty: Number(it.qty), amount: Number(it.amount) }));
+    setOrders([...orders, { ...form, id: Date.now().toString(), items: parsed, totalAmount: parsed.reduce((s,it)=>s+it.amount,0), totalQty: parsed.reduce((s,it)=>s+it.qty,0) }]);
+    setForm({ ...form, orderNo: "", note: "" }); setItems([emptyItem()]);
+  }
+
+  function deleteOrder(id) { setOrders(orders.filter(o => o.id !== id)); }
+  const getMall = (id) => malls.find(m => m.id === id);
+
+  function loadFile(file) {
+    setXlsxLoading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: "array", cellDates: false });
+        setLoadedWb(wb); setSheetNames(wb.SheetNames);
+        if (wb.SheetNames.length === 1) { parseSheet(wb, wb.SheetNames[0]); }
+        else { setSelectedSheet(wb.SheetNames[0]); setXlsxPreview(null); setXlsxLoading(false); }
+      } catch (err) { alert("파일 읽기 오류: " + err.message); setXlsxLoading(false); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function parseSheet(wb, sheet) {
+    setXlsxLoading(true);
+    try {
+      const wbCopy = { SheetNames: [sheet], Sheets: { [sheet]: wb.Sheets[sheet] } };
+      const { orders: parsed, warnings } = parseWorkbook(wbCopy, malls);
+      setXlsxPreview({ rows: parsed.map(o => ({ ...o, selected: true })), warnings });
+      setSelectedSheet(sheet);
+    } catch (err) { alert("파싱 오류: " + err.message); }
+    setXlsxLoading(false);
+  }
+
+  function handleFileDrop(e) {
+    e.preventDefault(); setXlsxDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) { setLoadedWb(null); setSheetNames([]); setXlsxPreview(null); loadFile(file); }
+  }
+
+  function toggleSelectRow(idx) { setXlsxPreview(prev => ({ ...prev, rows: prev.rows.map((r,i) => i===idx ? {...r,selected:!r.selected} : r) })); }
+  function toggleSelectAll() {
+    const all = xlsxPreview.rows.every(r => r.selected);
+    setXlsxPreview(prev => ({ ...prev, rows: prev.rows.map(r => ({...r,selected:!all})) }));
+  }
+
+  function importXlsx() {
+    const toImport = xlsxPreview.rows.filter(r => r.selected);
+    if (toImport.length === 0) { alert("가져올 주문을 선택해주세요."); return; }
+    const existingKeys = new Set(orders.map(o => `${o.date}__${o.orderNo}`));
+    const newOrders = toImport.filter(o => !existingKeys.has(`${o.date}__${o.orderNo}`)).map(o => ({ ...o, id: Date.now().toString() + Math.random() }));
+    const skipped = toImport.length - newOrders.length;
+    setOrders(prev => [...prev, ...newOrders]);
+    setXlsxPreview(null); setShowXlsxModal(false); setLoadedWb(null); setSheetNames([]);
+    alert(`✅ ${newOrders.length}건 가져오기 완료${skipped > 0 ? `\n(중복 ${skipped}건 건너뜀)` : ""}`);
+  }
+
+  const filtered = useMemo(() => orders.filter(o =>
+    o.date >= filter.from && o.date <= filter.to
+    && (!filter.mallId || o.mallId === filter.mallId)
+    && (!filter.category || o.items.some(it => it.category === filter.category))
+  ), [orders, filter]);
+
+  const stats = useMemo(() => {
+    let totalAmount=0, totalQty=0;
+    const byMall={}, byCategory={}, byDate={};
+    filtered.forEach(o => {
+      totalAmount+=o.totalAmount; totalQty+=o.totalQty;
+      if (!byMall[o.mallId]) byMall[o.mallId]={count:0,qty:0,amount:0};
+      byMall[o.mallId].count++; byMall[o.mallId].qty+=o.totalQty; byMall[o.mallId].amount+=o.totalAmount;
+      if (!byDate[o.date]) byDate[o.date]={count:0,qty:0,amount:0};
+      byDate[o.date].count++; byDate[o.date].qty+=o.totalQty; byDate[o.date].amount+=o.totalAmount;
+      o.items.forEach(it => {
+        const cat=it.category||"미분류";
+        if (!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0};
+        byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++;
+      });
+    });
+    return { totalAmount, totalQty, totalOrders:filtered.length, byMall, byCategory, byDate };
+  }, [filtered]);
+
+  const todayOrders = useMemo(() => orders.filter(o => o.date === form.date).sort((a,b) => b.id.localeCompare(a.id)), [orders, form.date]);
+
+  if (!loaded) return <div style={centerStyle}>로딩 중...</div>;
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div style={{ minHeight:"100vh", background:"#F0F4F8", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif" }}>
+      <div style={{ background:"#1E293B", color:"white", padding:"0 24px" }}>
+        <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", height:60 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:20, fontWeight:800 }}>🛒 주문관리</span>
+            <span style={{ fontSize:12, color:"#94A3B8" }}>멀티쇼핑몰 통합 대시보드</span>
+          </div>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {["입력","조회","결산"].map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ padding:"7px 20px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, background: tab===t ? "#3B82F6":"transparent", color: tab===t ? "white":"#94A3B8" }}>{t}</button>
+            ))}
+            <div style={{ width:1, height:20, background:"#334155", margin:"0 4px" }} />
+            <button onClick={() => { setXlsxPreview(null); setLoadedWb(null); setSheetNames([]); setShowXlsxModal(true); }} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:8, border:"1px solid #334155", background:"#0F172A", color:"#7DD3FC", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+              <span>📊</span> 엑셀 업로드
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px 16px" }}>
+        <div style={{ background:"white", borderRadius:14, padding:"12px 18px", marginBottom:18, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            <span style={labelStyle}>쇼핑몰</span>
+            {malls.map(m => <Chip key={m.id} label={m.name} color={m.color} onDelete={() => deleteMall(m.id)} />)}
+            <button onClick={() => setShowMallModal(true)} style={addChipBtn}>+ 추가</button>
+          </div>
+          <div style={{ width:1, background:"#E2E8F0", alignSelf:"stretch" }} />
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            <span style={labelStyle}>카테고리</span>
+            {categories.map(c => <Chip key={c} label={c} color="#64748B" onDelete={() => deleteCategory(c)} />)}
+            <button onClick={() => setShowCatModal(true)} style={addChipBtn}>+ 추가</button>
+          </div>
+        </div>
+
+        {tab === "입력" && (
+          <div style={{ display:"grid", gridTemplateColumns:"1.15fr 1fr", gap:18 }}>
+            <div style={card}>
+              <h2 style={cardTitle}>📦 주문 입력</h2>
+              <form onSubmit={submitOrder}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1.2fr", gap:10, marginBottom:14 }}>
+                  <Field label="날짜 *"><input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={inp} /></Field>
+                  <Field label="쇼핑몰 *">
+                    <select value={form.mallId} onChange={e=>setForm({...form,mallId:e.target.value})} style={inp}>
+                      <option value="">선택</option>
+                      {malls.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="주문번호 *"><input placeholder="예) 776904" value={form.orderNo} onChange={e=>setForm({...form,orderNo:e.target.value})} style={inp} /></Field>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:"#64748B" }}>상품 목록 *</span>
+                    <button type="button" onClick={addItem} style={addItemBtn}>+ 상품 추가</button>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"110px 1fr 68px 105px 26px", gap:6, marginBottom:5, paddingLeft:2 }}>
+                    {["카테고리","상품명","수량","결제금액",""].map((h,i)=><span key={i} style={{ fontSize:11, color:"#94A3B8", fontWeight:700 }}>{h}</span>)}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {items.map((it,idx)=>(
+                      <div key={it.id} style={{ display:"grid", gridTemplateColumns:"110px 1fr 68px 105px 26px", gap:6, alignItems:"center" }}>
+                        <select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} style={{...inp,fontSize:12}}>
+                          <option value="">카테고리</option>
+                          {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <input placeholder="상품명 *" value={it.productName} onChange={e=>updateItem(idx,"productName",e.target.value)} style={{...inp,fontSize:12}} />
+                        <input type="number" min="1" placeholder="수량" value={it.qty} onChange={e=>updateItem(idx,"qty",e.target.value)} style={{...inp,fontSize:12}} />
+                        <input type="number" min="0" placeholder="금액" value={it.amount} onChange={e=>updateItem(idx,"amount",e.target.value)} style={{...inp,fontSize:12}} />
+                        <button type="button" onClick={()=>removeItem(idx)} style={{ background:"none",border:"none",cursor:items.length===1?"not-allowed":"pointer",color:items.length===1?"#E2E8F0":"#EF4444",fontSize:17,padding:0,lineHeight:1 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  {items.some(it=>Number(it.amount)>0) && (
+                    <div style={{ marginTop:10,padding:"9px 12px",background:"#F1F5F9",borderRadius:8,display:"flex",justifyContent:"space-between",fontSize:13 }}>
+                      <span style={{ color:"#64748B" }}>상품 {items.filter(it=>it.productName).length}종 · 수량 {items.reduce((s,it)=>s+(Number(it.qty)||0),0)}개</span>
+                      <span style={{ fontWeight:800, color:"#1E293B" }}>합계 {fmt(items.reduce((s,it)=>s+(Number(it.amount)||0),0))}</span>
+                    </div>
+                  )}
+                </div>
+                <Field label="메모"><input placeholder="배송 메모, 옵션 등" value={form.note} onChange={e=>setForm({...form,note:e.target.value})} style={inp} /></Field>
+                <button type="submit" style={{ marginTop:14,width:"100%",padding:"13px",background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontSize:15,fontWeight:700,cursor:"pointer" }}>+ 주문 저장</button>
+              </form>
+            </div>
+            <div style={card}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                <h2 style={{...cardTitle,marginBottom:0}}>📋 오늘 주문 목록</h2>
+                <span style={{ fontSize:12, color:"#94A3B8" }}>{form.date}</span>
+              </div>
+              {todayOrders.length===0 ? <Empty text="오늘 등록된 주문이 없습니다" /> : <>
+                <div style={{ background:"#F1F5F9",borderRadius:10,padding:"9px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",fontSize:13 }}>
+                  <span style={{ color:"#64748B" }}>총 {todayOrders.length}건 · {todayOrders.reduce((s,o)=>s+o.totalQty,0)}개</span>
+                  <span style={{ fontWeight:700, color:"#1E293B" }}>{fmt(todayOrders.reduce((s,o)=>s+o.totalAmount,0))}</span>
+                </div>
+                <OrderList orders={todayOrders} expandedOrder={expandedOrder} setExpandedOrder={setExpandedOrder} getMall={getMall} deleteOrder={deleteOrder} fmt={fmt} />
+              </>}
+            </div>
+          </div>
+        )}
+
+        {(tab==="조회"||tab==="결산") && (
+          <>
+            <div style={{...card,padding:"14px 20px",marginBottom:14,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
+              <Field label="시작일"><input type="date" value={filter.from} onChange={e=>setFilter({...filter,from:e.target.value})} style={{...inp,width:130}} /></Field>
+              <Field label="종료일"><input type="date" value={filter.to} onChange={e=>setFilter({...filter,to:e.target.value})} style={{...inp,width:130}} /></Field>
+              <Field label="쇼핑몰">
+                <select value={filter.mallId} onChange={e=>setFilter({...filter,mallId:e.target.value})} style={{...inp,width:120}}>
+                  <option value="">전체</option>
+                  {malls.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </Field>
+              <Field label="카테고리">
+                <select value={filter.category} onChange={e=>setFilter({...filter,category:e.target.value})} style={{...inp,width:120}}>
+                  <option value="">전체</option>
+                  {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+              <div style={{ display:"flex",gap:6 }}>
+                {[["이번달",()=>{const n=new Date();setFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],["올해",()=>{setFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}]].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
+              </div>
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14 }}>
+              {[{label:"총 매출",val:fmt(stats.totalAmount),icon:"💰",color:"#3B82F6"},{label:"주문 수",val:`${stats.totalOrders}건`,icon:"📦",color:"#10B981"},{label:"총 수량",val:`${stats.totalQty}개`,icon:"📊",color:"#F59E0B"},{label:"주문당 평균",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#8B5CF6"}].map(k=>(
+                <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
+                  <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
+                  <div style={{fontSize:20,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {tab==="조회" && (
+          <div style={card}>
+            <h2 style={{...cardTitle,marginBottom:14}}>주문 목록 ({filtered.length}건)</h2>
+            {filtered.length===0 ? <Empty text="해당 기간에 주문이 없습니다" /> :
+              <OrderList orders={[...filtered].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id))} expandedOrder={expandedOrder} setExpandedOrder={setExpandedOrder} getMall={getMall} deleteOrder={deleteOrder} fmt={fmt} showDate />}
+          </div>
+        )}
+
+        {tab==="결산" && (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
+            <div style={card}>
+              <h2 style={{...cardTitle,marginBottom:14}}>🏪 쇼핑몰별 결산</h2>
+              {malls.length===0 ? <Empty text="쇼핑몰이 없습니다" /> :
+                malls.map(m=>{const s=stats.byMall[m.id]||{count:0,qty:0,amount:0};const pct=stats.totalAmount>0?(s.amount/stats.totalAmount*100).toFixed(1):0;return(
+                  <div key={m.id} style={{padding:"12px 14px",borderRadius:12,background:"#F8FAFC",border:"1px solid #F1F5F9",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontWeight:700,color:m.color,fontSize:14}}>{m.name}</span><span style={{fontWeight:800,fontSize:15,color:"#1E293B"}}>{fmt(s.amount)}</span></div>
+                    <div style={{height:5,background:"#E2E8F0",borderRadius:3,marginBottom:6}}><div style={{height:"100%",width:`${pct}%`,background:m.color,borderRadius:3}}/></div>
+                    <div style={{display:"flex",gap:10,fontSize:12,color:"#64748B"}}><span>주문 {s.count}건</span><span>수량 {s.qty}개</span><span style={{color:m.color,fontWeight:700}}>{pct}%</span></div>
+                  </div>
+                );})}
+            </div>
+            <div style={card}>
+              <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 카테고리별 결산</h2>
+              {Object.keys(stats.byCategory).length===0 ? <Empty text="데이터가 없습니다" /> :
+                Object.entries(stats.byCategory).sort((a,b)=>b[1].amount-a[1].amount).map(([cat,s])=>{const pct=stats.totalAmount>0?(s.amount/stats.totalAmount*100).toFixed(1):0;return(
+                  <div key={cat} style={{padding:"12px 14px",borderRadius:12,background:"#F8FAFC",border:"1px solid #F1F5F9",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontWeight:700,color:"#475569",fontSize:14}}>{cat}</span><span style={{fontWeight:800,fontSize:15,color:"#1E293B"}}>{fmt(s.amount)}</span></div>
+                    <div style={{height:5,background:"#E2E8F0",borderRadius:3,marginBottom:6}}><div style={{height:"100%",width:`${pct}%`,background:"#8B5CF6",borderRadius:3}}/></div>
+                    <div style={{display:"flex",gap:10,fontSize:12,color:"#64748B"}}><span>상품 {s.count}건</span><span>수량 {s.qty}개</span><span style={{color:"#8B5CF6",fontWeight:700}}>{pct}%</span></div>
+                  </div>
+                );})}
+            </div>
+            <div style={card}>
+              <h2 style={{...cardTitle,marginBottom:14}}>📅 일별 결산</h2>
+              {Object.keys(stats.byDate).length===0 ? <Empty text="데이터가 없습니다" /> :
+                <div style={{overflowY:"auto",maxHeight:520}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead><tr style={{borderBottom:"2px solid #F1F5F9"}}>{["날짜","주문","수량","매출"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:h==="날짜"?"left":"right",color:"#94A3B8",fontWeight:700,fontSize:12}}>{h}</th>)}</tr></thead>
+                    <tbody>{Object.entries(stats.byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,s])=><tr key={date} style={{borderBottom:"1px solid #F8FAFC"}}><td style={{padding:"8px",fontWeight:600,color:"#475569"}}>{date}</td><td style={{padding:"8px",textAlign:"right",color:"#64748B"}}>{s.count}건</td><td style={{padding:"8px",textAlign:"right",color:"#64748B"}}>{s.qty}개</td><td style={{padding:"8px",textAlign:"right",fontWeight:700,color:"#1E293B"}}>{fmt(s.amount)}</td></tr>)}</tbody>
+                    <tfoot><tr style={{borderTop:"2px solid #F1F5F9",background:"#F8FAFC"}}><td style={{padding:"8px",fontWeight:800}}>합계</td><td style={{padding:"8px",textAlign:"right",fontWeight:800}}>{stats.totalOrders}건</td><td style={{padding:"8px",textAlign:"right",fontWeight:800}}>{stats.totalQty}개</td><td style={{padding:"8px",textAlign:"right",fontWeight:800,color:"#3B82F6"}}>{fmt(stats.totalAmount)}</td></tr></tfoot>
+                  </table>
+                </div>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showXlsxModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={()=>{if(!xlsxPreview&&!xlsxLoading)setShowXlsxModal(false);}}>
+          <div style={{background:"white",borderRadius:20,width:"min(960px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 25px 80px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{padding:"20px 24px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <h2 style={{margin:0,fontSize:18,fontWeight:800,color:"#1E293B"}}>📊 엑셀 파일 업로드</h2>
+                <p style={{margin:"3px 0 0",fontSize:13,color:"#94A3B8"}}>{xlsxPreview?`"${selectedSheet}" 시트 · ${xlsxPreview.rows.length}건 파싱 완료`:sheetNames.length>1?"파싱할 시트를 선택하세요":".xlsx, .xls 파일을 업로드하세요"}</p>
+              </div>
+              <button onClick={()=>setShowXlsxModal(false)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#94A3B8",lineHeight:1}}>✕</button>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+              {!loadedWb && !xlsxPreview && (
+                <>
+                  <div onDragOver={e=>{e.preventDefault();setXlsxDragOver(true);}} onDragLeave={()=>setXlsxDragOver(false)} onDrop={handleFileDrop} onClick={()=>fileInputRef.current.click()}
+                    style={{border:`2px dashed ${xlsxDragOver?"#3B82F6":"#CBD5E1"}`,borderRadius:16,padding:"48px 24px",textAlign:"center",cursor:"pointer",background:xlsxDragOver?"#EFF6FF":"#F8FAFC",marginBottom:20}}>
+                    {xlsxLoading ? <div style={{fontSize:14,color:"#64748B"}}>⏳ 파일 읽는 중...</div> : <><div style={{fontSize:40,marginBottom:12}}>📂</div><div style={{fontSize:15,fontWeight:700,color:"#1E293B",marginBottom:6}}>파일을 드래그하거나 클릭해서 선택</div><div style={{fontSize:13,color:"#94A3B8"}}>.xlsx, .xls 파일 지원 · 여러 시트 선택 가능</div></>}
+                    <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{if(e.target.files[0]){setLoadedWb(null);setSheetNames([]);setXlsxPreview(null);loadFile(e.target.files[0]);}}} />
+                  </div>
+                  <div style={{background:"#EFF6FF",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#1E40AF",border:"1px solid #BFDBFE"}}>
+                    💡 <strong>센스바디 형식 자동 지원:</strong> 주문번호가 빈 연속 행(다상품 주문)을 자동으로 하나의 주문으로 합산합니다. 여러 시트가 있으면 원하는 시트를 선택할 수 있습니다.
+                  </div>
+                </>
+              )}
+              {loadedWb && sheetNames.length > 1 && !xlsxPreview && (
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:"#1E293B",marginBottom:14}}>파일에서 {sheetNames.length}개 시트를 발견했습니다. 가져올 시트를 선택하세요.</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                    {sheetNames.map(name=>(
+                      <button key={name} onClick={()=>parseSheet(loadedWb,name)} style={{padding:"14px 16px",borderRadius:12,border:`2px solid ${selectedSheet===name?"#3B82F6":"#E2E8F0"}`,background:selectedSheet===name?"#EFF6FF":"white",cursor:"pointer",textAlign:"left",fontWeight:700,fontSize:14,color:selectedSheet===name?"#1D4ED8":"#1E293B"}}>
+                        📋 {name}
+                      </button>
+                    ))}
+                  </div>
+                  {xlsxLoading && <div style={{marginTop:16,textAlign:"center",color:"#64748B",fontSize:14}}>⏳ 파싱 중...</div>}
+                </div>
+              )}
+              {xlsxPreview && (
+                <>
+                  {xlsxPreview.warnings.length > 0 && (
+                    <div style={{marginBottom:14,display:"flex",flexDirection:"column",gap:6}}>
+                      {xlsxPreview.warnings.map((w,i)=>(
+                        <div key={i} style={{padding:"10px 14px",borderRadius:10,fontSize:12,background:w.startsWith("✅")?"#F0FDF4":w.startsWith("💡")?"#EFF6FF":"#FFFBEB",border:w.startsWith("✅")?"1px solid #BBF7D0":w.startsWith("💡")?"1px solid #BFDBFE":"1px solid #FCD34D",color:w.startsWith("✅")?"#166534":w.startsWith("💡")?"#1E40AF":"#78350F"}}>{w}</div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <input type="checkbox" checked={xlsxPreview.rows.every(r=>r.selected)} onChange={toggleSelectAll} style={{width:15,height:15,cursor:"pointer"}} />
+                      <span style={{fontSize:13,fontWeight:600,color:"#475569"}}>전체 선택 ({xlsxPreview.rows.filter(r=>r.selected).length}/{xlsxPreview.rows.length}건)</span>
+                    </div>
+                    <button onClick={()=>setXlsxPreview(null)} style={{fontSize:12,color:"#64748B",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>{sheetNames.length>1?"다른 시트 선택":"다른 파일 선택"}</button>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:420,overflowY:"auto"}}>
+                    {xlsxPreview.rows.map((o,idx)=>{
+                      const mall=malls.find(m=>m.id===o.mallId);
+                      return (
+                        <div key={idx} onClick={()=>toggleSelectRow(idx)} style={{padding:"10px 14px",borderRadius:11,border:`1.5px solid ${o.selected?"#BFDBFE":"#E2E8F0"}`,background:o.selected?"#F0F7FF":"white",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
+                          <input type="checkbox" checked={o.selected} onChange={()=>toggleSelectRow(idx)} onClick={e=>e.stopPropagation()} style={{width:15,height:15,cursor:"pointer",flexShrink:0}} />
+                          <span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.date}</span>
+                          {mall ? <span style={{padding:"2px 8px",borderRadius:10,background:mall.color+"20",color:mall.color,fontWeight:700,fontSize:11,whiteSpace:"nowrap",flexShrink:0}}>{mall.name}</span>
+                            : o.mallName ? <span style={{padding:"2px 8px",borderRadius:10,background:"#FEF2F2",color:"#EF4444",fontWeight:700,fontSize:11,whiteSpace:"nowrap",flexShrink:0}}>{o.mallName} ⚠️미연결</span> : null}
+                          <span style={{fontSize:11,color:"#94A3B8",fontFamily:"monospace",flexShrink:0}}>{o.orderNo}</span>
+                          <span style={{fontSize:13,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.items.slice(0,2).map(it=>it.productName).join(", ")}{o.items.length>2&&` 외 ${o.items.length-2}종`}</span>
+                          <span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.items.length}종 {o.totalQty}개</span>
+                          <span style={{fontSize:14,fontWeight:800,color:"#1E293B",whiteSpace:"nowrap",flexShrink:0}}>{fmt(o.totalAmount)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+            <div style={{padding:"16px 24px",borderTop:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:12,color:"#94A3B8"}}>{xlsxPreview&&`총 ${fmt(xlsxPreview.rows.filter(r=>r.selected).reduce((s,o)=>s+o.totalAmount,0))} · ${xlsxPreview.rows.filter(r=>r.selected).reduce((s,o)=>s+o.totalQty,0)}개 선택됨`}</div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setShowXlsxModal(false)} style={secondaryBtn}>닫기</button>
+                {xlsxPreview && <button onClick={importXlsx} style={{...primaryBtn,padding:"10px 28px",fontSize:14}}>✅ {xlsxPreview.rows.filter(r=>r.selected).length}건 가져오기</button>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMallModal && (<Modal title="쇼핑몰 추가" onClose={()=>setShowMallModal(false)}>
+        <input autoFocus value={newMall} onChange={e=>setNewMall(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addMall()} placeholder="예) 스마트스토어, 쿠팡" style={{...inp,marginBottom:14}} />
+        <div style={{display:"flex",gap:8}}><button onClick={addMall} style={primaryBtn}>추가</button><button onClick={()=>setShowMallModal(false)} style={secondaryBtn}>취소</button></div>
+      </Modal>)}
+      {showCatModal && (<Modal title="카테고리 추가" onClose={()=>setShowCatModal(false)}>
+        <input autoFocus value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCategory()} placeholder="예) 스포츠, 홈리빙" style={{...inp,marginBottom:14}} />
+        <div style={{display:"flex",gap:8}}><button onClick={addCategory} style={primaryBtn}>추가</button><button onClick={()=>setShowCatModal(false)} style={secondaryBtn}>취소</button></div>
+      </Modal>)}
     </div>
   );
 }
 
-export default App;
+function OrderList({ orders, expandedOrder, setExpandedOrder, getMall, deleteOrder, fmt, showDate }) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:7,maxHeight:showDate?undefined:490,overflowY:showDate?undefined:"auto"}}>
+      {orders.map(o=>{
+        const mall=getMall(o.mallId); const isExp=expandedOrder===o.id;
+        const hasMultiItems=o.items.length>1;
+        const isOrderLevelAmount=o.items.length>1&&o.items.every(it=>it.amount===0);
+        return (
+          <div key={o.id} style={{border:"1px solid #F1F5F9",borderRadius:12,overflow:"hidden"}}>
+            <div onClick={()=>setExpandedOrder(isExp?null:o.id)} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",background:isExp?"#F8FAFC":"white"}}>
+              {showDate&&<span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.date}</span>}
+              {mall&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:mall.color+"20",color:mall.color,fontWeight:700,flexShrink:0}}>{mall.name}</span>}
+              {!o.mallId&&o.mallName&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"#FEF2F2",color:"#EF4444",fontWeight:700,flexShrink:0}}>{o.mallName}</span>}
+              <span style={{fontSize:12,color:"#94A3B8",fontFamily:"monospace",flexShrink:0}}>{o.orderNo}</span>
+              <span style={{fontSize:13,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.items.slice(0,2).map(it=>it.productName).join(", ")}{o.items.length>2&&` 외 ${o.items.length-2}종`}</span>
+              {hasMultiItems&&<span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.items.length}종</span>}
+              <span style={{fontSize:14,fontWeight:800,color:"#1E293B",whiteSpace:"nowrap",flexShrink:0}}>{fmt(o.totalAmount)}</span>
+              <div style={{display:"flex",gap:8,flexShrink:0}}>
+                <span onClick={ev=>{ev.stopPropagation();deleteOrder(o.id);}} style={{fontSize:11,color:"#EF4444",cursor:"pointer"}}>삭제</span>
+                {hasMultiItems&&<span style={{fontSize:11,color:"#94A3B8"}}>{isExp?"▲":"▼"}</span>}
+              </div>
+            </div>
+            {isExp&&hasMultiItems&&(
+              <div style={{background:"#F8FAFC",borderTop:"1px solid #F1F5F9",padding:"10px 14px"}}>
+                {isOrderLevelAmount&&<div style={{fontSize:11,color:"#64748B",marginBottom:8,padding:"5px 10px",background:"#F1F5F9",borderRadius:6}}>ℹ️ 이 주문은 상품별 금액이 없으며, 결제금액({fmt(o.totalAmount)})은 주문 전체 합계입니다.</div>}
+                {o.items.map((it,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:13,borderBottom:i<o.items.length-1?"1px solid #F1F5F9":"none",alignItems:"center"}}>
+                    <span>{it.category&&<span style={{fontSize:11,background:"#E2E8F0",color:"#475569",padding:"1px 6px",borderRadius:5,marginRight:5,fontWeight:600}}>{it.category}</span>}{it.productName}</span>
+                    <span style={{color:"#64748B",whiteSpace:"nowrap"}}>×{it.qty}{!isOrderLevelAmount&&<strong style={{color:"#1E293B",marginLeft:6}}>{fmt(it.amount)}</strong>}</span>
+                  </div>
+                ))}
+                {o.note&&<div style={{marginTop:6,fontSize:12,color:"#94A3B8"}}>📝 {o.note}</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Chip({label,color,onDelete}){return <span style={{display:"flex",alignItems:"center",gap:5,background:color+"20",border:`1px solid ${color}40`,color,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700}}>{label}<span onClick={onDelete} style={{cursor:"pointer",opacity:0.6,fontSize:11}}>✕</span></span>;}
+function Modal({title,children,onClose}){return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}><div style={{background:"white",borderRadius:16,padding:28,width:320,boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}><h3 style={{margin:"0 0 16px",fontSize:16,fontWeight:700,color:"#1E293B"}}>{title}</h3>{children}</div></div>;}
+function Field({label,children}){return <div style={{display:"flex",flexDirection:"column",gap:4}}><label style={{fontSize:11,fontWeight:700,color:"#64748B"}}>{label}</label>{children}</div>;}
+function Empty({text}){return <div style={{textAlign:"center",color:"#CBD5E1",padding:"40px 0",fontSize:14}}>{text}</div>;}
+
+const card={background:"white",borderRadius:16,padding:22,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"};
+const cardTitle={margin:"0 0 16px",fontSize:15,fontWeight:700,color:"#1E293B"};
+const inp={padding:"8px 10px",borderRadius:8,border:"1px solid #E2E8F0",fontSize:13,outline:"none",background:"#F8FAFC",color:"#1E293B",width:"100%",boxSizing:"border-box"};
+const addChipBtn={padding:"3px 10px",borderRadius:20,border:"1px dashed #CBD5E1",background:"transparent",cursor:"pointer",fontSize:12,color:"#64748B",fontWeight:600};
+const addItemBtn={padding:"4px 12px",borderRadius:8,border:"1px solid #BFDBFE",background:"#EFF6FF",color:"#3B82F6",cursor:"pointer",fontSize:12,fontWeight:700};
+const quickBtn={padding:"7px 12px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",fontSize:13,cursor:"pointer",fontWeight:600,color:"#475569"};
+const primaryBtn={padding:"10px 20px",background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13};
+const secondaryBtn={padding:"10px 20px",background:"#F1F5F9",color:"#64748B",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13};
+const labelStyle={fontSize:12,color:"#64748B",fontWeight:700,whiteSpace:"nowrap"};
+const centerStyle={display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"sans-serif",color:"#64748b"};
