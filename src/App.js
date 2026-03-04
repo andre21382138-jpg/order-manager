@@ -366,6 +366,7 @@ export default function App() {
   const [activeBrandId, setActiveBrandId] = useState("");
   const [activeMallType, setActiveMallType] = useState("");
   const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "" });
+  const [pendingFilter, setPendingFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "" });
 
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
@@ -1053,30 +1054,31 @@ export default function App() {
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:"#64748B" }} /><span style={{ fontSize:14, fontWeight:700, color:filter.brandId===""?"#1E293B":"#64748B" }}>전체</span></div>
                   <span style={{ fontSize:11, color:"#94A3B8" }}>{orders.filter(o=>o.date>=filter.from&&o.date<=filter.to).length}건</span>
                 </button>
-                {brands.map(b => { const isActive=filter.brandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date>=filter.from&&o.date<=filter.to).length; return (
-                  <button key={b.id} onClick={()=>setFilter(f=>({...f,brandId:isActive?"":b.id,mallType:"",category:""}))} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:isActive?`2px solid ${b.color}`:"2px solid #E2E8F0", background:isActive?b.color+"12":"white" }}>
+                {brands.map(b => { const isActive=pendingFilter.brandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date>=filter.from&&o.date<=filter.to).length; return (
+                  <button key={b.id} onClick={()=>setPendingFilter(f=>({...f,brandId:isActive?"":b.id,mallType:"",category:""}))} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:isActive?`2px solid ${b.color}`:"2px solid #E2E8F0", background:isActive?b.color+"12":"white" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:b.color }} /><span style={{ fontSize:14, fontWeight:700, color:isActive?b.color:"#1E293B" }}>{b.name}</span></div>
                     <span style={{ fontSize:11, color:"#94A3B8" }}>{cnt}건</span>
                   </button>
                 ); })}
               </div>
-              {filter.brandId && (
+              {pendingFilter.brandId && (
                 <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #F1F5F9" }}>
                   <div style={{ fontSize:11, fontWeight:700, color:"#94A3B8", marginBottom:8 }}>쇼핑몰 유형</div>
                   <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={()=>setFilter(f=>({...f,mallType:""}))} style={{ padding:"6px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:filter.mallType===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.mallType===""?"#1E293B":"white", color:filter.mallType===""?"white":"#64748B" }}>전체 합산</button>
-                    {MALL_TYPES.map(t => { const isActive=filter.mallType===t; const cnt=orders.filter(o=>o.brandId===filter.brandId&&o.mallType===t&&o.date>=filter.from&&o.date<=filter.to).length; return <button key={t} onClick={()=>setFilter(f=>({...f,mallType:isActive?"":t}))} style={{ padding:"6px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:isActive?`2px solid ${MALL_TYPE_COLORS[t]}`:"2px solid #E2E8F0", background:isActive?MALL_TYPE_COLORS[t]:"white", color:isActive?"white":"#64748B" }}>{t==="자사몰"?"🏪":"🛍️"} {t} ({cnt}건)</button>; })}
+                    <button onClick={()=>setPendingFilter(f=>({...f,mallType:""}))} style={{ padding:"6px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:pendingFilter.mallType===""?"2px solid #1E293B":"2px solid #E2E8F0", background:pendingFilter.mallType===""?"#1E293B":"white", color:pendingFilter.mallType===""?"white":"#64748B" }}>전체 합산</button>
+                    {MALL_TYPES.map(t => { const isActive=pendingFilter.mallType===t; const cnt=orders.filter(o=>o.brandId===pendingFilter.brandId&&o.mallType===t&&o.date>=filter.from&&o.date<=filter.to).length; return <button key={t} onClick={()=>setPendingFilter(f=>({...f,mallType:isActive?"":t}))} style={{ padding:"6px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:isActive?`2px solid ${MALL_TYPE_COLORS[t]}`:"2px solid #E2E8F0", background:isActive?MALL_TYPE_COLORS[t]:"white", color:isActive?"white":"#64748B" }}>{t==="자사몰"?"🏪":"🛍️"} {t} ({cnt}건)</button>; })}
                   </div>
                 </div>
               )}
             </div>
 
             <div style={{...card,padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-              <Field label="시작일"><input type="date" value={filter.from} onChange={e=>setFilter({...filter,from:e.target.value})} style={{...inp,width:130}} /></Field>
-              <Field label="종료일"><input type="date" value={filter.to} onChange={e=>setFilter({...filter,to:e.target.value})} style={{...inp,width:130}} /></Field>
-              <Field label="카테고리"><select value={filter.category} onChange={e=>setFilter({...filter,category:e.target.value})} style={{...inp,width:120}}><option value="">전체</option>{filterCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></Field>
-              <div style={{ display:"flex",gap:6 }}>
-                {[["이번달",()=>{const n=new Date();setFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],["올해",()=>{setFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}]].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
+              <Field label="시작일"><input type="date" value={pendingFilter.from} onChange={e=>setPendingFilter(f=>({...f,from:e.target.value}))} style={{...inp,width:130}} /></Field>
+              <Field label="종료일"><input type="date" value={pendingFilter.to} onChange={e=>setPendingFilter(f=>({...f,to:e.target.value}))} style={{...inp,width:130}} /></Field>
+              <Field label="카테고리"><select value={pendingFilter.category} onChange={e=>setPendingFilter(f=>({...f,category:e.target.value}))} style={{...inp,width:120}}><option value="">전체</option>{filterCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></Field>
+              <div style={{ display:"flex",gap:6,alignItems:"flex-end" }}>
+                {[["이번달",()=>{const n=new Date();setPendingFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setPendingFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],["올해",()=>{setPendingFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}]].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
+                <button onClick={()=>setFilter({...pendingFilter})} style={{ padding:"8px 20px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontWeight:700, fontSize:14, cursor:"pointer" }}>🔍 조회</button>
               </div>
             </div>
 
