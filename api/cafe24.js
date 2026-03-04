@@ -4,7 +4,7 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
-  const { action, mall_id, code, access_token, start_date, end_date, product_no, category_no } = req.query;
+  const { action, mall_id, code, access_token, start_date, end_date } = req.query;
 
   const CLIENT_ID = process.env.CAFE24_CLIENT_ID;
   const CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
@@ -38,7 +38,32 @@ module.exports = async (req, res) => {
     }
   }
 
-  // 전체 주문 가져오기 (페이지네이션)
+  // 디버그: 실제 API 응답 확인
+  else if (action === "debug_orders") {
+    try {
+      const headers = {
+        "Authorization": `Bearer ${access_token}`,
+        "Content-Type": "application/json",
+        "X-Cafe24-Api-Version": "2025-12-01"
+      };
+      // since_order_date / until_order_date 형식으로도 시도
+      const url1 = `https://${mall_id}.cafe24api.com/api/v2/admin/orders?since_order_date=${start_date}T00:00:00+09:00&until_order_date=${end_date}T23:59:59+09:00&limit=5`;
+      const r1 = await fetch(url1, { headers });
+      const d1 = await r1.json();
+
+      const url2 = `https://${mall_id}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=5`;
+      const r2 = await fetch(url2, { headers });
+      const d2 = await r2.json();
+
+      res.status(200).json({ 
+        since_format: { url: url1, result: d1 },
+        start_format: { url: url2, result: d2 }
+      });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+
   else if (action === "orders") {
     try {
       const headers = {
@@ -47,15 +72,13 @@ module.exports = async (req, res) => {
         "X-Cafe24-Api-Version": "2025-12-01"
       };
 
-      // 전체 주문 수 먼저 확인
       const countRes = await fetch(
-        `https://${mall_id}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=1&embed=items`,
+        `https://${mall_id}.cafe24api.com/api/v2/admin/orders?since_order_date=${start_date}T00:00:00+09:00&until_order_date=${end_date}T23:59:59+09:00&limit=1&embed=items`,
         { headers }
       );
       const countData = await countRes.json();
       const total = countData.pagination?.total_count || 0;
 
-      // 페이지네이션으로 전체 수집
       const allOrders = [];
       const pageSize = 100;
       const totalPages = Math.ceil(total / pageSize);
@@ -63,7 +86,7 @@ module.exports = async (req, res) => {
       for (let page = 1; page <= totalPages; page++) {
         const offset = (page - 1) * pageSize;
         const r = await fetch(
-          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=${pageSize}&offset=${offset}&embed=items`,
+          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?since_order_date=${start_date}T00:00:00+09:00&until_order_date=${end_date}T23:59:59+09:00&limit=${pageSize}&offset=${offset}&embed=items`,
           { headers }
         );
         const d = await r.json();
