@@ -373,6 +373,14 @@ export default function App() {
   const [xlsxMallType, setXlsxMallType] = useState("");
   const fileInputRef = useRef();
 
+  // 카페24 연동
+  const [cafe24Tokens, setCafe24Tokens] = useState({});
+  const [showCafe24Modal, setShowCafe24Modal] = useState(false);
+  const [cafe24Brand, setCafe24Brand] = useState(null);
+  const [cafe24MallId, setCafe24MallId] = useState("");
+  const [cafe24Syncing, setCafe24Syncing] = useState(false);
+  const [cafe24SyncResult, setCafe24SyncResult] = useState("");
+
   // ── 세션 체크 ────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -621,6 +629,105 @@ export default function App() {
   }
 
   function addCategory() { if(!newCat.trim()||categories.includes(newCat.trim()))return; setCategories([...categories,newCat.trim()]); setNewCat(""); setShowCatModal(false); }
+
+  // ── 카페24 연동 ──────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return;
+    async function loadTokens() {
+      const { data } = await supabase.from("cafe24_tokens").select("*");
+      if (data) {
+        const map = {};
+        data.forEach(t => { map[t.brand_id] = t; });
+        setCafe24Tokens(map);
+      }
+    }
+    loadTokens();
+  }, [session]);
+
+  // 카페24 로그인 팝업 열기
+  function openCafe24Auth(brand, mallId) {
+    const clientId = process.env.REACT_APP_CAFE24_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/cafe24`);
+    const scope = "mall.read_order,mall.write_order,mall.read_analytics";
+    const url = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&state=${brand.id}&redirect_uri=${redirectUri}&scope=${scope}`;
+    const popup = window.open(url, "cafe24auth", "width=600,height=700");
+
+    // 팝업에서 code 받기
+    const timer = setInterval(() => {
+      try {
+        if (popup.closed) { clearInterval(timer); return; }
+        const popupUrl = popup.location.href;
+        if (popupUrl.includes("code=")) {
+          const code = new URL(popupUrl).searchParams.get("code");
+          clearInterval(timer);
+          popup.close();
+          fetchCafe24Token(brand, mallId, code);
+        }
+      } catch(e) {}
+    }, 500);
+  }
+
+  // Access Token 발급
+  async function fetchCafe24Token(brand, mallId, code) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/cafe24?action=token&mall_id=${mallId}&code=${code}`);
+      const data = await res.json();
+      if (data.access_token) {
+        const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
+        await supabase.from("cafe24_tokens").upsert({
+          brand_id: brand.id, mall_id: mallId,
+          access_token: data.access_token, refresh_token: data.refresh_token, expires_at: expiresAt
+        }, { onConflict: "brand_id" });
+        setCafe24Tokens(prev => ({ ...prev, [brand.id]: { brand_id: brand.id, mall_id: mallId, access_token: data.access_token, refresh_token: data.refresh_token } }));
+        alert(`✅ ${brand.name} 카페24 연동 완료!`);
+      } else {
+        alert("토큰 발급 실패: " + JSON.stringify(data));
+      }
+    } catch(e) { alert("연동 오류: " + e.message); }
+    setSaving(false);
+  }
+
+  // 주문 동기화
+  async function syncCafe24Orders(brand, days = 7) {
+    const token = cafe24Tokens[brand.id];
+    if (!token) { alert("먼저 카페24 연동을 해주세요."); return; }
+    setCafe24Syncing(true); setCafe24SyncResult("");
+    try {
+      const endDate = today();
+      const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${startDate}&end_date=${endDate}`);
+      const data = await res.json();
+      if (!data.orders) { setCafe24SyncResult("❌ 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
+
+      let successCount = 0, skipped = 0;
+      for (const o of data.orders) {
+        const orderNo = o.order_id;
+        const orderDate = o.order_date?.slice(0, 10) || today();
+        const { data: exist } = await supabase.from("orders").select("id").eq("order_no", orderNo).eq("brand_id", brand.id);
+        if (exist && exist.length > 0) { skipped++; continue; }
+
+        const totalAmount = Number(o.actual_payment_amount || o.payment_amount || 0);
+        const items = (o.items || []).map(it => ({ product_name: it.product_name || "상품", category: "", qty: Number(it.quantity) || 1, amount: Number(it.product_price) || 0 }));
+        const totalQty = items.reduce((s, it) => s + it.qty, 0);
+
+        const { data: orderData, error: oErr } = await supabase.from("orders")
+          .insert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, total_qty: totalQty || 1, note: "카페24 자동수집" })
+          .select().single();
+        if (oErr) { skipped++; continue; }
+
+        if (items.length > 0) {
+          await supabase.from("order_items").insert(items.map(it => ({ order_id: orderData.id, ...it })));
+        } else {
+          await supabase.from("order_items").insert({ order_id: orderData.id, product_name: "상품", category: "", qty: 1, amount: totalAmount });
+        }
+        setOrders(prev => [{ id: orderData.id, brandId: brand.id, mallType: "자사몰", orderNo, date: orderDate, totalAmount, totalQty: totalQty||1, note: "카페24 자동수집", items: items.length>0?items:[{productName:"상품",category:"",qty:1,amount:totalAmount}] }, ...prev]);
+        successCount++;
+      }
+      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}`);
+    } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
+    setCafe24Syncing(false);
+  }
   function updateItem(idx,field,value) { setItems(items.map((it,i)=>i===idx?{...it,[field]:value}:it)); }
   function addItem() { setItems([...items,emptyItem()]); }
   function removeItem(idx) { if(items.length>1) setItems(items.filter((_,i)=>i!==idx)); }
@@ -742,7 +849,9 @@ export default function App() {
                 <span style={{ display:"flex", alignItems:"center", gap:5, background:b.color+"18", border:`1px solid ${b.color}40`, color:b.color, padding:"3px 8px 3px 10px", borderRadius:"20px 0 0 20px", fontSize:12, fontWeight:700 }}>
                   {b.name}
                   {b.mallTypes?.length>0 && b.mallTypes.map(t=><span key={t} style={{ fontSize:10, background:MALL_TYPE_COLORS[t]+"25", color:MALL_TYPE_COLORS[t], padding:"1px 5px", borderRadius:8 }}>{t}</span>)}
+                  {cafe24Tokens[b.id] && <span style={{ fontSize:10, background:"#D1FAE5", color:"#065F46", padding:"1px 5px", borderRadius:8 }}>카페24✅</span>}
                 </span>
+                <button onClick={()=>{ setCafe24Brand(b); setCafe24MallId(""); setCafe24SyncResult(""); setShowCafe24Modal(true); }} style={{ background:b.color+"18", border:`1px solid ${b.color}40`, borderLeft:"none", padding:"3px 5px", cursor:"pointer", fontSize:11 }} title="카페24 연동">🔗</button>
                 <button onClick={()=>setEditingBrand(b)} style={{ background:b.color+"18", border:`1px solid ${b.color}40`, borderLeft:"none", padding:"3px 5px", cursor:"pointer", fontSize:11 }}>✏️</button>
                 <button onClick={()=>deleteBrand(b.id)} style={{ background:b.color+"18", border:`1px solid ${b.color}40`, borderLeft:"none", padding:"3px 6px", borderRadius:"0 20px 20px 0", cursor:"pointer", fontSize:11, color:b.color, opacity:0.7 }}>✕</button>
               </div>
@@ -1055,6 +1164,58 @@ export default function App() {
               </div>
             )}
             <button onClick={()=>setShowApprovalModal(false)} style={{...secondaryBtn, width:"100%", marginTop:16}}>닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 카페24 연동 모달 */}
+      {showCafe24Modal && cafe24Brand && (
+        <div style={modalBg} onClick={()=>setShowCafe24Modal(false)}>
+          <div style={{...modalBox, width:420}} onClick={e=>e.stopPropagation()}>
+            <h3 style={modalTitle}>🔗 카페24 연동 — {cafe24Brand.name}</h3>
+
+            {cafe24Tokens[cafe24Brand.id] ? (
+              <div style={{ marginBottom:16, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1px solid #BBF7D0", fontSize:13, color:"#065F46" }}>
+                ✅ 연동됨 · 몰ID: <strong>{cafe24Tokens[cafe24Brand.id].mall_id}</strong>
+              </div>
+            ) : (
+              <div style={{ marginBottom:16, padding:"10px 14px", background:"#FFFBEB", borderRadius:10, border:"1px solid #FCD34D", fontSize:13, color:"#78350F" }}>
+                ⚠️ 아직 연동되지 않았습니다.
+              </div>
+            )}
+
+            {/* 몰 ID 입력 */}
+            <div style={{ marginBottom:14 }}>
+              <label style={smallLabel}>카페24 몰 ID *</label>
+              <input value={cafe24MallId} onChange={e=>setCafe24MallId(e.target.value.trim())} placeholder="예) paleo (도메인 앞부분)" style={inp} />
+              <div style={{ fontSize:11, color:"#94A3B8", marginTop:4 }}>paleo.cafe24.com → paleo 입력</div>
+            </div>
+
+            {/* 연동 버튼 */}
+            <button onClick={()=>{ if(!cafe24MallId){ alert("몰 ID를 입력해주세요."); return; } openCafe24Auth(cafe24Brand, cafe24MallId); }} style={{...primaryBtn, width:"100%", marginBottom:14}}>
+              🔐 카페24 로그인 후 연동
+            </button>
+
+            {/* 주문 동기화 */}
+            {cafe24Tokens[cafe24Brand.id] && (
+              <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📦 주문 동기화</div>
+                <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                  {[7, 30, 90].map(d => (
+                    <button key={d} onClick={()=>syncCafe24Orders(cafe24Brand, d)} disabled={cafe24Syncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:cafe24Syncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
+                      {cafe24Syncing ? "⏳" : `최근 ${d}일`}
+                    </button>
+                  ))}
+                </div>
+                {cafe24SyncResult && (
+                  <div style={{ padding:"10px 14px", borderRadius:10, fontSize:13, background:cafe24SyncResult.startsWith("✅")?"#F0FDF4":"#FEF2F2", border:cafe24SyncResult.startsWith("✅")?"1px solid #BBF7D0":"1px solid #FCA5A5", color:cafe24SyncResult.startsWith("✅")?"#065F46":"#DC2626" }}>
+                    {cafe24SyncResult}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button onClick={()=>setShowCafe24Modal(false)} style={{...secondaryBtn, width:"100%", marginTop:14}}>닫기</button>
           </div>
         </div>
       )}
