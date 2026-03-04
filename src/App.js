@@ -700,16 +700,48 @@ export default function App() {
   }
 
   // 주문 동기화
+  async function refreshCafe24Token(brand, token) {
+    try {
+      const res = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
+      const data = await res.json();
+      if (data.access_token) {
+        const expiresAt = new Date(Date.now() + 7200 * 1000).toISOString();
+        await supabase.from("cafe24_tokens").upsert({
+          brand_id: brand.id, mall_id: token.mall_id,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || token.refresh_token,
+          expires_at: expiresAt
+        });
+        const newToken = { ...token, access_token: data.access_token, refresh_token: data.refresh_token || token.refresh_token };
+        setCafe24Tokens(prev => ({ ...prev, [brand.id]: newToken }));
+        return newToken;
+      }
+    } catch(e) {}
+    return null;
+  }
+
   async function syncCafe24Orders(brand, days = 7) {
-    const token = cafe24Tokens[brand.id];
+    let token = cafe24Tokens[brand.id];
     if (!token) { alert("먼저 카페24 연동을 해주세요."); return; }
     setCafe24Syncing(true); setCafe24SyncResult("");
     try {
+      // 토큰 만료 여부 확인 후 자동 갱신
+      const expiresAt = token.expires_at ? new Date(token.expires_at) : null;
+      const isExpired = !expiresAt || expiresAt < new Date(Date.now() + 5 * 60 * 1000); // 5분 여유
+      if (isExpired) {
+        setCafe24SyncResult("⏳ 토큰 갱신 중...");
+        const refreshed = await refreshCafe24Token(brand, token);
+        if (refreshed) { token = refreshed; }
+        else { setCafe24SyncResult("❌ 토큰 갱신 실패 — 카페24 재로그인 필요"); setCafe24Syncing(false); return; }
+      }
+
       const endDate = today();
       const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      setCafe24SyncResult(`⏳ ${startDate} ~ ${endDate} 주문 수집 중...`);
       const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${startDate}&end_date=${endDate}`);
       const data = await res.json();
-      if (!data.orders) { setCafe24SyncResult("❌ 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
+      if (!data.orders) { setCafe24SyncResult("❌ API 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
+      if (data.orders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
 
       // 기존 상품-카테고리 매핑 로드
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
@@ -757,7 +789,8 @@ export default function App() {
       }
 
       const unmappedCount = Object.keys(unmappedProducts).length;
-      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
+      const skipMsg = skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : "";
+      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipMsg}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
 
       // 미지정 상품이 있으면 카테고리 매핑 모달 열기
       if (unmappedCount > 0) {

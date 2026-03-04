@@ -4,7 +4,7 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
-  const { action, mall_id, code, access_token, start_date, end_date } = req.query;
+  const { action, mall_id, code, access_token, refresh_token, start_date, end_date } = req.query;
 
   const CLIENT_ID = process.env.CAFE24_CLIENT_ID;
   const CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
@@ -29,6 +29,25 @@ module.exports = async (req, res) => {
           "Content-Type": "application/x-www-form-urlencoded"
         },
         body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+      });
+      const text = await response.text();
+      try { res.status(200).json(JSON.parse(text)); }
+      catch(e) { res.status(200).json({ error: "parse_error", raw: text }); }
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+
+  else if (action === "refresh") {
+    try {
+      const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
+      const response = await fetch(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: `grant_type=refresh_token&refresh_token=${refresh_token}`
       });
       const text = await response.text();
       try { res.status(200).json(JSON.parse(text)); }
@@ -65,7 +84,7 @@ module.exports = async (req, res) => {
         offset += pageSize;
       }
 
-      res.status(200).json({ orders: allOrders, total: allOrders.length });
+      res.status(200).json({ orders: allOrders, total: allOrders.length, debug: { start_date, end_date, mall_id } });
     } catch(e) {
       res.status(500).json({ error: e.message });
     }
