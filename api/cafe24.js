@@ -4,7 +4,7 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
-  const { action, mall_id, code, access_token, start_date, end_date, order_id } = req.query;
+  const { action, mall_id, code, access_token, start_date, end_date, order_id, product_no } = req.query;
 
   const CLIENT_ID = process.env.CAFE24_CLIENT_ID;
   const CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
@@ -38,11 +38,33 @@ module.exports = async (req, res) => {
     }
   }
 
-  // 주문 1건 아이템 구조 확인용
-  else if (action === "debug_items") {
+  // 상품 카테고리 조회
+  else if (action === "product") {
     try {
       const response = await fetch(
-        `https://${mall_id}.cafe24api.com/api/v2/admin/orders/${order_id}/items`,
+        `https://${mall_id}.cafe24api.com/api/v2/admin/products/${product_no}?fields=product_no,category`,
+        {
+          headers: {
+            "Authorization": `Bearer ${access_token}`,
+            "Content-Type": "application/json",
+            "X-Cafe24-Api-Version": "2025-12-01"
+          }
+        }
+      );
+      const text = await response.text();
+      try { res.status(200).json(JSON.parse(text)); }
+      catch(e) { res.status(200).json({ error: "parse_error", raw: text }); }
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+
+  // 카테고리 이름 조회
+  else if (action === "category") {
+    const { category_no } = req.query;
+    try {
+      const response = await fetch(
+        `https://${mall_id}.cafe24api.com/api/v2/admin/categories/${category_no}`,
         {
           headers: {
             "Authorization": `Bearer ${access_token}`,

@@ -659,7 +659,7 @@ export default function App() {
   function openCafe24Auth(brand, mallId) {
     const clientId = process.env.REACT_APP_CAFE24_CLIENT_ID;
     const redirectUri = encodeURIComponent("https://order-manager-kappa.vercel.app/auth/cafe24");
-    const scope = "mall.read_order,mall.write_order,mall.read_analytics";
+    const scope = "mall.read_order,mall.write_order,mall.read_analytics,mall.read_product,mall.read_category";
     const url = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&state=${brand.id}&redirect_uri=${redirectUri}&scope=${scope}`;
     window.open(url, "cafe24auth", "width=600,height=700");
 
@@ -706,6 +706,23 @@ export default function App() {
       const data = await res.json();
       if (!data.orders) { setCafe24SyncResult("❌ 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
 
+      // 카테고리 캐시 (상품번호 → 카테고리명)
+      const categoryCache = {};
+      async function getProductCategory(productNo) {
+        if (categoryCache[productNo]) return categoryCache[productNo];
+        try {
+          const pRes = await fetch(`/api/cafe24?action=product&mall_id=${token.mall_id}&access_token=${token.access_token}&product_no=${productNo}`);
+          const pData = await pRes.json();
+          const categoryNo = pData.product?.category?.[0]?.category_no;
+          if (!categoryNo) { categoryCache[productNo] = ""; return ""; }
+          const cRes = await fetch(`/api/cafe24?action=category&mall_id=${token.mall_id}&access_token=${token.access_token}&category_no=${categoryNo}`);
+          const cData = await cRes.json();
+          const categoryName = cData.category?.category_name || "";
+          categoryCache[productNo] = categoryName;
+          return categoryName;
+        } catch(e) { return ""; }
+      }
+
       let successCount = 0, skipped = 0;
       for (const o of data.orders) {
         const orderNo = o.order_id;
@@ -714,11 +731,15 @@ export default function App() {
         if (exist && exist.length > 0) { skipped++; continue; }
 
         const totalAmount = Number(o.actual_payment_amount || o.payment_amount || 0);
-        const items = (o.items || o.order_items || []).map(it => ({
-          product_name: it.product_name || it.product_name_default || it.eng_product_name || "상품",
-          category: it.category_name || it.product_category || it.category || "",
-          qty: Number(it.quantity || it.product_quantity || 1),
-          amount: Number(it.product_price || it.item_price || 0)
+        const itemsRaw = o.items || o.order_items || [];
+        const items = await Promise.all(itemsRaw.map(async it => {
+          const category = await getProductCategory(it.product_no);
+          return {
+            product_name: it.product_name || it.product_name_default || "상품",
+            category,
+            qty: Number(it.quantity || 1),
+            amount: Number(it.product_price || 0)
+          };
         }));
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
 
