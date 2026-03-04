@@ -737,15 +737,34 @@ export default function App() {
 
       const endDate = today();
       const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-      setCafe24SyncResult(`⏳ ${startDate} ~ ${endDate} 주문 수집 중...`);
-      const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${startDate}&end_date=${endDate}`);
-      const data = await res.json();
-      if (!data.orders) { setCafe24SyncResult("❌ API 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
-      if (data.orders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
+
+      // 30일 청크로 분할 (Vercel 타임아웃 방지)
+      const chunks = [];
+      let cursor = new Date(startDate);
+      const endD = new Date(endDate);
+      while (cursor <= endD) {
+        const s = cursor.toISOString().slice(0, 10);
+        const e = new Date(Math.min(cursor.getTime() + 29 * 86400000, endD.getTime())).toISOString().slice(0, 10);
+        chunks.push({ s, e });
+        cursor = new Date(cursor.getTime() + 30 * 86400000);
+      }
+
+      // 청크별 순차 호출
+      const allOrders = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const { s, e } = chunks[i];
+        setCafe24SyncResult(`⏳ 수집 중... (${i + 1}/${chunks.length}) ${s} ~ ${e}`);
+        const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${s}&end_date=${e}`);
+        const data = await res.json();
+        if (!data.orders) { setCafe24SyncResult("❌ API 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
+        allOrders.push(...data.orders);
+      }
+
+      if (allOrders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
 
       // 취소 주문 제외 (order_status가 C로 시작하는 것)
-      const validOrders = data.orders.filter(o => !String(o.order_status || "").startsWith("C"));
-      if (validOrders.length === 0) { setCafe24SyncResult(`⚠️ 유효 주문 없음 (취소 제외, 기간: ${startDate} ~ ${endDate}, API수신: ${data.orders.length}건)`); setCafe24Syncing(false); return; }
+      const validOrders = allOrders.filter(o => !String(o.order_status || "").startsWith("C"));
+      if (validOrders.length === 0) { setCafe24SyncResult(`⚠️ 유효 주문 없음 (취소 제외, API수신: ${allOrders.length}건)`); setCafe24Syncing(false); return; }
 
       // 기존 상품-카테고리 매핑 로드
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);

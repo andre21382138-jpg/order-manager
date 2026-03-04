@@ -65,42 +65,24 @@ module.exports = async (req, res) => {
         "X-Cafe24-Api-Version": "2025-12-01"
       };
 
-      // 카페24 API는 최대 30일 단위로만 조회 가능 → 청크 분할
-      const chunkDays = 30;
       const allOrders = [];
+      let offset = 0;
+      const pageSize = 100;
 
-      let chunkEnd = new Date(end_date);
-      let chunkStart = new Date(start_date);
-      const totalStart = new Date(start_date);
-
-      // 전체 기간을 30일 청크로 분할
-      const chunks = [];
-      let cursor = new Date(totalStart);
-      while (cursor <= chunkEnd) {
-        const s = cursor.toISOString().slice(0, 10);
-        const e = new Date(Math.min(cursor.getTime() + (chunkDays - 1) * 86400000, chunkEnd.getTime())).toISOString().slice(0, 10);
-        chunks.push({ s, e });
-        cursor = new Date(cursor.getTime() + chunkDays * 86400000);
+      while (true) {
+        const r = await fetch(
+          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=${pageSize}&offset=${offset}&embed=items`,
+          { headers }
+        );
+        const d = await r.json();
+        if (!d.orders || d.orders.length === 0) break;
+        allOrders.push(...d.orders);
+        const hasNext = d.links?.some(l => l.rel === "next");
+        if (!hasNext) break;
+        offset += pageSize;
       }
 
-      for (const chunk of chunks) {
-        let offset = 0;
-        const pageSize = 100;
-        while (true) {
-          const r = await fetch(
-            `https://${mall_id}.cafe24api.com/api/v2/admin/orders?start_date=${chunk.s}&end_date=${chunk.e}&limit=${pageSize}&offset=${offset}&embed=items`,
-            { headers }
-          );
-          const d = await r.json();
-          if (!d.orders || d.orders.length === 0) break;
-          allOrders.push(...d.orders);
-          const hasNext = d.links?.some(l => l.rel === "next");
-          if (!hasNext) break;
-          offset += pageSize;
-        }
-      }
-
-      res.status(200).json({ orders: allOrders, total: allOrders.length, debug: { start_date, end_date, mall_id, chunks: chunks.length } });
+      res.status(200).json({ orders: allOrders, total: allOrders.length });
     } catch(e) {
       res.status(500).json({ error: e.message });
     }
