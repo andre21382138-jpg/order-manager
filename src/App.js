@@ -716,7 +716,7 @@ export default function App() {
         const totalAmount = Number(o.actual_payment_amount || o.payment_amount || 0);
         const items = (o.items || o.order_items || []).map(it => ({
           product_name: it.product_name || it.product_name_default || it.eng_product_name || "상품",
-          category: "",
+          category: it.category_name || it.product_category || it.category || "",
           qty: Number(it.quantity || it.product_quantity || 1),
           amount: Number(it.product_price || it.item_price || 0)
         }));
@@ -1257,8 +1257,8 @@ function OrderList({ orders, expandedOrder, setExpandedOrder, getBrand, deleteOr
               {showDate&&<span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.date}</span>}
               {brand&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:brand.color+"20",color:brand.color,fontWeight:700,flexShrink:0}}>{brand.name}</span>}
               {o.mallType&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:MALL_TYPE_COLORS[o.mallType]+"20",color:MALL_TYPE_COLORS[o.mallType],fontWeight:700,flexShrink:0}}>{o.mallType}</span>}
-              <span style={{fontSize:12,color:"#94A3B8",fontFamily:"monospace",flexShrink:0}}>{o.orderNo}</span>
-              <span style={{fontSize:13,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.items.slice(0,2).map(it=>it.productName).join(", ")}{o.items.length>2&&` 외 ${o.items.length-2}종`}</span>
+              <span style={{fontSize:12,color:"#94A3B8",fontFamily:"monospace",flexShrink:0,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.orderNo}</span>
+              <span style={{fontSize:13,color:"#475569",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.items.slice(0,1).map(it=>it.productName).join(", ")}{o.items.length>1&&` 외 ${o.items.length-1}종`}</span>
               {hasMulti&&<span style={{fontSize:12,color:"#94A3B8",whiteSpace:"nowrap",flexShrink:0}}>{o.items.length}종</span>}
               <span style={{fontSize:14,fontWeight:800,color:"#1E293B",whiteSpace:"nowrap",flexShrink:0}}>{fmt(o.totalAmount)}</span>
               <div style={{display:"flex",gap:8,flexShrink:0}}>
