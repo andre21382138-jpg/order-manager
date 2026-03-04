@@ -49,7 +49,7 @@ module.exports = async (req, res) => {
           headers: {
             "Authorization": `Bearer ${access_token}`,
             "Content-Type": "application/json",
-            "X-Cafe24-Api-Version": "2024-06-01"
+            "X-Cafe24-Api-Version": "2025-12-01"
           }
         }
       );
