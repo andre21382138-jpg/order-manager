@@ -731,11 +731,13 @@ export default function App() {
           const productNo = String(it.product_no);
           const category = categoryMap[productNo] || "";
           if (!category) unmappedProducts[productNo] = it.product_name || it.product_name_default || "상품";
+          // 실제 결제금액 = 상품가격 - 쿠폰할인
+          const itemAmount = Number(it.product_price || 0) - Number(it.coupon_discount_price || 0);
           return {
             product_name: it.product_name || it.product_name_default || "상품",
             category,
             qty: Number(it.quantity || 1),
-            amount: Number(it.product_price || 0)
+            amount: itemAmount > 0 ? itemAmount : Number(it.product_price || 0)
           };
         });
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
