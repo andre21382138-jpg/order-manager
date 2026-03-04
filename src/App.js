@@ -725,7 +725,7 @@ export default function App() {
         const { data: exist } = await supabase.from("orders").select("id").eq("order_no", orderNo).eq("brand_id", brand.id);
         if (exist && exist.length > 0) { skipped++; continue; }
 
-        const totalAmount = Number(o.actual_payment_amount || o.payment_amount || 0);
+        const totalAmount = Number(o.actual_order_amount?.payment_amount || o.payment_amount || 0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => {
           const productNo = String(it.product_no);
