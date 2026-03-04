@@ -714,7 +714,12 @@ export default function App() {
         if (exist && exist.length > 0) { skipped++; continue; }
 
         const totalAmount = Number(o.actual_payment_amount || o.payment_amount || 0);
-        const items = (o.items || []).map(it => ({ product_name: it.product_name || "상품", category: "", qty: Number(it.quantity) || 1, amount: Number(it.product_price) || 0 }));
+        const items = (o.items || o.order_items || []).map(it => ({
+          product_name: it.product_name || it.product_name_default || it.eng_product_name || "상품",
+          category: "",
+          qty: Number(it.quantity || it.product_quantity || 1),
+          amount: Number(it.product_price || it.item_price || 0)
+        }));
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
 
         const { data: orderData, error: oErr } = await supabase.from("orders")
