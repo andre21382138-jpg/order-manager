@@ -2,6 +2,17 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
 
+// 카페24 OAuth 콜백 처리 (팝업창에서 실행)
+if (window.location.pathname === "/auth/cafe24") {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const state = params.get("state");
+  if (code && window.opener) {
+    window.opener.postMessage({ type: "CAFE24_CODE", code, state }, "*");
+    window.close();
+  }
+}
+
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
@@ -650,21 +661,16 @@ export default function App() {
     const redirectUri = encodeURIComponent("https://order-manager-kappa.vercel.app/auth/cafe24");
     const scope = "mall.read_order,mall.write_order,mall.read_analytics";
     const url = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&state=${brand.id}&redirect_uri=${redirectUri}&scope=${scope}`;
-    const popup = window.open(url, "cafe24auth", "width=600,height=700");
+    window.open(url, "cafe24auth", "width=600,height=700");
 
-    // 팝업에서 code 받기
-    const timer = setInterval(() => {
-      try {
-        if (popup.closed) { clearInterval(timer); return; }
-        const popupUrl = popup.location.href;
-        if (popupUrl.includes("code=")) {
-          const code = new URL(popupUrl).searchParams.get("code");
-          clearInterval(timer);
-          popup.close();
-          fetchCafe24Token(brand, mallId, code);
-        }
-      } catch(e) {}
-    }, 500);
+    // 팝업에서 postMessage로 code 받기
+    function handleMessage(e) {
+      if (e.data?.type === "CAFE24_CODE" && e.data.state === brand.id) {
+        window.removeEventListener("message", handleMessage);
+        fetchCafe24Token(brand, mallId, e.data.code);
+      }
+    }
+    window.addEventListener("message", handleMessage);
   }
 
   // Access Token 발급
