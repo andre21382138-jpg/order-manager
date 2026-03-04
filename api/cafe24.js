@@ -10,6 +10,16 @@ module.exports = async (req, res) => {
   const CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
   const REDIRECT_URI = process.env.CAFE24_REDIRECT_URI;
 
+  // 환경변수 확인용 (디버그)
+  if (action === "debug") {
+    res.status(200).json({
+      CLIENT_ID: CLIENT_ID ? CLIENT_ID.slice(0,4) + "***" : "없음",
+      CLIENT_SECRET: CLIENT_SECRET ? "있음" : "없음",
+      REDIRECT_URI: REDIRECT_URI || "없음"
+    });
+    return;
+  }
+
   // Access Token 발급
   if (action === "token") {
     try {
@@ -34,7 +44,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  // 주문 목록 가져오기
   else if (action === "orders") {
     try {
       const response = await fetch(
