@@ -4,7 +4,7 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
-  const { action, mall_id, code, access_token, start_date, end_date } = req.query;
+  const { action, mall_id, code, access_token, start_date, end_date, order_id } = req.query;
 
   const CLIENT_ID = process.env.CAFE24_CLIENT_ID;
   const CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
@@ -38,11 +38,11 @@ module.exports = async (req, res) => {
     }
   }
 
-  // 주문 1건만 가져와서 구조 확인
-  else if (action === "debug_order") {
+  // 주문 1건 아이템 구조 확인용
+  else if (action === "debug_items") {
     try {
       const response = await fetch(
-        `https://${mall_id}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=1&embed=items`,
+        `https://${mall_id}.cafe24api.com/api/v2/admin/orders/${order_id}/items`,
         {
           headers: {
             "Authorization": `Bearer ${access_token}`,
