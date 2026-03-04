@@ -879,7 +879,7 @@ export default function App() {
       byDate[o.date].count++; byDate[o.date].qty+=o.totalQty; byDate[o.date].amount+=o.totalAmount;
       o.items.forEach(it => { const cat=it.category||"미분류"; if(!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0}; byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++; const pname=it.productName||it.product_name||"상품"; if(!byProduct[pname]) byProduct[pname]={qty:0,amount:0,count:0}; byProduct[pname].qty+=it.qty; byProduct[pname].amount+=it.amount; byProduct[pname].count++; });
     });
-    const hasCat = Object.keys(byCategory).some(k => k !== "미분류");
+    const hasCat = Object.keys(byCategory).some(k => k !== "미분류" && k !== "" && k !== null);
     return { totalAmount, totalQty, totalOrders:filtered.length, byBrand, byMallType, byCategory, byDate, byProduct, hasCat };
   }, [filtered]);
 
@@ -1176,7 +1176,7 @@ export default function App() {
                 );
               })}
             </div>
-            {stats.hasCat && (
+            {stats.hasCat && Object.keys(stats.byCategory).some(k => k !== "미분류" && k !== "") && (
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 카테고리별 결산</h2>
               {Object.keys(stats.byCategory).length===0 ? <Empty text="데이터가 없습니다" /> :
