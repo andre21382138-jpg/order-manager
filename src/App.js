@@ -181,10 +181,16 @@ function BrandEditModal({ brand, onClose, onSave }) {
   );
 }
 
-// ── 로그인 화면 ───────────────────────────────────────────
-function LoginScreen({ onLogin }) {
+const ADMIN_EMAIL = "ssakwon@kbh.kr";
+const DEPARTMENTS = ["브랜드사업팀","온라인사업팀","유통사업팀","이미용사업팀","리빙온라인1팀"];
+
+// ── 로그인/회원가입 화면 ──────────────────────────────────
+function LoginScreen() {
+  const [mode, setMode] = useState("login"); // login | signup | pending | done
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [department, setDepartment] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -192,35 +198,128 @@ function LoginScreen({ onLogin }) {
     e.preventDefault();
     if (!email || !password) { setError("이메일과 비밀번호를 입력해주세요."); return; }
     setLoading(true); setError("");
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
     if (err) { setError("이메일 또는 비밀번호가 올바르지 않습니다."); setLoading(false); return; }
-    onLogin();
+
+    // 승인 여부 확인
+    const { data: profile } = await supabase.from("profiles").select("approved").eq("id", data.user.id).single();
+    if (!profile?.approved) {
+      await supabase.auth.signOut();
+      setError("아직 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
   }
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    if (!email || !password || !name || !department) { setError("모든 항목을 입력해주세요."); return; }
+    if (password.length < 6) { setError("비밀번호는 6자 이상이어야 합니다."); return; }
+    setLoading(true); setError("");
+
+    // Supabase Auth 회원가입
+    const { data, error: err } = await supabase.auth.signUp({ email, password });
+    if (err) { setError("회원가입 오류: " + err.message); setLoading(false); return; }
+
+    // profiles 테이블에 저장 (approved=false)
+    await supabase.from("profiles").insert({
+      id: data.user.id, email, name, department, approved: false
+    });
+
+    // 즉시 로그아웃 (승인 전 접근 차단)
+    await supabase.auth.signOut();
+
+    // 관리자에게 이메일 알림 (formsubmit.co 무료 서비스)
+    try {
+      await fetch(`https://formsubmit.co/ajax/${ADMIN_EMAIL}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          _subject: `[주문관리] 신규 회원가입 승인 요청 - ${name}`,
+          이름: name, 부서: department, 이메일: email,
+          내용: `${department} ${name}님이 회원가입을 요청했습니다. 앱에서 승인해주세요.`,
+          _template: "table"
+        })
+      });
+    } catch(e) {}
+
+    setLoading(false);
+    setMode("done");
+  }
+
+  const inputStyle = { ...inp, marginBottom: 0 };
 
   return (
     <div style={{ minHeight:"100vh", background:"#F0F4F8", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif" }}>
-      <div style={{ background:"white", borderRadius:20, padding:"40px 36px", width:360, boxShadow:"0 8px 40px rgba(0,0,0,0.12)" }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
+      <div style={{ background:"white", borderRadius:20, padding:"40px 36px", width:380, boxShadow:"0 8px 40px rgba(0,0,0,0.12)" }}>
+        <div style={{ textAlign:"center", marginBottom:24 }}>
           <div style={{ fontSize:36, marginBottom:10 }}>🛒</div>
           <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1E293B" }}>주문관리</h1>
           <p style={{ margin:"6px 0 0", fontSize:13, color:"#94A3B8" }}>멀티브랜드 통합 대시보드</p>
         </div>
 
-        {error && <div style={{ background:"#FEF2F2", border:"1px solid #FCA5A5", color:"#DC2626", padding:"10px 14px", borderRadius:10, fontSize:13, marginBottom:16 }}>{error}</div>}
+        {mode === "done" ? (
+          <div style={{ textAlign:"center", padding:"20px 0" }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
+            <div style={{ fontSize:16, fontWeight:700, color:"#1E293B", marginBottom:8 }}>회원가입 완료!</div>
+            <div style={{ fontSize:13, color:"#64748B", marginBottom:24, lineHeight:1.6 }}>관리자 승인 후 로그인할 수 있습니다.<br/>승인되면 등록하신 이메일로 알림이 가요.</div>
+            <button onClick={()=>setMode("login")} style={{ ...primaryBtn, width:"100%", padding:"12px" }}>로그인 화면으로</button>
+          </div>
+        ) : (
+          <>
+            {/* 탭 */}
+            <div style={{ display:"flex", background:"#F1F5F9", borderRadius:10, padding:3, marginBottom:22 }}>
+              {[["login","로그인"],["signup","회원가입"]].map(([m,l]) => (
+                <button key={m} onClick={()=>{ setMode(m); setError(""); }} style={{ flex:1, padding:"8px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:700, background:mode===m?"white":"transparent", color:mode===m?"#1E293B":"#94A3B8", boxShadow:mode===m?"0 1px 4px rgba(0,0,0,0.1)":"none" }}>{l}</button>
+              ))}
+            </div>
 
-        <form onSubmit={handleLogin}>
-          <div style={{ marginBottom:14 }}>
-            <label style={smallLabel}>이메일</label>
-            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 입력" style={inp} autoFocus />
-          </div>
-          <div style={{ marginBottom:22 }}>
-            <label style={smallLabel}>비밀번호</label>
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="비밀번호 입력" style={inp} />
-          </div>
-          <button type="submit" disabled={loading} style={{ width:"100%", padding:"13px", background:loading?"#93C5FD":"#3B82F6", color:"white", border:"none", borderRadius:10, fontSize:15, fontWeight:700, cursor:loading?"not-allowed":"pointer" }}>
-            {loading ? "로그인 중..." : "로그인"}
-          </button>
-        </form>
+            {error && <div style={{ background:"#FEF2F2", border:"1px solid #FCA5A5", color:"#DC2626", padding:"10px 14px", borderRadius:10, fontSize:13, marginBottom:16, lineHeight:1.5 }}>{error}</div>}
+
+            {mode === "login" ? (
+              <form onSubmit={handleLogin}>
+                <div style={{ marginBottom:14 }}>
+                  <label style={smallLabel}>이메일</label>
+                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 입력" style={inputStyle} autoFocus />
+                </div>
+                <div style={{ marginBottom:22 }}>
+                  <label style={smallLabel}>비밀번호</label>
+                  <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="비밀번호 입력" style={inputStyle} />
+                </div>
+                <button type="submit" disabled={loading} style={{ width:"100%", padding:"13px", background:loading?"#93C5FD":"#3B82F6", color:"white", border:"none", borderRadius:10, fontSize:15, fontWeight:700, cursor:loading?"not-allowed":"pointer" }}>
+                  {loading ? "로그인 중..." : "로그인"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSignup}>
+                <div style={{ marginBottom:14 }}>
+                  <label style={smallLabel}>이름 *</label>
+                  <input value={name} onChange={e=>setName(e.target.value)} placeholder="실명 입력" style={inputStyle} autoFocus />
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <label style={smallLabel}>부서 *</label>
+                  <select value={department} onChange={e=>setDepartment(e.target.value)} style={inputStyle}>
+                    <option value="">부서 선택</option>
+                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div style={{ marginBottom:14 }}>
+                  <label style={smallLabel}>이메일 *</label>
+                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 입력" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom:22 }}>
+                  <label style={smallLabel}>비밀번호 * <span style={{ color:"#94A3B8", fontWeight:400 }}>(6자 이상)</span></label>
+                  <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="비밀번호 입력" style={inputStyle} />
+                </div>
+                <button type="submit" disabled={loading} style={{ width:"100%", padding:"13px", background:loading?"#93C5FD":"#3B82F6", color:"white", border:"none", borderRadius:10, fontSize:15, fontWeight:700, cursor:loading?"not-allowed":"pointer" }}>
+                  {loading ? "처리 중..." : "회원가입 신청"}
+                </button>
+                <p style={{ margin:"12px 0 0", fontSize:12, color:"#94A3B8", textAlign:"center", lineHeight:1.5 }}>가입 후 관리자 승인 시 로그인 가능합니다</p>
+              </form>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -237,6 +336,9 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
   const [form, setForm] = useState({ date: today(), brandId: "", mallType: "", orderNo: "", note: "" });
   const [items, setItems] = useState([emptyItem()]);
@@ -272,6 +374,27 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // ── 승인 대기 유저 로드 (관리자만) ──────────────────────
+  useEffect(() => {
+    if (!session || session.user.email !== ADMIN_EMAIL) return;
+    async function loadPending() {
+      const { data } = await supabase.from("profiles").select("*").eq("approved", false).order("created_at");
+      if (data) setPendingUsers(data);
+    }
+    loadPending();
+  }, [session]);
+
+  async function approveUser(id) {
+    await supabase.from("profiles").update({ approved: true }).eq("id", id);
+    setPendingUsers(prev => prev.filter(u => u.id !== id));
+  }
+  async function rejectUser(id) {
+    if (!window.confirm("이 사용자의 가입을 거절하시겠습니까?")) return;
+    await supabase.from("profiles").delete().eq("id", id);
+    await supabase.auth.admin?.deleteUser(id);
+    setPendingUsers(prev => prev.filter(u => u.id !== id));
+  }
 
   // ── 초기 데이터 로드 (Supabase) ──────────────────────────
   useEffect(() => {
@@ -523,7 +646,7 @@ export default function App() {
     [orders, form.date, activeBrandId, activeMallType]);
 
   if (!authChecked) return <div style={centerStyle}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🛒</div><div style={{fontSize:14,color:"#94A3B8"}}>로딩 중...</div></div></div>;
-  if (!session) return <LoginScreen onLogin={()=>{}} />;
+  if (!session) return <LoginScreen />;
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -552,6 +675,12 @@ export default function App() {
               <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 20px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8" }}>{t}</button>
             ))}
             <div style={{ width:1, height:20, background:"#334155", margin:"0 6px" }} />
+            {isAdmin && (
+              <button onClick={()=>setShowApprovalModal(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:20, padding:"4px 8px" }}>
+                🔔
+                {pendingUsers.length > 0 && <span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:16, height:16, fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}
+              </button>
+            )}
             <span style={{ fontSize:12, color:"#64748B" }}>{session.user.email}</span>
             <button onClick={handleLogout} style={{ padding:"6px 14px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
           </div>
@@ -844,6 +973,40 @@ export default function App() {
                 {xlsxPreview&&<button onClick={importXlsx} disabled={saving} style={{...primaryBtn,padding:"10px 28px",fontSize:14,opacity:saving?0.6:1}}>{saving?"저장 중...":"✅ "+xlsxPreview.rows.filter(r=>r.selected).length+"건 가져오기"}</button>}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 회원 승인 모달 */}
+      {showApprovalModal && (
+        <div style={modalBg} onClick={()=>setShowApprovalModal(false)}>
+          <div style={{...modalBox, width:480}} onClick={e=>e.stopPropagation()}>
+            <h3 style={modalTitle}>🔔 회원가입 승인 관리</h3>
+            {pendingUsers.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"30px 0", color:"#94A3B8", fontSize:14 }}>대기 중인 가입 요청이 없습니다</div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {pendingUsers.map(u => (
+                  <div key={u.id} style={{ padding:"14px 16px", borderRadius:12, border:"1px solid #E2E8F0", background:"#F8FAFC" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                          <span style={{ fontWeight:700, fontSize:15, color:"#1E293B" }}>{u.name}</span>
+                          <span style={{ fontSize:12, padding:"2px 8px", borderRadius:10, background:"#E0F2FE", color:"#0369A1", fontWeight:600 }}>{u.department}</span>
+                        </div>
+                        <div style={{ fontSize:13, color:"#64748B" }}>{u.email}</div>
+                        <div style={{ fontSize:11, color:"#94A3B8", marginTop:2 }}>{new Date(u.created_at).toLocaleString("ko-KR")}</div>
+                      </div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={()=>approveUser(u.id)} style={{ padding:"7px 16px", borderRadius:8, border:"none", background:"#10B981", color:"white", fontWeight:700, fontSize:13, cursor:"pointer" }}>✅ 승인</button>
+                        <button onClick={()=>rejectUser(u.id)} style={{ padding:"7px 16px", borderRadius:8, border:"none", background:"#FEF2F2", color:"#EF4444", fontWeight:700, fontSize:13, cursor:"pointer" }}>❌ 거절</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={()=>setShowApprovalModal(false)} style={{...secondaryBtn, width:"100%", marginTop:16}}>닫기</button>
           </div>
         </div>
       )}
