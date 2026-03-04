@@ -680,7 +680,8 @@ export default function App() {
       const res = await fetch(`/api/cafe24?action=token&mall_id=${mallId}&code=${code}`);
       const data = await res.json();
       if (data.access_token) {
-        const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
+        const expiresIn = data.expires_in || 7200;
+        const expiresAt = new Date(Date.now() + Number(expiresIn) * 1000).toISOString();
         await supabase.from("cafe24_tokens").upsert({
           brand_id: brand.id, mall_id: mallId,
           access_token: data.access_token, refresh_token: data.refresh_token, expires_at: expiresAt
