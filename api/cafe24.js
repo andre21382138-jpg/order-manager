@@ -75,6 +75,7 @@ module.exports = async (req, res) => {
           { headers }
         );
         const d = await r.json();
+        if (d.error || d.errors) { return res.status(200).json({ error: d.error || d.errors, raw: d }); }
         if (!d.orders || d.orders.length === 0) break;
         allOrders.push(...d.orders);
         const hasNext = d.links?.some(l => l.rel === "next");
