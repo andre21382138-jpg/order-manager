@@ -866,7 +866,7 @@ export default function App() {
 
   const stats = useMemo(() => {
     let totalAmount=0, totalQty=0;
-    const byBrand={}, byMallType={}, byCategory={}, byDate={};
+    const byBrand={}, byMallType={}, byCategory={}, byDate={}, byProduct={};
     filtered.forEach(o => {
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
@@ -877,9 +877,10 @@ export default function App() {
       byMallType[o.mallType].count++; byMallType[o.mallType].qty+=o.totalQty; byMallType[o.mallType].amount+=o.totalAmount;
       if(!byDate[o.date]) byDate[o.date]={count:0,qty:0,amount:0};
       byDate[o.date].count++; byDate[o.date].qty+=o.totalQty; byDate[o.date].amount+=o.totalAmount;
-      o.items.forEach(it => { const cat=it.category||"미분류"; if(!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0}; byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++; });
+      o.items.forEach(it => { const cat=it.category||"미분류"; if(!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0}; byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++; const pname=it.productName||it.product_name||"상품"; if(!byProduct[pname]) byProduct[pname]={qty:0,amount:0,count:0}; byProduct[pname].qty+=it.qty; byProduct[pname].amount+=it.amount; byProduct[pname].count++; });
     });
-    return { totalAmount, totalQty, totalOrders:filtered.length, byBrand, byMallType, byCategory, byDate };
+    const hasCat = Object.keys(byCategory).some(k => k !== "미분류");
+    return { totalAmount, totalQty, totalOrders:filtered.length, byBrand, byMallType, byCategory, byDate, byProduct, hasCat };
   }, [filtered]);
 
   const todayOrders = useMemo(() => orders
@@ -1175,6 +1176,7 @@ export default function App() {
                 );
               })}
             </div>
+            {stats.hasCat && (
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 카테고리별 결산</h2>
               {Object.keys(stats.byCategory).length===0 ? <Empty text="데이터가 없습니다" /> :
@@ -1185,6 +1187,26 @@ export default function App() {
                     <div style={{display:"flex",gap:10,fontSize:12,color:"#64748B"}}><span>상품 {s.count}건</span><span>수량 {s.qty}개</span><span style={{color:"#8B5CF6",fontWeight:700}}>{pct}%</span></div>
                   </div>
                 ); })}
+            </div>
+            )}
+            <div style={card}>
+              <h2 style={{...cardTitle,marginBottom:14}}>🏆 상품별 매출순위</h2>
+              {Object.keys(stats.byProduct).length===0 ? <Empty text="데이터가 없습니다" /> : (
+                <div style={{overflowY:"auto",maxHeight:520}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead><tr style={{borderBottom:"2px solid #F1F5F9"}}>{["순위","상품명","판매건수","수량","총매출"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:h==="상품명"?"left":"right",color:"#94A3B8",fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                    <tbody>{Object.entries(stats.byProduct).sort((a,b)=>b[1].amount-a[1].amount).map(([name,s],idx)=>(
+                      <tr key={name} style={{borderBottom:"1px solid #F8FAFC",background:idx===0?"#FFFBEB":idx===1?"#F8FAFC":idx===2?"#FFF7F0":"white"}}>
+                        <td style={{padding:"8px",textAlign:"right",fontWeight:800,fontSize:idx<3?15:13}}>{idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":idx+1}</td>
+                        <td style={{padding:"8px",fontWeight:600,color:"#1E293B",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</td>
+                        <td style={{padding:"8px",textAlign:"right",color:"#64748B"}}>{s.count}건</td>
+                        <td style={{padding:"8px",textAlign:"right",color:"#64748B"}}>{s.qty}개</td>
+                        <td style={{padding:"8px",textAlign:"right",fontWeight:700,color:"#1E293B"}}>{fmt(s.amount)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
             </div>
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>📅 일별 결산</h2>
