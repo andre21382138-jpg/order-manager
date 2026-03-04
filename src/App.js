@@ -2,6 +2,16 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return isMobile;
+}
+
 const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 const DEFAULT_CATEGORIES = ["상의","하의","아우터","신발","가방","액세서리","뷰티","식품","가전","기타"];
 const MALL_TYPES = ["자사몰","스마트스토어"];
@@ -464,6 +474,7 @@ export default function App() {
 
   useEffect(() => { setActiveMallType(""); }, [activeBrandId]);
 
+  const isMobile = useIsMobile();
   const getBrand = id => brands.find(b => b.id === id);
   const currentCategories = useMemo(() => { const b=getBrand(form.brandId); return b?.categories?.length>0?b.categories:categories; }, [form.brandId, brands, categories]);
   const filterCategories = useMemo(() => { const b=getBrand(filter.brandId); return b?.categories?.length>0?b.categories:categories; }, [filter.brandId, brands, categories]);
@@ -664,30 +675,63 @@ export default function App() {
       {error && <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:"#FEF2F2",border:"1px solid #FCA5A5",color:"#DC2626",padding:"10px 20px",borderRadius:10,zIndex:9999,fontSize:13}}>{error} <span onClick={()=>setError("")} style={{marginLeft:10,cursor:"pointer"}}>✕</span></div>}
 
       {/* Header */}
-      <div style={{ background:"#1E293B", color:"white", padding:"0 24px" }}>
-        <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", height:60 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:20, fontWeight:800 }}>🛒 주문관리</span>
-            <span style={{ fontSize:12, color:"#94A3B8" }}>멀티브랜드 통합 대시보드</span>
+      <div style={{ background:"#1E293B", color:"white", padding:"0 16px" }}>
+        {isMobile ? (
+          // 모바일 헤더: 2줄 구성
+          <div style={{ padding:"10px 0" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+              <span style={{ fontSize:17, fontWeight:800 }}>🛒 주문관리</span>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                {isAdmin && (
+                  <button onClick={()=>setShowApprovalModal(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:18, padding:"2px 6px" }}>
+                    🔔
+                    {pendingUsers.length > 0 && <span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:14, height:14, fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}
+                  </button>
+                )}
+                <button onClick={handleLogout} style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
+              </div>
+            </div>
+            <div style={{ fontSize:11, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{session.user.email}</div>
           </div>
-          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-            {["입력","조회","결산"].map(t => (
-              <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 20px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8" }}>{t}</button>
-            ))}
-            <div style={{ width:1, height:20, background:"#334155", margin:"0 6px" }} />
-            {isAdmin && (
-              <button onClick={()=>setShowApprovalModal(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:20, padding:"4px 8px" }}>
-                🔔
-                {pendingUsers.length > 0 && <span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:16, height:16, fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}
-              </button>
-            )}
-            <span style={{ fontSize:12, color:"#64748B" }}>{session.user.email}</span>
-            <button onClick={handleLogout} style={{ padding:"6px 14px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
+        ) : (
+          // 데스크탑 헤더
+          <div style={{ maxWidth:1200, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", height:56 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:18, fontWeight:800 }}>🛒 주문관리</span>
+              <span style={{ fontSize:12, color:"#94A3B8" }}>멀티브랜드 통합 대시보드</span>
+            </div>
+            <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+              {["입력","조회","결산"].map(t => (
+                <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 16px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8" }}>{t}</button>
+              ))}
+              <div style={{ width:1, height:20, background:"#334155", margin:"0 4px" }} />
+              {isAdmin && (
+                <button onClick={()=>setShowApprovalModal(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:20, padding:"4px 8px" }}>
+                  🔔
+                  {pendingUsers.length > 0 && <span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:16, height:16, fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}
+                </button>
+              )}
+              <span style={{ fontSize:12, color:"#64748B" }}>{session.user.email}</span>
+              <button onClick={handleLogout} style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px 16px" }}>
+      {/* 모바일 하단 탭바 */}
+      {isMobile && (
+        <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"white", borderTop:"1px solid #E2E8F0", display:"flex", zIndex:100, boxShadow:"0 -2px 10px rgba(0,0,0,0.08)" }}>
+          {[["입력","📦"],["조회","🔍"],["결산","📊"]].map(([t,icon]) => (
+            <button key={t} onClick={()=>setTab(t)} style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+              <span style={{ fontSize:20 }}>{icon}</span>
+              <span style={{ fontSize:11, fontWeight:700, color:tab===t?"#3B82F6":"#94A3B8" }}>{t}</span>
+              {tab===t && <div style={{ width:20, height:2, background:"#3B82F6", borderRadius:2 }} />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ maxWidth:1200, margin:"0 auto", padding: isMobile ? "12px 10px 80px" : "20px 16px" }}>
 
         {/* 브랜드 & 기본 카테고리 관리 바 */}
         <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
@@ -750,7 +794,7 @@ export default function App() {
               </div>
             )}
 
-            <div style={{ display:"grid", gridTemplateColumns:"1.15fr 1fr", gap:18 }}>
+            <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1.15fr 1fr", gap:18 }}>
               <div style={card}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                   <div>
@@ -777,17 +821,21 @@ export default function App() {
                       <span style={{ fontSize:12, fontWeight:700, color:"#64748B" }}>상품 목록 *</span>
                       <button type="button" onClick={addItem} style={addItemBtn}>+ 상품 추가</button>
                     </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"110px 1fr 68px 105px 26px", gap:6, marginBottom:5 }}>
-                      {["카테고리","상품명","수량","결제금액",""].map((h,i)=><span key={i} style={{ fontSize:11, color:"#94A3B8", fontWeight:700 }}>{h}</span>)}
+                    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "110px 1fr 68px 105px 26px", gap:6, marginBottom:5 }}>
+                      {(isMobile ? ["카테고리","상품명"] : ["카테고리","상품명","수량","결제금액",""]).map((h,i)=><span key={i} style={{ fontSize:11, color:"#94A3B8", fontWeight:700 }}>{h}</span>)}
                     </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    <div style={{ display:"flex", flexDirection:"column", gap:isMobile?10:6 }}>
                       {items.map((it,idx)=>(
-                        <div key={it.id} style={{ display:"grid", gridTemplateColumns:"110px 1fr 68px 105px 26px", gap:6, alignItems:"center" }}>
-                          <select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} style={{...inp,fontSize:12}}><option value="">카테고리</option>{currentCategories.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                          <input placeholder="상품명 *" value={it.productName} onChange={e=>updateItem(idx,"productName",e.target.value)} style={{...inp,fontSize:12}} />
-                          <input type="number" min="1" placeholder="수량" value={it.qty} onChange={e=>updateItem(idx,"qty",e.target.value)} style={{...inp,fontSize:12}} />
-                          <input type="number" min="0" placeholder="금액" value={it.amount} onChange={e=>updateItem(idx,"amount",e.target.value)} style={{...inp,fontSize:12}} />
-                          <button type="button" onClick={()=>removeItem(idx)} style={{ background:"none",border:"none",cursor:items.length===1?"not-allowed":"pointer",color:items.length===1?"#E2E8F0":"#EF4444",fontSize:17,padding:0 }}>✕</button>
+                        <div key={it.id} style={{ display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateColumns: isMobile ? undefined : "110px 1fr 68px 105px 26px", gap:6 }}>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                            <select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} style={{...inp,fontSize:12}}><option value="">카테고리</option>{currentCategories.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                            <input placeholder="상품명 *" value={it.productName} onChange={e=>updateItem(idx,"productName",e.target.value)} style={{...inp,fontSize:12}} />
+                          </div>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 28px", gap:6 }}>
+                            <input type="number" min="1" placeholder="수량" value={it.qty} onChange={e=>updateItem(idx,"qty",e.target.value)} style={{...inp,fontSize:12}} />
+                            <input type="number" min="0" placeholder="금액" value={it.amount} onChange={e=>updateItem(idx,"amount",e.target.value)} style={{...inp,fontSize:12}} />
+                            <button type="button" onClick={()=>removeItem(idx)} style={{ background:"none",border:"none",cursor:items.length===1?"not-allowed":"pointer",color:items.length===1?"#E2E8F0":"#EF4444",fontSize:17,padding:0 }}>✕</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -848,7 +896,7 @@ export default function App() {
               )}
             </div>
 
-            <div style={{...card,padding:"14px 20px",marginBottom:14,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
+            <div style={{...card,padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
               <Field label="시작일"><input type="date" value={filter.from} onChange={e=>setFilter({...filter,from:e.target.value})} style={{...inp,width:130}} /></Field>
               <Field label="종료일"><input type="date" value={filter.to} onChange={e=>setFilter({...filter,to:e.target.value})} style={{...inp,width:130}} /></Field>
               <Field label="카테고리"><select value={filter.category} onChange={e=>setFilter({...filter,category:e.target.value})} style={{...inp,width:120}}><option value="">전체</option>{filterCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></Field>
@@ -857,7 +905,7 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14 }}>
+            <div style={{ display:"grid",gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)",gap:12,marginBottom:14 }}>
               {[{label:"총 매출",val:fmt(stats.totalAmount),icon:"💰",color:"#3B82F6"},{label:"주문 수",val:`${stats.totalOrders}건`,icon:"📦",color:"#10B981"},{label:"총 수량",val:`${stats.totalQty}개`,icon:"📊",color:"#F59E0B"},{label:"주문당 평균",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#8B5CF6"}].map(k=>(
                 <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
                   <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
@@ -877,7 +925,7 @@ export default function App() {
         )}
 
         {tab==="결산" && (
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",gap:16}}>
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 브랜드별 결산</h2>
               {brands.length===0 ? <Empty text="브랜드가 없습니다" /> : brands.map(b => {
