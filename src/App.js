@@ -756,6 +756,12 @@ export default function App() {
         setCafe24SyncResult(`⏳ 수집 중... (${i + 1}/${chunks.length}) ${s} ~ ${e}`);
         const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${s}&end_date=${e}`);
         const data = await res.json();
+        // 첫 청크에서 상세 정보 표시
+        if (i === 0) {
+          const preview = JSON.stringify(data).slice(0, 300);
+          setCafe24SyncResult(`🔍 1번째 청크 응답: ${preview}`);
+          await new Promise(r => setTimeout(r, 3000)); // 3초 표시
+        }
         if (!data.orders) { setCafe24SyncResult("❌ API 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
         allOrders.push(...data.orders);
       }
