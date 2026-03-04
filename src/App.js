@@ -181,6 +181,51 @@ function BrandEditModal({ brand, onClose, onSave }) {
   );
 }
 
+// ── 로그인 화면 ───────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    if (!email || !password) { setError("이메일과 비밀번호를 입력해주세요."); return; }
+    setLoading(true); setError("");
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) { setError("이메일 또는 비밀번호가 올바르지 않습니다."); setLoading(false); return; }
+    onLogin();
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#F0F4F8", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif" }}>
+      <div style={{ background:"white", borderRadius:20, padding:"40px 36px", width:360, boxShadow:"0 8px 40px rgba(0,0,0,0.12)" }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ fontSize:36, marginBottom:10 }}>🛒</div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1E293B" }}>주문관리</h1>
+          <p style={{ margin:"6px 0 0", fontSize:13, color:"#94A3B8" }}>멀티브랜드 통합 대시보드</p>
+        </div>
+
+        {error && <div style={{ background:"#FEF2F2", border:"1px solid #FCA5A5", color:"#DC2626", padding:"10px 14px", borderRadius:10, fontSize:13, marginBottom:16 }}>{error}</div>}
+
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom:14 }}>
+            <label style={smallLabel}>이메일</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 입력" style={inp} autoFocus />
+          </div>
+          <div style={{ marginBottom:22 }}>
+            <label style={smallLabel}>비밀번호</label>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="비밀번호 입력" style={inp} />
+          </div>
+          <button type="submit" disabled={loading} style={{ width:"100%", padding:"13px", background:loading?"#93C5FD":"#3B82F6", color:"white", border:"none", borderRadius:10, fontSize:15, fontWeight:700, cursor:loading?"not-allowed":"pointer" }}>
+            {loading ? "로그인 중..." : "로그인"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════
 export default function App() {
   const [brands, setBrands] = useState([]);
@@ -188,6 +233,8 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [tab, setTab] = useState("입력");
   const [loaded, setLoaded] = useState(false);
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -214,8 +261,21 @@ export default function App() {
   const [xlsxMallType, setXlsxMallType] = useState("");
   const fileInputRef = useRef();
 
+  // ── 세션 체크 ────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthChecked(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   // ── 초기 데이터 로드 (Supabase) ──────────────────────────
   useEffect(() => {
+    if (!session) return;
     async function loadAll() {
       try {
         // 브랜드 로드
@@ -266,7 +326,7 @@ export default function App() {
       setLoaded(true);
     }
     loadAll();
-  }, []);
+  }, [session]);
 
   // 카테고리는 localStorage 저장 유지
   useEffect(() => {
@@ -462,6 +522,14 @@ export default function App() {
     .sort((a,b)=>b.id.localeCompare(a.id)),
     [orders, form.date, activeBrandId, activeMallType]);
 
+  if (!authChecked) return <div style={centerStyle}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🛒</div><div style={{fontSize:14,color:"#94A3B8"}}>로딩 중...</div></div></div>;
+  if (!session) return <LoginScreen onLogin={()=>{}} />;
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setOrders([]); setBrands([]); setLoaded(false);
+  }
+
   if (!loaded) return <div style={centerStyle}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🛒</div><div style={{fontSize:16,fontWeight:700,color:"#1E293B",marginBottom:4}}>주문관리</div><div style={{fontSize:13,color:"#94A3B8"}}>데이터 불러오는 중...</div></div></div>;
 
   return (
@@ -479,10 +547,13 @@ export default function App() {
             <span style={{ fontSize:20, fontWeight:800 }}>🛒 주문관리</span>
             <span style={{ fontSize:12, color:"#94A3B8" }}>멀티브랜드 통합 대시보드</span>
           </div>
-          <div style={{ display:"flex", gap:6 }}>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
             {["입력","조회","결산"].map(t => (
               <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 20px", borderRadius:8, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8" }}>{t}</button>
             ))}
+            <div style={{ width:1, height:20, background:"#334155", margin:"0 6px" }} />
+            <span style={{ fontSize:12, color:"#64748B" }}>{session.user.email}</span>
+            <button onClick={handleLogout} style={{ padding:"6px 14px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
           </div>
         </div>
       </div>
