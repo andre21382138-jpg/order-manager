@@ -391,6 +391,10 @@ export default function App() {
   const [cafe24MallId, setCafe24MallId] = useState("");
   const [cafe24Syncing, setCafe24Syncing] = useState(false);
   const [cafe24SyncResult, setCafe24SyncResult] = useState("");
+  const [unmappedProducts, setUnmappedProducts] = useState({});
+  const [mappingBrand, setMappingBrand] = useState(null);
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [mappingValues, setMappingValues] = useState({});
 
   // ── 세션 체크 ────────────────────────────────────────────
   useEffect(() => {
@@ -706,24 +710,14 @@ export default function App() {
       const data = await res.json();
       if (!data.orders) { setCafe24SyncResult("❌ 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
 
-      // 카테고리 캐시 (상품번호 → 카테고리명)
-      const categoryCache = {};
-      async function getProductCategory(productNo) {
-        if (categoryCache[productNo]) return categoryCache[productNo];
-        try {
-          const pRes = await fetch(`/api/cafe24?action=product&mall_id=${token.mall_id}&access_token=${token.access_token}&product_no=${productNo}`);
-          const pData = await pRes.json();
-          const categoryNo = pData.product?.category?.[0]?.category_no;
-          if (!categoryNo) { categoryCache[productNo] = ""; return ""; }
-          const cRes = await fetch(`/api/cafe24?action=category&mall_id=${token.mall_id}&access_token=${token.access_token}&category_no=${categoryNo}`);
-          const cData = await cRes.json();
-          const categoryName = cData.category?.category_name || "";
-          categoryCache[productNo] = categoryName;
-          return categoryName;
-        } catch(e) { return ""; }
-      }
+      // 기존 상품-카테고리 매핑 로드
+      const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
+      const categoryMap = {};
+      (mapData || []).forEach(m => { categoryMap[m.product_no] = m.category; });
 
       let successCount = 0, skipped = 0;
+      const unmappedProducts = {};
+
       for (const o of data.orders) {
         const orderNo = o.order_id;
         const orderDate = o.order_date?.slice(0, 10) || today();
@@ -732,15 +726,17 @@ export default function App() {
 
         const totalAmount = Number(o.actual_payment_amount || o.payment_amount || 0);
         const itemsRaw = o.items || o.order_items || [];
-        const items = await Promise.all(itemsRaw.map(async it => {
-          const category = await getProductCategory(it.product_no);
+        const items = itemsRaw.map(it => {
+          const productNo = String(it.product_no);
+          const category = categoryMap[productNo] || "";
+          if (!category) unmappedProducts[productNo] = it.product_name || it.product_name_default || "상품";
           return {
             product_name: it.product_name || it.product_name_default || "상품",
             category,
             qty: Number(it.quantity || 1),
             amount: Number(it.product_price || 0)
           };
-        }));
+        });
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
 
         const { data: orderData, error: oErr } = await supabase.from("orders")
@@ -756,10 +752,48 @@ export default function App() {
         setOrders(prev => [{ id: orderData.id, brandId: brand.id, mallType: "자사몰", orderNo, date: orderDate, totalAmount, totalQty: totalQty||1, note: "카페24 자동수집", items: items.length>0?items:[{productName:"상품",category:"",qty:1,amount:totalAmount}] }, ...prev]);
         successCount++;
       }
-      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}`);
+
+      const unmappedCount = Object.keys(unmappedProducts).length;
+      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
+
+      // 미지정 상품이 있으면 카테고리 매핑 모달 열기
+      if (unmappedCount > 0) {
+        setUnmappedProducts(unmappedProducts);
+        setMappingBrand(brand);
+        setShowMappingModal(true);
+      }
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
   }
+  async function saveCategoryMapping() {
+    if (!mappingBrand) return;
+    const entries = Object.entries(mappingValues).filter(([_, v]) => v);
+    for (const [productNo, category] of entries) {
+      await supabase.from("product_category_map").upsert({
+        brand_id: mappingBrand.id,
+        product_no: productNo,
+        product_name: unmappedProducts[productNo] || "",
+        category
+      }, { onConflict: "brand_id,product_no" });
+    }
+    // order_items 업데이트
+    for (const [productNo, category] of entries) {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("id, orders!inner(brand_id)")
+        .eq("orders.brand_id", mappingBrand.id)
+        .eq("category", "");
+      if (items) {
+        for (const item of items) {
+          await supabase.from("order_items").update({ category }).eq("id", item.id);
+        }
+      }
+    }
+    setShowMappingModal(false);
+    setMappingValues({});
+    alert(`✅ ${entries.length}개 상품 카테고리 저장 완료!\n다음 동기화부터 자동 적용됩니다.`);
+  }
+
   function updateItem(idx,field,value) { setItems(items.map((it,i)=>i===idx?{...it,[field]:value}:it)); }
   function addItem() { setItems([...items,emptyItem()]); }
   function removeItem(idx) { if(items.length>1) setItems(items.filter((_,i)=>i!==idx)); }
@@ -1248,6 +1282,40 @@ export default function App() {
             )}
 
             <button onClick={()=>setShowCafe24Modal(false)} style={{...secondaryBtn, width:"100%", marginTop:14}}>닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 카테고리 매핑 모달 */}
+      {showMappingModal && mappingBrand && (
+        <div style={modalBg}>
+          <div style={{...modalBox, width:500, maxHeight:"80vh", overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <h3 style={modalTitle}>🏷️ 상품 카테고리 지정 — {mappingBrand.name}</h3>
+            <p style={{fontSize:13, color:"#64748B", marginBottom:16}}>한 번만 지정하면 다음 동기화부터 자동 적용돼요!</p>
+            <div style={{display:"flex", flexDirection:"column", gap:10, marginBottom:16}}>
+              {Object.entries(unmappedProducts).map(([productNo, productName]) => {
+                const brandCats = getBrand(mappingBrand.id)?.categories?.length > 0
+                  ? getBrand(mappingBrand.id).categories
+                  : categories;
+                return (
+                  <div key={productNo} style={{padding:"10px 14px", borderRadius:10, border:"1px solid #E2E8F0", background:"#F8FAFC"}}>
+                    <div style={{fontSize:13, fontWeight:600, color:"#1E293B", marginBottom:6, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{productName}</div>
+                    <select
+                      value={mappingValues[productNo] || ""}
+                      onChange={e => setMappingValues(prev => ({...prev, [productNo]: e.target.value}))}
+                      style={{...inp, marginBottom:0, fontSize:13}}
+                    >
+                      <option value="">카테고리 선택</option>
+                      {brandCats.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex", gap:8}}>
+              <button onClick={saveCategoryMapping} style={{...primaryBtn, flex:1}}>💾 저장</button>
+              <button onClick={()=>setShowMappingModal(false)} style={{...secondaryBtn, flex:1}}>나중에</button>
+            </div>
           </div>
         </div>
       )}
