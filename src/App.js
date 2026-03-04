@@ -743,6 +743,10 @@ export default function App() {
       if (!data.orders) { setCafe24SyncResult("❌ API 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
       if (data.orders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
 
+      // 취소 주문 제외 (order_status가 C로 시작하는 것)
+      const validOrders = data.orders.filter(o => !String(o.order_status || "").startsWith("C"));
+      if (validOrders.length === 0) { setCafe24SyncResult(`⚠️ 유효 주문 없음 (취소 제외, 기간: ${startDate} ~ ${endDate}, API수신: ${data.orders.length}건)`); setCafe24Syncing(false); return; }
+
       // 기존 상품-카테고리 매핑 로드
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
       const categoryMap = {};
@@ -751,25 +755,24 @@ export default function App() {
       let successCount = 0, skipped = 0;
       const unmappedProducts = {};
 
-      for (const o of data.orders) {
+      for (const o of validOrders) {
         const orderNo = o.order_id;
         const orderDate = o.order_date?.slice(0, 10) || today();
         const { data: exist } = await supabase.from("orders").select("id").eq("order_no", orderNo).eq("brand_id", brand.id);
         if (exist && exist.length > 0) { skipped++; continue; }
 
-        const totalAmount = Number(o.actual_order_amount?.payment_amount || o.payment_amount || 0);
+        // 주문 레벨 결제금액 사용 (가장 정확)
+        const totalAmount = Number(o.actual_order_amount?.payment_amount || 0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => {
           const productNo = String(it.product_no);
           const category = categoryMap[productNo] || "";
           if (!category) unmappedProducts[productNo] = it.product_name || it.product_name_default || "상품";
-          // 실제 결제금액 = 상품가격 - 쿠폰할인
-          const itemAmount = Number(it.product_price || 0) - Number(it.coupon_discount_price || 0);
           return {
             product_name: it.product_name || it.product_name_default || "상품",
             category,
             qty: Number(it.quantity || 1),
-            amount: itemAmount > 0 ? itemAmount : Number(it.product_price || 0)
+            amount: Number(it.order_price_amount || it.product_price || 0)
           };
         });
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
