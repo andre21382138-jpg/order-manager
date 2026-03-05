@@ -1160,7 +1160,7 @@ export default function App() {
         )}
 
         {tab==="결산" && (
-          <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:16}}>
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 브랜드별 결산</h2>
               {brands.length===0 ? <Empty text="브랜드가 없습니다" /> : brands.map(b => {
@@ -1190,25 +1190,6 @@ export default function App() {
             </div>
             )}
             <div style={card}>
-              <h2 style={{...cardTitle,marginBottom:14}}>🏆 상품별 매출순위</h2>
-              {Object.keys(stats.byProduct).length===0 ? <Empty text="데이터가 없습니다" /> : (
-                <div style={{overflowY:"auto",maxHeight:520}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                    <thead><tr style={{borderBottom:"2px solid #F1F5F9"}}>{["순위","상품명","판매건수","수량","총매출"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:h==="상품명"?"left":"right",color:"#94A3B8",fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-                    <tbody>{Object.entries(stats.byProduct).sort((a,b)=>b[1].amount-a[1].amount).map(([name,s],idx)=>(
-                      <tr key={name} style={{borderBottom:"1px solid #F8FAFC",background:idx===0?"#FFFBEB":idx===1?"#F8FAFC":idx===2?"#FFF7F0":"white"}}>
-                        <td style={{padding:"8px",textAlign:"right",fontWeight:800,fontSize:idx<3?15:13}}>{idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":idx+1}</td>
-                        <td style={{padding:"8px",fontWeight:600,color:"#1E293B",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</td>
-                        <td style={{padding:"8px",textAlign:"right",color:"#64748B"}}>{s.count}건</td>
-                        <td style={{padding:"8px",textAlign:"right",color:"#64748B"}}>{s.qty}개</td>
-                        <td style={{padding:"8px",textAlign:"right",fontWeight:700,color:"#1E293B"}}>{fmt(s.amount)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>📅 일별 결산</h2>
               {Object.keys(stats.byDate).length===0 ? <Empty text="데이터가 없습니다" /> :
                 <div style={{overflowY:"auto",maxHeight:520}}>
@@ -1218,6 +1199,25 @@ export default function App() {
                     <tfoot><tr style={{borderTop:"2px solid #F1F5F9",background:"#F8FAFC"}}><td style={{padding:"8px",fontWeight:800}}>합계</td><td style={{padding:"8px",textAlign:"right",fontWeight:800}}>{stats.totalOrders}건</td><td style={{padding:"8px",textAlign:"right",fontWeight:800}}>{stats.totalQty}개</td><td style={{padding:"8px",textAlign:"right",fontWeight:800,color:"#3B82F6"}}>{fmt(stats.totalAmount)}</td><td style={{padding:"8px",textAlign:"right",fontWeight:800,color:"#7C3AED"}}>{fmt(stats.totalOrders>0?Math.round(stats.totalAmount/stats.totalOrders):0)}</td></tr></tfoot>
                   </table>
                 </div>}
+            </div>
+            <div style={{...card, gridColumn:"1 / -1"}}>
+              <h2 style={{...cardTitle,marginBottom:14}}>🏆 상품별 매출순위</h2>
+              {Object.keys(stats.byProduct).length===0 ? <Empty text="데이터가 없습니다" /> : (
+                <div style={{overflowY:"auto",maxHeight:400}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead><tr style={{borderBottom:"2px solid #F1F5F9"}}>{["순위","상품명","판매건수","수량","총매출"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:h==="상품명"?"left":"right",color:"#94A3B8",fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                    <tbody>{Object.entries(stats.byProduct).sort((a,b)=>b[1].amount-a[1].amount).map(([name,s],idx)=>(
+                      <tr key={name} style={{borderBottom:"1px solid #F8FAFC",background:idx===0?"#FFFBEB":idx===1?"#F8FAFC":idx===2?"#FFF7F0":"white"}}>
+                        <td style={{padding:"8px",textAlign:"right",fontWeight:800,fontSize:idx<3?15:13,width:40}}>{idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":idx+1}</td>
+                        <td style={{padding:"8px",fontWeight:600,color:"#1E293B"}}>{name}</td>
+                        <td style={{padding:"8px",textAlign:"right",color:"#64748B",whiteSpace:"nowrap"}}>{s.count}건</td>
+                        <td style={{padding:"8px",textAlign:"right",color:"#64748B",whiteSpace:"nowrap"}}>{s.qty}개</td>
+                        <td style={{padding:"8px",textAlign:"right",fontWeight:700,color:"#1E293B",whiteSpace:"nowrap"}}>{fmt(s.amount)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
