@@ -782,7 +782,7 @@ export default function App() {
         const isCancelled = String(o.order_status || "").startsWith("C");
         // 주문 레벨 결제금액 사용 (가장 정확)
         const totalAmount = isCancelled ? 0 : Number(o.actual_order_amount?.payment_amount || 0);
-        const originalAmount = Number(o.initial_order_amount?.order_price_amount || o.actual_order_amount?.order_price_amount || 0);
+        const originalAmount = Number(o.actual_order_amount?.order_price_amount || o.initial_order_amount?.order_price_amount || 0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => {
           const productNo = String(it.product_no);
