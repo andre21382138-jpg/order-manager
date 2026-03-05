@@ -462,6 +462,8 @@ export default function App() {
           orderNo: o.order_no,
           date: o.date,
           totalAmount: o.total_amount,
+          originalAmount: o.original_amount || 0,
+          isCancelled: o.is_cancelled || false,
           totalQty: o.total_qty,
           note: o.note || "",
           items: (o.order_items || []).map(it => ({
@@ -762,10 +764,6 @@ export default function App() {
 
       if (allOrders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
 
-      // 취소 주문 제외 (order_status가 C로 시작하는 것)
-      const validOrders = allOrders.filter(o => !String(o.order_status || "").startsWith("C"));
-      if (validOrders.length === 0) { setCafe24SyncResult(`⚠️ 유효 주문 없음 (취소 제외, API수신: ${allOrders.length}건)`); setCafe24Syncing(false); return; }
-
       // 기존 상품-카테고리 매핑 로드
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
       const categoryMap = {};
@@ -774,19 +772,22 @@ export default function App() {
       let successCount = 0, skipped = 0;
       const unmappedProducts = {};
 
-      for (const o of validOrders) {
+      for (const o of allOrders) {
         const orderNo = o.order_id;
         const orderDate = o.order_date?.slice(0, 10) || today();
         const { data: exist } = await supabase.from("orders").select("id").eq("order_no", orderNo).eq("brand_id", brand.id);
         if (exist && exist.length > 0) { skipped++; continue; }
 
+        // 취소 주문 여부
+        const isCancelled = String(o.order_status || "").startsWith("C");
         // 주문 레벨 결제금액 사용 (가장 정확)
-        const totalAmount = Number(o.actual_order_amount?.payment_amount || 0);
+        const totalAmount = isCancelled ? 0 : Number(o.actual_order_amount?.payment_amount || 0);
+        const originalAmount = Number(o.initial_order_amount?.order_price_amount || o.actual_order_amount?.order_price_amount || 0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => {
           const productNo = String(it.product_no);
           const category = categoryMap[productNo] || "";
-          if (!category) unmappedProducts[productNo] = it.product_name || it.product_name_default || "상품";
+          if (!category && !isCancelled) unmappedProducts[productNo] = it.product_name || it.product_name_default || "상품";
           return {
             product_name: it.product_name || it.product_name_default || "상품",
             category,
@@ -797,7 +798,7 @@ export default function App() {
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
 
         const { data: orderData, error: oErr } = await supabase.from("orders")
-          .insert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, total_qty: totalQty || 1, note: "카페24 자동수집" })
+          .insert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, original_amount: originalAmount, is_cancelled: isCancelled, total_qty: totalQty || 1, note: "카페24 자동수집" })
           .select().single();
         if (oErr) { skipped++; continue; }
 
@@ -865,9 +866,11 @@ export default function App() {
   ), [orders, filter]);
 
   const stats = useMemo(() => {
-    let totalAmount=0, totalQty=0;
+    let totalAmount=0, totalQty=0, totalOriginal=0, cancelCount=0, cancelAmount=0;
     const byBrand={}, byMallType={}, byCategory={}, byDate={}, byProduct={};
     filtered.forEach(o => {
+      totalOriginal += o.originalAmount || 0;
+      if (o.isCancelled) { cancelCount++; cancelAmount += o.originalAmount || 0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
@@ -879,8 +882,9 @@ export default function App() {
       byDate[o.date].count++; byDate[o.date].qty+=o.totalQty; byDate[o.date].amount+=o.totalAmount;
       o.items.forEach(it => { const cat=it.category||"미분류"; if(!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0}; byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++; const pname=it.productName||it.product_name||"상품"; if(!byProduct[pname]) byProduct[pname]={qty:0,amount:0,count:0}; byProduct[pname].qty+=it.qty; byProduct[pname].amount+=it.amount; byProduct[pname].count++; });
     });
+    const validOrders = filtered.filter(o => !o.isCancelled);
     const hasCat = Object.keys(byCategory).some(k => k !== "미분류" && k !== "" && k !== null);
-    return { totalAmount, totalQty, totalOrders:filtered.length, byBrand, byMallType, byCategory, byDate, byProduct, hasCat };
+    return { totalAmount, totalQty, totalOrders:validOrders.length, totalOriginal, cancelCount, cancelAmount, byBrand, byMallType, byCategory, byDate, byProduct, hasCat };
   }, [filtered]);
 
   const todayOrders = useMemo(() => orders
@@ -1140,11 +1144,27 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ display:"grid",gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)",gap:12,marginBottom:14 }}>
-              {[{label:"총 매출",val:fmt(stats.totalAmount),icon:"💰",color:"#3B82F6"},{label:"주문 수",val:`${stats.totalOrders}건`,icon:"📦",color:"#10B981"},{label:"총 수량",val:`${stats.totalQty}개`,icon:"📊",color:"#F59E0B"},{label:"주문당 평균",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#8B5CF6"}].map(k=>(
+            <div style={{ display:"grid",gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,1fr)",gap:12,marginBottom:14 }}>
+              {[
+                {label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},
+                {label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},
+                {label:"실제 결제금액",val:fmt(stats.totalAmount + (stats.totalOriginal - stats.totalAmount - stats.cancelAmount > 0 ? stats.totalOriginal - stats.totalAmount - stats.cancelAmount : 0)),icon:"💳",color:"#3B82F6"},
+              ].map(k=>(
                 <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
                   <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
-                  <div style={{fontSize:20,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                  <div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,1fr)",gap:12,marginBottom:14 }}>
+              {[
+                {label:"환불건수 / 환불금액",val:`${stats.cancelCount}건 / ${fmt(stats.cancelAmount)}`,icon:"↩️",color:"#EF4444"},
+                {label:"최종 매출",val:fmt(stats.totalAmount),icon:"💰",color:"#8B5CF6"},
+                {label:"객단가",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#F59E0B"},
+              ].map(k=>(
+                <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
+                  <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
+                  <div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
                 </div>
               ))}
             </div>
@@ -1205,7 +1225,7 @@ export default function App() {
               {Object.keys(stats.byProduct).length===0 ? <Empty text="데이터가 없습니다" /> : (
                 <div style={{overflowY:"auto",maxHeight:400}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                    <thead><tr style={{borderBottom:"2px solid #F1F5F9"}}>{["순위","상품명","판매건수","수량","총매출"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:h==="상품명"?"left":"right",color:"#94A3B8",fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                    <thead><tr style={{borderBottom:"2px solid #F1F5F9"}}>{["순위","상품명","주문수량","총수량","총매출(참고)"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:h==="상품명"?"left":"right",color:"#94A3B8",fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
                     <tbody>{Object.entries(stats.byProduct).sort((a,b)=>b[1].amount-a[1].amount).map(([name,s],idx)=>(
                       <tr key={name} style={{borderBottom:"1px solid #F8FAFC",background:idx===0?"#FFFBEB":idx===1?"#F8FAFC":idx===2?"#FFF7F0":"white"}}>
                         <td style={{padding:"8px",textAlign:"right",fontWeight:800,fontSize:idx<3?15:13,width:40}}>{idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":idx+1}</td>
