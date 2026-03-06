@@ -866,15 +866,12 @@ export default function App() {
       let successCount = 0, skipped = 0;
       const unmappedProducts = {};
 
-      for (let oi = 0; oi < allOrders.length; oi++) {
-        const o = allOrders[oi];
-        if (oi % 10 === 0) setCafe24SyncResult(`⏳ DB 저장 중... (${oi+1}/${allOrders.length})건`);
+      // 주문 데이터 전처리
+      const ordersToSave = allOrders.map(o => {
         const orderNo = o.order_id;
         const orderDate = o.order_date?.slice(0, 10) || today();
-        // 취소 주문 여부
         const isCancelled = o.canceled === "T";
-        const isNew = o.first_order === "T" || (o.member_id === "" || o.member_id === null); // 비회원도 신규
-        // 취소 주문은 initial, 일반 주문은 actual 사용
+        const isNew = o.first_order === "T" || (o.member_id === "" || o.member_id === null);
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
         const totalAmount = Number(amountSource?.payment_amount || 0);
         const originalAmount = Number(amountSource?.order_price_amount || 0);
@@ -883,28 +880,33 @@ export default function App() {
           const productNo = String(it.product_no);
           const category = categoryMap[productNo] || "";
           if (!category && !isCancelled) unmappedProducts[productNo] = it.product_name || it.product_name_default || "상품";
-          return {
-            product_name: it.product_name || it.product_name_default || "상품",
-            category,
-            qty: Number(it.quantity || 1),
-            amount: Number(it.order_price_amount || it.product_price || 0)
-          };
+          return { product_name: it.product_name || it.product_name_default || "상품", category, qty: Number(it.quantity || 1), amount: Number(it.order_price_amount || it.product_price || 0) };
         });
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
+        return { orderNo, orderDate, isCancelled, isNew, totalAmount, originalAmount, totalQty, items };
+      });
 
-        const { data: orderData, error: oErr } = await supabase.from("orders")
-          .upsert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, original_amount: originalAmount, is_cancelled: isCancelled, is_new: isNew, total_qty: totalQty || 1, note: "카페24 자동수집" }, { onConflict: "order_no,brand_id" })
-          .select().single();
-        if (oErr) { skipped++; continue; }
+      // 배치 저장 (50건씩)
+      const BATCH = 50;
+      for (let i = 0; i < ordersToSave.length; i += BATCH) {
+        setCafe24SyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
+        const batch = ordersToSave.slice(i, i + BATCH);
+        const { data: savedOrders, error: bErr } = await supabase.from("orders")
+          .upsert(batch.map(o => ({ brand_id: brand.id, mall_type: "자사몰", order_no: o.orderNo, date: o.orderDate, total_amount: o.totalAmount, original_amount: o.originalAmount, is_cancelled: o.isCancelled, is_new: o.isNew, total_qty: o.totalQty || 1, note: "카페24 자동수집" })), { onConflict: "order_no,brand_id" })
+          .select();
+        if (bErr) { skipped += batch.length; continue; }
 
-        await supabase.from("order_items").delete().eq("order_id", orderData.id);
-        if (items.length > 0) {
-          await supabase.from("order_items").insert(items.map(it => ({ order_id: orderData.id, ...it })));
-        } else {
-          await supabase.from("order_items").insert({ order_id: orderData.id, product_name: "상품", category: "", qty: 1, amount: totalAmount });
+        // order_items 배치 저장
+        const allItems = [];
+        for (const saved of savedOrders) {
+          const orig = batch.find(o => o.orderNo === saved.order_no);
+          if (!orig) continue;
+          await supabase.from("order_items").delete().eq("order_id", saved.id);
+          const items = orig.items.length > 0 ? orig.items : [{ product_name: "상품", category: "", qty: 1, amount: orig.totalAmount }];
+          allItems.push(...items.map(it => ({ order_id: saved.id, ...it })));
+          successCount++;
         }
-        setOrders(prev => [{ id: orderData.id, brandId: brand.id, mallType: "자사몰", orderNo, date: orderDate, totalAmount, totalQty: totalQty||1, note: "카페24 자동수집", items: items.length>0?items:[{productName:"상품",category:"",qty:1,amount:totalAmount}] }, ...prev]);
-        successCount++;
+        if (allItems.length > 0) await supabase.from("order_items").insert(allItems);
       }
 
       const unmappedCount = Object.keys(unmappedProducts).length;
