@@ -1120,7 +1120,7 @@ export default function App() {
               </div>
             )}
 
-            <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1.15fr 1fr", gap:18 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
               <div style={card}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                   <div>
