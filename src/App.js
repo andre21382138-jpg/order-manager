@@ -755,7 +755,10 @@ export default function App() {
 
   // 카페24 로그인 팝업 열기
   function openCafe24Auth(brand, mallId) {
-    const clientId = process.env.REACT_APP_CAFE24_CLIENT_ID;
+    const CLIENT_IDS = {
+      afrimo: process.env.REACT_APP_CAFE24_CLIENT_ID_AFRIMO,
+    };
+    const clientId = CLIENT_IDS[mallId] || process.env.REACT_APP_CAFE24_CLIENT_ID;
     const redirectUri = encodeURIComponent("https://order-manager-kappa.vercel.app/auth/cafe24.html");
     const scope = "mall.read_order,mall.write_order,mall.read_analytics,mall.read_product,mall.read_category";
     const url = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&state=${brand.id}&redirect_uri=${redirectUri}&scope=${scope}`;
