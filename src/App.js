@@ -366,9 +366,10 @@ export default function App() {
   const [changePasswordForm, setChangePasswordForm] = useState({ current: "", next: "", confirm: "" });
   const [changePasswordMsg, setChangePasswordMsg] = useState("");
   const [userRole, setUserRole] = useState("manager");
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [userBrandIds, setUserBrandIds] = useState([]);
-  const isAdmin = userRole === "admin";
-  const isDirector = userRole === "director";
+  const isAdmin = roleLoaded && userRole === "admin";
+  const isDirector = roleLoaded && userRole === "director";
   const canAccessAll = isAdmin || isDirector;
 
   const [form, setForm] = useState({ date: today(), brandId: "", mallType: "", orderNo: "", note: "" });
@@ -414,11 +415,13 @@ export default function App() {
       if (session) {
         const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
         if (prof?.role) setUserRole(prof.role);
+        setRoleLoaded(true);
         if (prof?.role === "manager") {
           const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
           setUserBrandIds((bm || []).map(b => b.brand_id));
         }
       }
+      if (!session) setRoleLoaded(true);
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
