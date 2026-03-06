@@ -538,12 +538,25 @@ export default function App() {
           categories: b.categories || [],
         })));
 
-        // 주문 + 주문상품 로드
+        // 주문 로드
         const { data: ordersData, error: oErr } = await supabase
           .from("orders")
-          .select("*, order_items(*)")
-          .order("date", { ascending: false });
+          .select("*")
+          .order("date", { ascending: false })
+          .limit(10000);
         if (oErr) throw oErr;
+
+        // order_items 별도 로드
+        const { data: itemsData } = await supabase
+          .from("order_items")
+          .select("*")
+          .limit(50000);
+        const itemsByOrderId = {};
+        (itemsData || []).forEach(it => {
+          if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id] = [];
+          itemsByOrderId[it.order_id].push(it);
+        });
+
         setOrders(ordersData.map(o => ({
           id: o.id,
           brandId: o.brand_id,
@@ -556,7 +569,7 @@ export default function App() {
           isNew: o.is_new || false,
           totalQty: o.total_qty,
           note: o.note || "",
-          items: (o.order_items || []).map(it => ({
+          items: (itemsByOrderId[o.id] || []).map(it => ({
             id: it.id,
             productName: it.product_name,
             category: it.category || "",
