@@ -439,7 +439,8 @@ export default function App() {
       setAuthChecked(true);
     });
 
-    return () => subscription.unsubscribe();
+    const timeout = setTimeout(() => setAuthChecked(true), 5000);
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 
   // ── 승인 대기 유저 로드 (관리자만) ──────────────────────
