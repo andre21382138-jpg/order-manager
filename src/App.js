@@ -427,7 +427,8 @@ export default function App() {
       setAuthChecked(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
