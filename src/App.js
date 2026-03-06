@@ -538,21 +538,41 @@ export default function App() {
           categories: b.categories || [],
         })));
 
-        // 주문 로드
-        const { data: ordersData, error: oErr } = await supabase
-          .from("orders")
-          .select("*")
-          .order("date", { ascending: false })
-          .limit(10000);
-        if (oErr) throw oErr;
+        // 주문 로드 (페이지네이션)
+        const allOrdersData = [];
+        let orderOffset = 0;
+        const orderPageSize = 1000;
+        while (true) {
+          const { data: ordersPage, error: oErr } = await supabase
+            .from("orders")
+            .select("*")
+            .order("date", { ascending: false })
+            .range(orderOffset, orderOffset + orderPageSize - 1);
+          if (oErr) throw oErr;
+          if (!ordersPage || ordersPage.length === 0) break;
+          allOrdersData.push(...ordersPage);
+          if (ordersPage.length < orderPageSize) break;
+          orderOffset += orderPageSize;
+        }
+        const ordersData = allOrdersData;
 
         // order_items 별도 로드
-        const { data: itemsData } = await supabase
-          .from("order_items")
-          .select("*")
-          .limit(50000);
+        // order_items 페이지네이션으로 전체 로딩
+        const allItems = [];
+        let itemOffset = 0;
+        const itemPageSize = 1000;
+        while (true) {
+          const { data: itemsPage } = await supabase
+            .from("order_items")
+            .select("*")
+            .range(itemOffset, itemOffset + itemPageSize - 1);
+          if (!itemsPage || itemsPage.length === 0) break;
+          allItems.push(...itemsPage);
+          if (itemsPage.length < itemPageSize) break;
+          itemOffset += itemPageSize;
+        }
         const itemsByOrderId = {};
-        (itemsData || []).forEach(it => {
+        allItems.forEach(it => {
           if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id] = [];
           itemsByOrderId[it.order_id].push(it);
         });
