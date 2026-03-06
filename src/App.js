@@ -894,7 +894,7 @@ export default function App() {
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
 
         const { data: orderData, error: oErr } = await supabase.from("orders")
-          .insert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, original_amount: originalAmount, is_cancelled: isCancelled, is_new: isNew, total_qty: totalQty || 1, note: "카페24 자동수집" })
+          .upsert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, original_amount: originalAmount, is_cancelled: isCancelled, is_new: isNew, total_qty: totalQty || 1, note: "카페24 자동수집" }, { onConflict: "order_no,brand_id" })
           .select().single();
         if (oErr) { skipped++; continue; }
 
