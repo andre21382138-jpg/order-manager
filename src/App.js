@@ -491,10 +491,10 @@ export default function App() {
     if (next.length < 6) { setChangePasswordMsg("❌ 비밀번호는 6자 이상이어야 합니다."); return; }
     const { error } = await supabase.auth.updateUser({ password: next });
     if (error) { setChangePasswordMsg("❌ " + error.message); return; }
-    alert("✅ 비밀번호가 변경되었습니다.");
-    setShowChangePasswordModal(false);
-    setChangePasswordForm({ current: "", next: "", confirm: "" });
-    setChangePasswordMsg("");
+    alert("✅ 비밀번호가 변경되었습니다. 다시 로그인해주세요.");
+    Object.keys(localStorage).forEach(k => { if (k.startsWith("sb-")) localStorage.removeItem(k); });
+    await supabase.auth.signOut();
+    window.location.reload();
   }
 
   async function rejectUser(id) {
