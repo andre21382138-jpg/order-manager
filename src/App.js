@@ -441,7 +441,12 @@ export default function App() {
       }
       setAuthChecked(true);
     });
-    return () => subscription.unsubscribe();
+    // 3초 후에도 authChecked가 false면 강제 true
+    const timeout = setTimeout(() => {
+      setAuthChecked(true);
+    }, 3000);
+
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 
   // ── 승인 대기 유저 로드 (관리자만) ──────────────────────
