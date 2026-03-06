@@ -423,6 +423,18 @@ export default function App() {
   }
 
   useEffect(() => {
+    // 초기 세션 로드
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        await loadUserRole(session.user.id);
+      } else {
+        setRoleLoaded(true);
+      }
+      setAuthChecked(true);
+    });
+
+    // 이후 변경 감지 (로그인/로그아웃)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session) {
