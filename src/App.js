@@ -409,39 +409,29 @@ export default function App() {
   const [mappingValues, setMappingValues] = useState({});
 
   // ── 세션 체크 ────────────────────────────────────────────
+  async function loadUserRole(uid) {
+    try {
+      const { data: prof } = await supabase.from("profiles").select("role").eq("id", uid).single();
+      const role = prof?.role || "manager";
+      setUserRole(role);
+      if (role === "manager") {
+        const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", uid);
+        setUserBrandIds((bm || []).map(b => b.brand_id));
+      }
+    } catch(e) { console.error("role load error", e); }
+    setRoleLoaded(true);
+  }
+
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      try {
-        if (session) {
-          const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
-          if (prof?.role) setUserRole(prof.role);
-          if (prof?.role === "manager") {
-            const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
-            setUserBrandIds((bm || []).map(b => b.brand_id));
-          }
-        }
-      } catch(e) { console.error("role load error", e); }
-      setRoleLoaded(true);
-      setAuthChecked(true);
-    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      try {
-        if (session) {
-          const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
-          if (prof?.role) setUserRole(prof.role);
-          else setUserRole("manager");
-          if (prof?.role === "manager") {
-            const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
-            setUserBrandIds((bm || []).map(b => b.brand_id));
-          }
-        } else {
-          setUserRole("manager");
-          setUserBrandIds([]);
-        }
-      } catch(e) { console.error("role load error", e); }
-      setRoleLoaded(true);
+      if (session) {
+        await loadUserRole(session.user.id);
+      } else {
+        setUserRole("manager");
+        setUserBrandIds([]);
+        setRoleLoaded(true);
+      }
       setAuthChecked(true);
     });
     return () => subscription.unsubscribe();
