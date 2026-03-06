@@ -464,6 +464,7 @@ export default function App() {
           totalAmount: o.total_amount,
           originalAmount: o.original_amount || 0,
           isCancelled: o.is_cancelled || false,
+          isNew: o.is_new || false,
           totalQty: o.total_qty,
           note: o.note || "",
           items: (o.order_items || []).map(it => ({
@@ -780,6 +781,7 @@ export default function App() {
 
         // 취소 주문 여부
         const isCancelled = o.canceled === "T";
+        const isNew = o.first_order === "T" || (o.member_id === "" || o.member_id === null); // 비회원도 신규
         // 취소 주문은 initial, 일반 주문은 actual 사용
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
         const totalAmount = Number(amountSource?.payment_amount || 0);
@@ -799,7 +801,7 @@ export default function App() {
         const totalQty = items.reduce((s, it) => s + it.qty, 0);
 
         const { data: orderData, error: oErr } = await supabase.from("orders")
-          .insert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, original_amount: originalAmount, is_cancelled: isCancelled, total_qty: totalQty || 1, note: "카페24 자동수집" })
+          .insert({ brand_id: brand.id, mall_type: "자사몰", order_no: orderNo, date: orderDate, total_amount: totalAmount, original_amount: originalAmount, is_cancelled: isCancelled, is_new: isNew, total_qty: totalQty || 1, note: "카페24 자동수집" })
           .select().single();
         if (oErr) { skipped++; continue; }
 
@@ -867,12 +869,13 @@ export default function App() {
   ), [orders, filter]);
 
   const stats = useMemo(() => {
-    let totalAmount=0, totalQty=0, totalOriginal=0, cancelCount=0, cancelAmount=0;
+    let totalAmount=0, totalQty=0, totalOriginal=0, cancelCount=0, cancelAmount=0, newCount=0, newAmount=0, reCount=0, reAmount=0;
     const byBrand={}, byMallType={}, byCategory={}, byDate={}, byProduct={};
     filtered.forEach(o => {
       totalOriginal += o.originalAmount || 0;
       if (o.isCancelled) { cancelCount++; cancelAmount += o.totalAmount || 0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
+      if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; }
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
       if(!byBrand[o.brandId].byMallType[o.mallType]) byBrand[o.brandId].byMallType[o.mallType]={count:0,amount:0};
@@ -885,7 +888,7 @@ export default function App() {
     });
     const validOrders = filtered.filter(o => !o.isCancelled);
     const hasCat = Object.keys(byCategory).some(k => k !== "미분류" && k !== "" && k !== null);
-    return { totalAmount, totalQty, totalOrders:validOrders.length, totalOriginal, cancelCount, cancelAmount, byBrand, byMallType, byCategory, byDate, byProduct, hasCat };
+    return { totalAmount, totalQty, totalOrders:validOrders.length, totalOriginal, cancelCount, cancelAmount, newCount, newAmount, reCount, reAmount, byBrand, byMallType, byCategory, byDate, byProduct, hasCat };
   }, [filtered]);
 
   const todayOrders = useMemo(() => orders
@@ -1181,6 +1184,20 @@ export default function App() {
         )}
 
         {tab==="결산" && (
+          <>
+          <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr",gap:12,marginBottom:14}}>
+            {[
+              {label:"신규구매 건수",val:`${stats.newCount}건`,icon:"🆕",color:"#10B981"},
+              {label:"신규구매 매출",val:fmt(stats.newAmount),icon:"🆕",color:"#10B981"},
+              {label:"재구매 건수",val:`${stats.reCount}건`,icon:"🔁",color:"#3B82F6"},
+              {label:"재구매 매출",val:fmt(stats.reAmount),icon:"🔁",color:"#3B82F6"},
+            ].map(k=>(
+              <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
+                <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
+                <div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+              </div>
+            ))}
+          </div>
           <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:16}}>
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 브랜드별 결산</h2>
@@ -1241,6 +1258,7 @@ export default function App() {
               )}
             </div>
           </div>
+          </>
         )}
       </div>
 
