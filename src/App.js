@@ -366,10 +366,9 @@ export default function App() {
   const [changePasswordForm, setChangePasswordForm] = useState({ current: "", next: "", confirm: "" });
   const [changePasswordMsg, setChangePasswordMsg] = useState("");
   const [userRole, setUserRole] = useState("manager");
-  const [roleLoaded, setRoleLoaded] = useState(false);
   const [userBrandIds, setUserBrandIds] = useState([]);
-  const isAdmin = roleLoaded && userRole === "admin";
-  const isDirector = roleLoaded && userRole === "director";
+  const isAdmin = userRole === "admin";
+  const isDirector = userRole === "director";
   const canAccessAll = isAdmin || isDirector;
 
   const [form, setForm] = useState({ date: today(), brandId: "", mallType: "", orderNo: "", note: "" });
@@ -419,7 +418,6 @@ export default function App() {
         setUserBrandIds((bm || []).map(b => b.brand_id));
       }
     } catch(e) { console.error("role load error", e); }
-    setRoleLoaded(true);
   }
 
   useEffect(() => {
@@ -428,8 +426,6 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-      } else {
-        setRoleLoaded(true);
       }
       setAuthChecked(true);
     });
@@ -442,7 +438,6 @@ export default function App() {
       } else {
         setUserRole("manager");
         setUserBrandIds([]);
-        setRoleLoaded(true);
       }
       setAuthChecked(true);
     });
@@ -981,10 +976,9 @@ export default function App() {
 
   async function handleLogout() {
     setUserRole("manager");
-    setRoleLoaded(false);
     setUserBrandIds([]);
     await supabase.auth.signOut();
-    setOrders([]); setBrands([]); setLoaded(false);
+    setOrders([]); setBrands([]);
   }
 
   if (!loaded) return <div style={centerStyle}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🛒</div><div style={{fontSize:16,fontWeight:700,color:"#1E293B",marginBottom:4}}>주문관리</div><div style={{fontSize:13,color:"#94A3B8"}}>데이터 불러오는 중...</div></div></div>;
