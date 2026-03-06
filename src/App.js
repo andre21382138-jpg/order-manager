@@ -129,6 +129,7 @@ function parseWorkbook(wb, brands) {
 // ── 브랜드 추가 모달 ──────────────────────────────────────
 function BrandModal({ onClose, onSave }) {
   const [name, setName] = useState("");
+  const [department, setDepartment] = useState("");
   const [mallTypes, setMallTypes] = useState([]);
   const [catInput, setCatInput] = useState("");
   const [cats, setCats] = useState([]);
@@ -141,7 +142,11 @@ function BrandModal({ onClose, onSave }) {
         <h3 style={modalTitle}>🏷️ 브랜드 추가</h3>
         <div style={{marginBottom:18}}>
           <label style={smallLabel}>브랜드명 *</label>
-          <input autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&name.trim()&&onSave({name:name.trim(),mallTypes,categories:cats})} placeholder="예) 센스바디, MYSHOP" style={inp} />
+          <input autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&name.trim()&&onSave({name:name.trim(),department,mallTypes,categories:cats})} placeholder="예) 센스바디, MYSHOP" style={inp} />
+        </div>
+        <div style={{marginBottom:18}}>
+          <label style={smallLabel}>부서</label>
+          <input value={department} onChange={e=>setDepartment(e.target.value)} placeholder="예) 브랜드사업팀" style={inp} />
         </div>
         <div style={{marginBottom:18}}>
           <label style={smallLabel}>쇼핑몰 유형 <span style={{color:"#94A3B8",fontWeight:400}}>(복수 선택 가능)</span></label>
@@ -159,7 +164,7 @@ function BrandModal({ onClose, onSave }) {
           {cats.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"9px 11px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>{cats.map(c=><span key={c} style={{display:"flex",alignItems:"center",gap:4,background:"#E0F2FE",color:"#0369A1",padding:"3px 9px",borderRadius:20,fontSize:12,fontWeight:600}}>{c}<span onClick={()=>removeCat(c)} style={{cursor:"pointer",fontSize:11,opacity:0.7}}>✕</span></span>)}</div>}
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>name.trim()&&onSave({name:name.trim(),mallTypes,categories:cats})} style={{...primaryBtn,flex:1,padding:"11px"}}>저장</button>
+          <button onClick={()=>name.trim()&&onSave({name:name.trim(),department,mallTypes,categories:cats})} style={{...primaryBtn,flex:1,padding:"11px"}}>저장</button>
           <button onClick={onClose} style={{...secondaryBtn,flex:1,padding:"11px"}}>취소</button>
         </div>
       </div>
@@ -169,6 +174,7 @@ function BrandModal({ onClose, onSave }) {
 
 // ── 브랜드 편집 모달 ──────────────────────────────────────
 function BrandEditModal({ brand, onClose, onSave }) {
+  const [department, setDepartment] = useState(brand.department||"");
   const [mallTypes, setMallTypes] = useState(brand.mallTypes||[]);
   const [catInput, setCatInput] = useState("");
   const [cats, setCats] = useState(brand.categories||[]);
@@ -180,6 +186,10 @@ function BrandEditModal({ brand, onClose, onSave }) {
       <div style={{...modalBox,width:400}} onClick={e=>e.stopPropagation()}>
         <h3 style={modalTitle}>✏️ 브랜드 편집</h3>
         <div style={{fontSize:14,color:brand.color,fontWeight:700,marginBottom:18}}>{brand.name}</div>
+        <div style={{marginBottom:18}}>
+          <label style={smallLabel}>부서</label>
+          <input value={department} onChange={e=>setDepartment(e.target.value)} placeholder="예) 브랜드사업팀" style={inp} />
+        </div>
         <div style={{marginBottom:18}}>
           <label style={smallLabel}>쇼핑몰 유형</label>
           <div style={{display:"flex",gap:8}}>{MALL_TYPES.map(t=>{ const on=mallTypes.includes(t); return <button key={t} onClick={()=>toggleMallType(t)} style={{flex:1,padding:"12px 0",borderRadius:12,cursor:"pointer",fontWeight:700,fontSize:14,border:on?`2px solid ${MALL_TYPE_COLORS[t]}`:"2px solid #E2E8F0",background:on?MALL_TYPE_COLORS[t]+"15":"white",color:on?MALL_TYPE_COLORS[t]:"#94A3B8"}}>{t==="자사몰"?"🏪":"🛍️"} {t}</button>; })}</div>
@@ -194,7 +204,7 @@ function BrandEditModal({ brand, onClose, onSave }) {
           {cats.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"9px 11px",background:"#F8FAFC",borderRadius:10,border:"1px solid #E2E8F0"}}>{cats.map(c=><span key={c} style={{display:"flex",alignItems:"center",gap:4,background:"#E0F2FE",color:"#0369A1",padding:"3px 9px",borderRadius:20,fontSize:12,fontWeight:600}}>{c}<span onClick={()=>removeCat(c)} style={{cursor:"pointer",fontSize:11,opacity:0.7}}>✕</span></span>)}</div>}
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>onSave({mallTypes,categories:cats})} style={{...primaryBtn,flex:1,padding:"11px"}}>저장</button>
+          <button onClick={()=>onSave({department,mallTypes,categories:cats})} style={{...primaryBtn,flex:1,padding:"11px"}}>저장</button>
           <button onClick={onClose} style={{...secondaryBtn,flex:1,padding:"11px"}}>취소</button>
         </div>
       </div>
@@ -375,8 +385,8 @@ export default function App() {
   const [items, setItems] = useState([emptyItem()]);
   const [activeBrandId, setActiveBrandId] = useState("");
   const [activeMallType, setActiveMallType] = useState("");
-  const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "" });
-  const [pendingFilter, setPendingFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "" });
+  const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "", dept: "" });
+  const [pendingFilter, setPendingFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "", dept: "" });
 
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
@@ -523,6 +533,7 @@ export default function App() {
           id: b.id,
           name: b.name,
           color: b.color || COLORS[0],
+          department: b.department || "",
           mallTypes: b.mall_types || [],
           categories: b.categories || [],
         })));
@@ -581,24 +592,24 @@ export default function App() {
 
   const isMobile = useIsMobile();
   const getBrand = id => brands.find(b => b.id === id);
-  const visibleBrands = canAccessAll ? brands : brands.filter(b => userBrandIds.includes(b.id));
+  const visibleBrands = canAccessAll ? (filter.dept ? brands.filter(b=>b.department===filter.dept) : brands) : brands.filter(b => userBrandIds.includes(b.id));
   const currentCategories = useMemo(() => { const b=getBrand(form.brandId); return b?.categories?.length>0?b.categories:categories; }, [form.brandId, brands, categories]);
   const filterCategories = useMemo(() => { const b=getBrand(filter.brandId); return b?.categories?.length>0?b.categories:categories; }, [filter.brandId, brands, categories]);
   const activeBrand = getBrand(activeBrandId);
   const availableMallTypes = activeBrand?.mallTypes?.length > 0 ? activeBrand.mallTypes : MALL_TYPES;
 
   // ── 브랜드 CRUD ──────────────────────────────────────────
-  async function addBrand({ name, mallTypes, categories: cats }) {
+  async function addBrand({ name, department, mallTypes, categories: cats }) {
     setSaving(true);
     const color = COLORS[brands.length % COLORS.length];
     const { data, error } = await supabase
       .from("brands")
-      .insert({ name, color, mall_types: mallTypes, categories: cats })
+      .insert({ name, department: department||'', color, mall_types: mallTypes, categories: cats })
       .select()
       .single();
     if (error) { alert("브랜드 저장 오류: " + error.message); }
     else {
-      setBrands(prev => [...prev, { id: data.id, name: data.name, color: data.color, mallTypes: data.mall_types||[], categories: data.categories||[] }]);
+      setBrands(prev => [...prev, { id: data.id, name: data.name, color: data.color, department: data.department||'', mallTypes: data.mall_types||[], categories: data.categories||[] }]);
       setShowBrandModal(false);
     }
     setSaving(false);
@@ -612,13 +623,13 @@ export default function App() {
     setOrders(prev => prev.filter(o => o.brandId !== id));
   }
 
-  async function saveBrandEdit(id, { mallTypes, categories: cats }) {
+  async function saveBrandEdit(id, { department, mallTypes, categories: cats }) {
     const { error } = await supabase
       .from("brands")
-      .update({ mall_types: mallTypes, categories: cats })
+      .update({ department: department||'', mall_types: mallTypes, categories: cats })
       .eq("id", id);
     if (error) { alert("수정 오류: " + error.message); return; }
-    setBrands(prev => prev.map(b => b.id===id ? { ...b, mallTypes, categories: cats } : b));
+    setBrands(prev => prev.map(b => b.id===id ? { ...b, department: department||'', mallTypes, categories: cats } : b));
     setEditingBrand(null);
   }
 
@@ -946,7 +957,8 @@ export default function App() {
     && (!filter.mallType || o.mallType === filter.mallType)
     && (!filter.category || o.items.some(it => it.category === filter.category))
     && (canAccessAll || userBrandIds.includes(o.brandId))
-  ), [orders, filter, canAccessAll, userBrandIds]);
+    && (!filter.dept || (getBrand(o.brandId)?.department || "") === filter.dept)
+  ), [orders, filter, canAccessAll, userBrandIds, brands]);
 
   const stats = useMemo(() => {
     let totalAmount=0, totalQty=0, totalOriginal=0, cancelCount=0, cancelAmount=0, newCount=0, newAmount=0, reCount=0, reAmount=0;
@@ -1194,6 +1206,20 @@ export default function App() {
         {/* ── 조회/결산 공통 필터 ── */}
         {(tab==="조회"||tab==="결산") && (
           <>
+            {canAccessAll && (() => {
+              const depts = [...new Set(brands.map(b=>b.department).filter(Boolean))];
+              return depts.length > 0 ? (
+                <div style={{ background:"white", borderRadius:14, padding:"16px 20px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏢 부서 선택</div>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    <button onClick={()=>setFilter(f=>({...f,dept:"",brandId:""}))} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.dept===""?"#1E293B10":"white", color:filter.dept===""?"#1E293B":"#64748B" }}>전체</button>
+                    {depts.map(d=>(
+                      <button key={d} onClick={()=>setFilter(f=>({...f,dept:d,brandId:""}))} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===d?"2px solid #3B82F6":"2px solid #E2E8F0", background:filter.dept===d?"#EFF6FF":"white", color:filter.dept===d?"#3B82F6":"#64748B" }}>{d}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
             <div style={{ background:"white", borderRadius:14, padding:"16px 20px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
               <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏷️ 브랜드 선택</div>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
