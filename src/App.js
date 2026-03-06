@@ -943,7 +943,8 @@ export default function App() {
     && (!filter.brandId || o.brandId === filter.brandId)
     && (!filter.mallType || o.mallType === filter.mallType)
     && (!filter.category || o.items.some(it => it.category === filter.category))
-  ), [orders, filter]);
+    && (canAccessAll || userBrandIds.includes(o.brandId))
+  ), [orders, filter, canAccessAll, userBrandIds]);
 
   const stats = useMemo(() => {
     let totalAmount=0, totalQty=0, totalOriginal=0, cancelCount=0, cancelAmount=0, newCount=0, newAmount=0, reCount=0, reAmount=0;
@@ -1061,7 +1062,7 @@ export default function App() {
         <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
             <span style={labelStyle}>브랜드</span>
-            {brands.map(b => (
+            {visibleBrands.map(b => (
               <div key={b.id} style={{ display:"flex", alignItems:"center" }}>
                 <span style={{ display:"flex", alignItems:"center", gap:5, background:b.color+"18", border:`1px solid ${b.color}40`, color:b.color, padding:"3px 8px 3px 10px", borderRadius:"20px 0 0 20px", fontSize:12, fontWeight:700 }}>
                   {b.name}
@@ -1090,7 +1091,7 @@ export default function App() {
               <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>STEP 1 · 브랜드 선택</div>
               {brands.length===0 ? <div style={{ fontSize:13, color:"#CBD5E1" }}>브랜드를 먼저 추가해주세요.</div> : (
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {brands.map(b => { const isActive=activeBrandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date===form.date).length; return (
+                  {visibleBrands.map(b => { const isActive=activeBrandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date===form.date).length; return (
                     <button key={b.id} onClick={()=>setActiveBrandId(isActive?"":b.id)} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:100, border:isActive?`2px solid ${b.color}`:"2px solid #E2E8F0", background:isActive?b.color+"12":"white" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
                         <div style={{ width:8, height:8, borderRadius:"50%", background:b.color }} />
@@ -1204,7 +1205,7 @@ export default function App() {
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:"#64748B" }} /><span style={{ fontSize:14, fontWeight:700, color:filter.brandId===""?"#1E293B":"#64748B" }}>전체</span></div>
                   <span style={{ fontSize:11, color:"#94A3B8" }}>{orders.filter(o=>o.date>=filter.from&&o.date<=filter.to).length}건</span>
                 </button>
-                {brands.map(b => { const isActive=pendingFilter.brandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date>=filter.from&&o.date<=filter.to).length; return (
+                {visibleBrands.map(b => { const isActive=pendingFilter.brandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date>=filter.from&&o.date<=filter.to).length; return (
                   <button key={b.id} onClick={()=>setPendingFilter(f=>({...f,brandId:isActive?"":b.id,mallType:"",category:""}))} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:isActive?`2px solid ${b.color}`:"2px solid #E2E8F0", background:isActive?b.color+"12":"white" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:b.color }} /><span style={{ fontSize:14, fontWeight:700, color:isActive?b.color:"#1E293B" }}>{b.name}</span></div>
                     <span style={{ fontSize:11, color:"#94A3B8" }}>{cnt}건</span>
@@ -1285,7 +1286,7 @@ export default function App() {
           <div style={{display:"grid",gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",gap:16}}>
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 브랜드별 결산</h2>
-              {brands.length===0 ? <Empty text="브랜드가 없습니다" /> : brands.map(b => {
+              {brands.length===0 ? <Empty text="브랜드가 없습니다" /> : visibleBrands.map(b => {
                 const s=stats.byBrand[b.id]||{count:0,qty:0,amount:0,byMallType:{}};
                 const pct=stats.totalAmount>0?(s.amount/stats.totalAmount*100).toFixed(1):0;
                 return (
@@ -1422,7 +1423,7 @@ export default function App() {
             </div>
             <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20,padding:"14px 16px",background:"#F8FAFC",borderRadius:12,border:"1px solid #E2E8F0"}}>
-                <div><label style={{...smallLabel,marginBottom:8}}>브랜드 선택 *</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{brands.map(b=><button key={b.id} onClick={()=>setXlsxBrandId(b.id)} style={{padding:"6px 14px",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,border:xlsxBrandId===b.id?`2px solid ${b.color}`:"2px solid #E2E8F0",background:xlsxBrandId===b.id?b.color+"15":"white",color:xlsxBrandId===b.id?b.color:"#64748B"}}>{b.name}</button>)}</div></div>
+                <div><label style={{...smallLabel,marginBottom:8}}>브랜드 선택 *</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{visibleBrands.map(b=><button key={b.id} onClick={()=>setXlsxBrandId(b.id)} style={{padding:"6px 14px",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,border:xlsxBrandId===b.id?`2px solid ${b.color}`:"2px solid #E2E8F0",background:xlsxBrandId===b.id?b.color+"15":"white",color:xlsxBrandId===b.id?b.color:"#64748B"}}>{b.name}</button>)}</div></div>
                 <div><label style={{...smallLabel,marginBottom:8}}>쇼핑몰 유형 선택 *</label><div style={{display:"flex",gap:6}}>{MALL_TYPES.map(t=><button key={t} onClick={()=>setXlsxMallType(t)} style={{padding:"6px 14px",borderRadius:20,cursor:"pointer",fontSize:13,fontWeight:700,border:xlsxMallType===t?`2px solid ${MALL_TYPE_COLORS[t]}`:"2px solid #E2E8F0",background:xlsxMallType===t?MALL_TYPE_COLORS[t]+"15":"white",color:xlsxMallType===t?MALL_TYPE_COLORS[t]:"#64748B"}}>{t}</button>)}</div></div>
               </div>
               {!loadedWb&&!xlsxPreview&&(
