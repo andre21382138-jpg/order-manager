@@ -491,6 +491,7 @@ export default function App() {
     if (next.length < 6) { setChangePasswordMsg("❌ 비밀번호는 6자 이상이어야 합니다."); return; }
     const { error } = await supabase.auth.updateUser({ password: next });
     if (error) { setChangePasswordMsg("❌ " + error.message); return; }
+    alert("✅ 비밀번호가 변경되었습니다.");
     setShowChangePasswordModal(false);
     setChangePasswordForm({ current: "", next: "", confirm: "" });
     setChangePasswordMsg("");
