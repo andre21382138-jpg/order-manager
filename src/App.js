@@ -869,9 +869,6 @@ export default function App() {
       for (const o of allOrders) {
         const orderNo = o.order_id;
         const orderDate = o.order_date?.slice(0, 10) || today();
-        const { data: exist } = await supabase.from("orders").select("id").eq("order_no", orderNo).eq("brand_id", brand.id);
-        if (exist && exist.length > 0) { skipped++; continue; }
-
         // 취소 주문 여부
         const isCancelled = o.canceled === "T";
         const isNew = o.first_order === "T" || (o.member_id === "" || o.member_id === null); // 비회원도 신규
@@ -898,6 +895,7 @@ export default function App() {
           .select().single();
         if (oErr) { skipped++; continue; }
 
+        await supabase.from("order_items").delete().eq("order_id", orderData.id);
         if (items.length > 0) {
           await supabase.from("order_items").insert(items.map(it => ({ order_id: orderData.id, ...it })));
         } else {
