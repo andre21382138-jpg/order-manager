@@ -408,29 +408,25 @@ export default function App() {
   const [mappingValues, setMappingValues] = useState({});
 
   // ── 세션 체크 ────────────────────────────────────────────
-  async function loadUserRole(uid) {
-    try {
-      const { data: prof } = await supabase.from("profiles").select("role").eq("id", uid).single();
-      const role = prof?.role || "manager";
-      setUserRole(role);
-      if (role === "manager") {
-        const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", uid);
-        setUserBrandIds((bm || []).map(b => b.brand_id));
-      }
-    } catch(e) { console.error("role load error", e); }
-  }
-
   useEffect(() => {
-    // 초기 세션 로드
+    async function loadUserRole(uid) {
+      try {
+        const { data: prof } = await supabase.from("profiles").select("role").eq("id", uid).single();
+        const role = prof?.role || "manager";
+        setUserRole(role);
+        if (role === "manager") {
+          const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", uid);
+          setUserBrandIds((bm || []).map(b => b.brand_id));
+        }
+      } catch(e) { console.error("role load error", e); }
+    }
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      if (session) {
-        await loadUserRole(session.user.id);
-      }
+      if (session) await loadUserRole(session.user.id);
       setAuthChecked(true);
     });
 
-    // 이후 변경 감지 (로그인/로그아웃)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session) {
@@ -441,12 +437,8 @@ export default function App() {
       }
       setAuthChecked(true);
     });
-    // 3초 후에도 authChecked가 false면 강제 true
-    const timeout = setTimeout(() => {
-      setAuthChecked(true);
-    }, 3000);
 
-    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
+    return () => subscription.unsubscribe();
   }, []);
 
   // ── 승인 대기 유저 로드 (관리자만) ──────────────────────
