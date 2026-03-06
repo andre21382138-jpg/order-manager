@@ -84,21 +84,7 @@ module.exports = async (req, res) => {
         offset += pageSize;
       }
 
-      // 취소 주문 조회 (order_status=C40)
-      offset = 0;
-      while (true) {
-        const r = await fetch(
-          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}&limit=${pageSize}&offset=${offset}&embed=items&order_status=C40`,
-          { headers }
-        );
-        const d = await r.json();
-        if (d.error || d.errors) break; // 취소 주문 오류는 무시
-        if (!d.orders || d.orders.length === 0) break;
-        allOrders.push(...d.orders);
-        const hasNext = d.links?.some(l => l.rel === "next");
-        if (!hasNext) break;
-        offset += pageSize;
-      }
+
 
       res.status(200).json({ orders: allOrders, total: allOrders.length });
     } catch(e) {
