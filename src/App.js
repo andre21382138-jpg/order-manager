@@ -779,7 +779,7 @@ export default function App() {
         if (exist && exist.length > 0) { skipped++; continue; }
 
         // 취소 주문 여부
-        const isCancelled = String(o.order_status || "").startsWith("C");
+        const isCancelled = o.canceled === "T";
         // 주문 레벨 결제금액 사용 (가장 정확)
         const totalAmount = Number(o.actual_order_amount?.payment_amount || 0);
         const originalAmount = Number(o.actual_order_amount?.order_price_amount || o.initial_order_amount?.order_price_amount || 0);
