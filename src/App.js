@@ -981,7 +981,6 @@ export default function App() {
     setOrders([]); setBrands([]);
   }
 
-  if (!loaded) return <div style={centerStyle}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🛒</div><div style={{fontSize:16,fontWeight:700,color:"#1E293B",marginBottom:4}}>주문관리</div><div style={{fontSize:13,color:"#94A3B8"}}>데이터 불러오는 중...</div></div></div>;
 
   return (
     <div style={{ minHeight:"100vh", background:"#F0F4F8", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif" }}>
