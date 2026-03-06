@@ -424,8 +424,22 @@ export default function App() {
       if (!session) setRoleLoaded(true);
       setAuthChecked(true);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
+      if (session) {
+        const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
+        if (prof?.role) setUserRole(prof.role);
+        else setUserRole("manager");
+        if (prof?.role === "manager") {
+          const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
+          setUserBrandIds((bm || []).map(b => b.brand_id));
+        }
+        setRoleLoaded(true);
+      } else {
+        setUserRole("manager");
+        setRoleLoaded(false);
+        setUserBrandIds([]);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -960,6 +974,9 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   async function handleLogout() {
+    setUserRole("manager");
+    setRoleLoaded(false);
+    setUserBrandIds([]);
     await supabase.auth.signOut();
     setOrders([]); setBrands([]); setLoaded(false);
   }
