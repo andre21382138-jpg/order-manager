@@ -359,7 +359,17 @@ export default function App() {
   const [error, setError] = useState("");
   const [pendingUsers, setPendingUsers] = useState([]);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const isAdmin = session?.user?.email === ADMIN_EMAIL;
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ email: "", password: "", name: "", department: "", role: "manager", brandIds: [] });
+  const [createUserMsg, setCreateUserMsg] = useState("");
+  const [changePasswordForm, setChangePasswordForm] = useState({ current: "", next: "", confirm: "" });
+  const [changePasswordMsg, setChangePasswordMsg] = useState("");
+  const [userRole, setUserRole] = useState("manager");
+  const [userBrandIds, setUserBrandIds] = useState([]);
+  const isAdmin = userRole === "admin";
+  const isDirector = userRole === "director";
+  const canAccessAll = isAdmin || isDirector;
 
   const [form, setForm] = useState({ date: today(), brandId: "", mallType: "", orderNo: "", note: "" });
   const [items, setItems] = useState([emptyItem()]);
@@ -399,8 +409,16 @@ export default function App() {
 
   // ── 세션 체크 ────────────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
+        if (prof?.role) setUserRole(prof.role);
+        if (prof?.role === "manager") {
+          const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
+          setUserBrandIds((bm || []).map(b => b.brand_id));
+        }
+      }
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -411,7 +429,7 @@ export default function App() {
 
   // ── 승인 대기 유저 로드 (관리자만) ──────────────────────
   useEffect(() => {
-    if (!session || session.user.email !== ADMIN_EMAIL) return;
+    if (!session || userRole !== "admin") return;
     async function loadPending() {
       const { data } = await supabase.from("profiles").select("*").eq("approved", false).order("created_at");
       if (data) setPendingUsers(data);
@@ -423,6 +441,46 @@ export default function App() {
     await supabase.from("profiles").update({ approved: true }).eq("id", id);
     setPendingUsers(prev => prev.filter(u => u.id !== id));
   }
+  async function createUser() {
+    setCreateUserMsg("");
+    const { email, password, name, department, role, brandIds } = newUserForm;
+    if (!email || !password || !name) { setCreateUserMsg("❌ 이메일, 비밀번호, 이름은 필수입니다."); return; }
+    try {
+      const { data, error } = await supabase.auth.admin?.createUser({ email, password, email_confirm: true });
+      if (error || !data?.user) {
+        // admin API 없으면 signUp 사용
+        const { data: sd, error: se } = await supabase.auth.signUp({ email, password });
+        if (se) { setCreateUserMsg("❌ " + se.message); return; }
+        const uid = sd.user?.id;
+        if (!uid) { setCreateUserMsg("❌ 계정 생성 실패"); return; }
+        await supabase.from("profiles").upsert({ id: uid, email, name, department, approved: true, role });
+        if (role === "manager" && brandIds.length > 0) {
+          await supabase.from("brand_managers").insert(brandIds.map(bid => ({ brand_id: bid, user_id: uid })));
+        }
+      } else {
+        const uid = data.user.id;
+        await supabase.from("profiles").upsert({ id: uid, email, name, department, approved: true, role });
+        if (role === "manager" && brandIds.length > 0) {
+          await supabase.from("brand_managers").insert(brandIds.map(bid => ({ brand_id: bid, user_id: uid })));
+        }
+      }
+      setCreateUserMsg("✅ 계정이 생성되었습니다.");
+      setNewUserForm({ email: "", password: "", name: "", department: "", role: "manager", brandIds: [] });
+    } catch(e) { setCreateUserMsg("❌ " + e.message); }
+  }
+
+  async function changePassword() {
+    setChangePasswordMsg("");
+    const { next, confirm } = changePasswordForm;
+    if (!next || !confirm) { setChangePasswordMsg("❌ 새 비밀번호를 입력해주세요."); return; }
+    if (next !== confirm) { setChangePasswordMsg("❌ 새 비밀번호가 일치하지 않습니다."); return; }
+    if (next.length < 6) { setChangePasswordMsg("❌ 비밀번호는 6자 이상이어야 합니다."); return; }
+    const { error } = await supabase.auth.updateUser({ password: next });
+    if (error) { setChangePasswordMsg("❌ " + error.message); return; }
+    setChangePasswordMsg("✅ 비밀번호가 변경되었습니다.");
+    setChangePasswordForm({ current: "", next: "", confirm: "" });
+  }
+
   async function rejectUser(id) {
     if (!window.confirm("이 사용자의 가입을 거절하시겠습니까?")) return;
     await supabase.from("profiles").delete().eq("id", id);
@@ -435,11 +493,9 @@ export default function App() {
     if (!session) return;
     async function loadAll() {
       try {
-        // 브랜드 로드
-        const { data: brandsData, error: bErr } = await supabase
-          .from("brands")
-          .select("*")
-          .order("created_at");
+        // 브랜드 로드 (manager는 자신의 브랜드만)
+        let brandsQuery = supabase.from("brands").select("*").order("created_at");
+        const { data: brandsData, error: bErr } = await brandsQuery;
         if (bErr) throw bErr;
         setBrands(brandsData.map(b => ({
           id: b.id,
@@ -503,6 +559,7 @@ export default function App() {
 
   const isMobile = useIsMobile();
   const getBrand = id => brands.find(b => b.id === id);
+  const visibleBrands = canAccessAll ? brands : brands.filter(b => userBrandIds.includes(b.id));
   const currentCategories = useMemo(() => { const b=getBrand(form.brandId); return b?.categories?.length>0?b.categories:categories; }, [form.brandId, brands, categories]);
   const filterCategories = useMemo(() => { const b=getBrand(filter.brandId); return b?.categories?.length>0?b.categories:categories; }, [filter.brandId, brands, categories]);
   const activeBrand = getBrand(activeBrandId);
@@ -928,6 +985,8 @@ export default function App() {
                     {pendingUsers.length > 0 && <span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:14, height:14, fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}
                   </button>
                 )}
+                {isAdmin && <button onClick={()=>setShowCreateUserModal(true)} style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>👤 직원추가</button>}
+                <button onClick={()=>setShowChangePasswordModal(true)} style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>🔑 비밀번호</button>
                 <button onClick={handleLogout} style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
               </div>
             </div>
@@ -1261,6 +1320,72 @@ export default function App() {
           </>
         )}
       </div>
+
+      {/* 직원 계정 생성 모달 */}
+      {showCreateUserModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={()=>setShowCreateUserModal(false)}>
+          <div style={{background:"white",borderRadius:20,width:"min(480px,96vw)",padding:"28px 28px",boxShadow:"0 25px 80px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 style={{margin:0,fontSize:18,fontWeight:800,color:"#1E293B"}}>👤 직원 계정 생성</h2>
+              <button onClick={()=>setShowCreateUserModal(false)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#94A3B8"}}>✕</button>
+            </div>
+            {[
+              {label:"이메일 *",key:"email",type:"email",placeholder:"example@company.com"},
+              {label:"임시 비밀번호 *",key:"password",type:"password",placeholder:"6자 이상"},
+              {label:"이름 *",key:"name",type:"text",placeholder:"홍길동"},
+              {label:"부서",key:"department",type:"text",placeholder:"마케팅팀"},
+            ].map(f=>(
+              <div key={f.key} style={{marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>{f.label}</div>
+                <input type={f.type} placeholder={f.placeholder} value={newUserForm[f.key]} onChange={e=>setNewUserForm(p=>({...p,[f.key]:e.target.value}))} style={{width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:13,boxSizing:"border-box"}} />
+              </div>
+            ))}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>역할 *</div>
+              <div style={{display:"flex",gap:8}}>
+                {[{val:"manager",label:"브랜드담당자"},{val:"director",label:"대표이사"},{val:"admin",label:"관리자"}].map(r=>(
+                  <button key={r.val} onClick={()=>setNewUserForm(p=>({...p,role:r.val}))} style={{flex:1,padding:"8px",borderRadius:8,border:`2px solid ${newUserForm.role===r.val?"#3B82F6":"#E2E8F0"}`,background:newUserForm.role===r.val?"#EFF6FF":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:newUserForm.role===r.val?"#1D4ED8":"#64748B"}}>{r.label}</button>
+                ))}
+              </div>
+            </div>
+            {newUserForm.role === "manager" && (
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>담당 브랜드 (복수선택 가능)</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {brands.map(b=>(
+                    <button key={b.id} onClick={()=>setNewUserForm(p=>({...p,brandIds:p.brandIds.includes(b.id)?p.brandIds.filter(id=>id!==b.id):[...p.brandIds,b.id]}))} style={{padding:"6px 12px",borderRadius:20,border:`2px solid ${newUserForm.brandIds.includes(b.id)?b.color:"#E2E8F0"}`,background:newUserForm.brandIds.includes(b.id)?b.color+"15":"white",cursor:"pointer",fontSize:12,fontWeight:700,color:newUserForm.brandIds.includes(b.id)?b.color:"#64748B"}}>{b.name}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {createUserMsg && <div style={{padding:"8px 12px",borderRadius:8,marginBottom:12,fontSize:13,background:createUserMsg.startsWith("✅")?"#F0FDF4":"#FEF2F2",color:createUserMsg.startsWith("✅")?"#065F46":"#DC2626"}}>{createUserMsg}</div>}
+            <button onClick={createUser} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",fontWeight:800,fontSize:14,cursor:"pointer"}}>계정 생성</button>
+          </div>
+        </div>
+      )}
+
+      {/* 비밀번호 변경 모달 */}
+      {showChangePasswordModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={()=>setShowChangePasswordModal(false)}>
+          <div style={{background:"white",borderRadius:20,width:"min(400px,96vw)",padding:"28px 28px",boxShadow:"0 25px 80px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 style={{margin:0,fontSize:18,fontWeight:800,color:"#1E293B"}}>🔑 비밀번호 변경</h2>
+              <button onClick={()=>setShowChangePasswordModal(false)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#94A3B8"}}>✕</button>
+            </div>
+            {[
+              {label:"새 비밀번호 *",key:"next",type:"password",placeholder:"6자 이상"},
+              {label:"새 비밀번호 확인 *",key:"confirm",type:"password",placeholder:"동일하게 입력"},
+            ].map(f=>(
+              <div key={f.key} style={{marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:4}}>{f.label}</div>
+                <input type={f.type} placeholder={f.placeholder} value={changePasswordForm[f.key]} onChange={e=>setChangePasswordForm(p=>({...p,[f.key]:e.target.value}))} style={{width:"100%",padding:"9px 12px",borderRadius:8,border:"1.5px solid #E2E8F0",fontSize:13,boxSizing:"border-box"}} />
+              </div>
+            ))}
+            {changePasswordMsg && <div style={{padding:"8px 12px",borderRadius:8,marginBottom:12,fontSize:13,background:changePasswordMsg.startsWith("✅")?"#F0FDF4":"#FEF2F2",color:changePasswordMsg.startsWith("✅")?"#065F46":"#DC2626"}}>{changePasswordMsg}</div>}
+            <button onClick={changePassword} style={{width:"100%",padding:"12px",borderRadius:10,border:"none",background:"#3B82F6",color:"white",fontWeight:800,fontSize:14,cursor:"pointer"}}>변경하기</button>
+          </div>
+        </div>
+      )}
 
       {/* 엑셀 업로드 모달 */}
       {showXlsxModal && (
