@@ -980,10 +980,8 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   async function handleLogout() {
-    setUserRole("manager");
-    setUserBrandIds([]);
     await supabase.auth.signOut();
-    setOrders([]); setBrands([]);
+    window.location.reload();
   }
 
 
