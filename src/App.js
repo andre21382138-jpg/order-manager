@@ -807,7 +807,7 @@ export default function App() {
           access_token: data.access_token,
           refresh_token: data.refresh_token || token.refresh_token,
           expires_at: expiresAt
-        });
+        }, { onConflict: "brand_id" });
         const newToken = { ...token, access_token: data.access_token, refresh_token: data.refresh_token || token.refresh_token };
         setCafe24Tokens(prev => ({ ...prev, [brand.id]: newToken }));
         return newToken;
@@ -866,7 +866,9 @@ export default function App() {
       let successCount = 0, skipped = 0;
       const unmappedProducts = {};
 
-      for (const o of allOrders) {
+      for (let oi = 0; oi < allOrders.length; oi++) {
+        const o = allOrders[oi];
+        if (oi % 10 === 0) setCafe24SyncResult(`⏳ DB 저장 중... (${oi+1}/${allOrders.length})건`);
         const orderNo = o.order_id;
         const orderDate = o.order_date?.slice(0, 10) || today();
         // 취소 주문 여부
