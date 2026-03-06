@@ -1649,7 +1649,7 @@ export default function App() {
 
 function OrderList({ orders, expandedOrder, setExpandedOrder, getBrand, deleteOrder, fmt, showDate }) {
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:7,maxHeight:showDate?undefined:490,overflowY:showDate?undefined:"auto"}}>
+    <div style={{display:"flex",flexDirection:"column",gap:7}}>
       {orders.map(o => {
         const brand=getBrand(o.brandId); const isExp=expandedOrder===o.id; const hasMulti=o.items.length>1; const isOrderLevel=o.items.length>1&&o.items.every(it=>it.amount===0);
         return (
