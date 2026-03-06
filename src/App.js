@@ -1148,21 +1148,17 @@ export default function App() {
                       <span style={{ fontSize:12, fontWeight:700, color:"#64748B" }}>상품 목록 *</span>
                       <button type="button" onClick={addItem} style={addItemBtn}>+ 상품 추가</button>
                     </div>
-                    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "110px 1fr 68px 105px 26px", gap:6, marginBottom:5 }}>
-                      {(isMobile ? ["카테고리","상품명"] : ["카테고리","상품명","수량","결제금액",""]).map((h,i)=><span key={i} style={{ fontSize:11, color:"#94A3B8", fontWeight:700 }}>{h}</span>)}
+                    <div style={{ display:"grid", gridTemplateColumns:"100px 1fr 60px 110px 26px", gap:6, marginBottom:5 }}>
+                      {["카테고리","상품명","수량","결제금액",""].map((h,i)=><span key={i} style={{ fontSize:11, color:"#94A3B8", fontWeight:700 }}>{h}</span>)}
                     </div>
-                    <div style={{ display:"flex", flexDirection:"column", gap:isMobile?10:6 }}>
+                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                       {items.map((it,idx)=>(
-                        <div key={it.id} style={{ display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateColumns: isMobile ? undefined : "110px 1fr 68px 105px 26px", gap:6 }}>
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                            <select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} style={{...inp,fontSize:12}}><option value="">카테고리</option>{currentCategories.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                            <input placeholder="상품명 *" value={it.productName} onChange={e=>updateItem(idx,"productName",e.target.value)} style={{...inp,fontSize:12}} />
-                          </div>
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 28px", gap:6 }}>
-                            <input type="number" min="1" placeholder="수량" value={it.qty} onChange={e=>updateItem(idx,"qty",e.target.value)} style={{...inp,fontSize:12}} />
-                            <input type="number" min="0" placeholder="금액" value={it.amount} onChange={e=>updateItem(idx,"amount",e.target.value)} style={{...inp,fontSize:12}} />
-                            <button type="button" onClick={()=>removeItem(idx)} style={{ background:"none",border:"none",cursor:items.length===1?"not-allowed":"pointer",color:items.length===1?"#E2E8F0":"#EF4444",fontSize:17,padding:0 }}>✕</button>
-                          </div>
+                        <div key={it.id} style={{ display:"grid", gridTemplateColumns:"100px 1fr 60px 110px 26px", gap:6 }}>
+                          <select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} style={{...inp,fontSize:12}}><option value="">카테고리</option>{currentCategories.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                          <input placeholder="상품명 *" value={it.productName} onChange={e=>updateItem(idx,"productName",e.target.value)} style={{...inp,fontSize:12}} />
+                          <input type="number" min="1" placeholder="수량" value={it.qty} onChange={e=>updateItem(idx,"qty",e.target.value)} style={{...inp,fontSize:12,textAlign:"center"}} />
+                          <input type="text" inputMode="numeric" placeholder="금액" value={it.amount} onChange={e=>updateItem(idx,"amount",e.target.value.replace(/[^0-9]/g,""))} style={{...inp,fontSize:12}} />
+                          <button type="button" onClick={()=>removeItem(idx)} style={{ background:"none",border:"none",cursor:items.length===1?"not-allowed":"pointer",color:items.length===1?"#E2E8F0":"#EF4444",fontSize:17,padding:0 }}>✕</button>
                         </div>
                       ))}
                     </div>
