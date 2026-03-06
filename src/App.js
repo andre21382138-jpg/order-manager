@@ -1011,6 +1011,8 @@ export default function App() {
                 </button>
               )}
               <span style={{ fontSize:12, color:"#64748B" }}>{session.user.email}</span>
+              {isAdmin && <button onClick={()=>setShowCreateUserModal(true)} style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>👤 직원추가</button>}
+              <button onClick={()=>setShowChangePasswordModal(true)} style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>🔑 비밀번호</button>
               <button onClick={handleLogout} style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #334155", background:"transparent", color:"#94A3B8", cursor:"pointer", fontSize:12, fontWeight:600 }}>로그아웃</button>
             </div>
           </div>
