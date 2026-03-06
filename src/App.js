@@ -486,10 +486,14 @@ export default function App() {
 
   async function changePassword() {
     setChangePasswordMsg("");
-    const { next, confirm } = changePasswordForm;
+    const { current, next, confirm } = changePasswordForm;
+    if (!current) { setChangePasswordMsg("❌ 현재 비밀번호를 입력해주세요."); return; }
     if (!next || !confirm) { setChangePasswordMsg("❌ 새 비밀번호를 입력해주세요."); return; }
     if (next !== confirm) { setChangePasswordMsg("❌ 새 비밀번호가 일치하지 않습니다."); return; }
     if (next.length < 6) { setChangePasswordMsg("❌ 비밀번호는 6자 이상이어야 합니다."); return; }
+    // 현재 비밀번호로 재인증
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email: session.user.email, password: current });
+    if (signInErr) { setChangePasswordMsg("❌ 현재 비밀번호가 올바르지 않습니다."); return; }
     const { error } = await supabase.auth.updateUser({ password: next });
     if (error) { setChangePasswordMsg("❌ " + error.message); return; }
     alert("✅ 비밀번호가 변경되었습니다. 다시 로그인해주세요.");
@@ -1394,6 +1398,7 @@ export default function App() {
               <button onClick={()=>setShowChangePasswordModal(false)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#94A3B8"}}>✕</button>
             </div>
             {[
+              {label:"현재 비밀번호 *",key:"current",type:"password",placeholder:"현재 비밀번호 입력"},
               {label:"새 비밀번호 *",key:"next",type:"password",placeholder:"6자 이상"},
               {label:"새 비밀번호 확인 *",key:"confirm",type:"password",placeholder:"동일하게 입력"},
             ].map(f=>(
