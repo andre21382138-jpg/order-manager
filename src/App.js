@@ -412,16 +412,17 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      if (session) {
-        const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
-        if (prof?.role) setUserRole(prof.role);
-        setRoleLoaded(true);
-        if (prof?.role === "manager") {
-          const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
-          setUserBrandIds((bm || []).map(b => b.brand_id));
+      try {
+        if (session) {
+          const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
+          if (prof?.role) setUserRole(prof.role);
+          if (prof?.role === "manager") {
+            const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", session.user.id);
+            setUserBrandIds((bm || []).map(b => b.brand_id));
+          }
         }
-      }
-      if (!session) setRoleLoaded(true);
+      } catch(e) { console.error("role load error", e); }
+      setRoleLoaded(true);
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
