@@ -71,7 +71,7 @@ module.exports = async (req, res) => {
 
       while (true) {
         const r = await fetch(
-          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}&limit=${pageSize}&offset=${offset}&embed=items`,
+          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}&limit=${pageSize}&offset=${offset}&embed=items&order_status=all`,
           { headers }
         );
         const d = await r.json();

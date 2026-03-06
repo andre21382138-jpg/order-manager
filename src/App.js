@@ -781,7 +781,7 @@ export default function App() {
         // 취소 주문 여부
         const isCancelled = String(o.order_status || "").startsWith("C");
         // 주문 레벨 결제금액 사용 (가장 정확)
-        const totalAmount = isCancelled ? 0 : Number(o.actual_order_amount?.payment_amount || 0);
+        const totalAmount = Number(o.actual_order_amount?.payment_amount || 0);
         const originalAmount = Number(o.actual_order_amount?.order_price_amount || o.initial_order_amount?.order_price_amount || 0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => {
@@ -870,7 +870,7 @@ export default function App() {
     const byBrand={}, byMallType={}, byCategory={}, byDate={}, byProduct={};
     filtered.forEach(o => {
       totalOriginal += o.originalAmount || 0;
-      if (o.isCancelled) { cancelCount++; cancelAmount += o.originalAmount || 0; return; }
+      if (o.isCancelled) { cancelCount++; cancelAmount += o.totalAmount || 0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
@@ -1148,7 +1148,7 @@ export default function App() {
               {[
                 {label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},
                 {label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},
-                {label:"실제 결제금액",val:fmt(stats.totalAmount + (stats.totalOriginal - stats.totalAmount - stats.cancelAmount > 0 ? stats.totalOriginal - stats.totalAmount - stats.cancelAmount : 0)),icon:"💳",color:"#3B82F6"},
+                {label:"실제 결제금액",val:fmt(stats.totalAmount + stats.cancelAmount),icon:"💳",color:"#3B82F6"},
               ].map(k=>(
                 <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
                   <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
