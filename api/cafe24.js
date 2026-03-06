@@ -3,22 +3,32 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
-
   const { action, mall_id, code, access_token, refresh_token, start_date, end_date } = req.query;
 
-  const CLIENT_ID = process.env.CAFE24_CLIENT_ID;
-  const CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
+  // mall_id에 따라 키 선택
+  const CREDENTIALS = {
+    afrimo: {
+      CLIENT_ID: process.env.CAFE24_CLIENT_ID_AFRIMO,
+      CLIENT_SECRET: process.env.CAFE24_CLIENT_SECRET_AFRIMO,
+    }
+  };
+  const cred = CREDENTIALS[mall_id] || {
+    CLIENT_ID: process.env.CAFE24_CLIENT_ID,
+    CLIENT_SECRET: process.env.CAFE24_CLIENT_SECRET,
+  };
+  const CLIENT_ID = cred.CLIENT_ID;
+  const CLIENT_SECRET = cred.CLIENT_SECRET;
   const REDIRECT_URI = process.env.CAFE24_REDIRECT_URI;
 
   if (action === "debug") {
     res.status(200).json({
+      mall_id: mall_id || "없음",
       CLIENT_ID: CLIENT_ID ? CLIENT_ID.slice(0,4) + "***" : "없음",
       CLIENT_SECRET: CLIENT_SECRET ? "있음" : "없음",
       REDIRECT_URI: REDIRECT_URI || "없음"
     });
     return;
   }
-
   if (action === "token") {
     try {
       const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
@@ -37,7 +47,6 @@ module.exports = async (req, res) => {
       res.status(500).json({ error: e.message });
     }
   }
-
   else if (action === "refresh") {
     try {
       const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
@@ -56,7 +65,6 @@ module.exports = async (req, res) => {
       res.status(500).json({ error: e.message });
     }
   }
-
   else if (action === "orders") {
     try {
       const headers = {
@@ -64,11 +72,8 @@ module.exports = async (req, res) => {
         "Content-Type": "application/json",
         "X-Cafe24-Api-Version": "2025-12-01"
       };
-
       const allOrders = [];
       const pageSize = 100;
-
-      // 일반 주문 조회
       let offset = 0;
       while (true) {
         const r = await fetch(
@@ -83,15 +88,11 @@ module.exports = async (req, res) => {
         if (!hasNext) break;
         offset += pageSize;
       }
-
-
-
       res.status(200).json({ orders: allOrders, total: allOrders.length });
     } catch(e) {
       res.status(500).json({ error: e.message });
     }
   }
-
   else {
     res.status(400).json({ error: "잘못된 action" });
   }
