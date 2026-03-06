@@ -980,8 +980,10 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
+    // localStorage에서 supabase 세션 직접 제거 후 reload
+    Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
     supabase.auth.signOut();
-    window.location.reload();
+    window.location.href = window.location.href;
   }
 
 
