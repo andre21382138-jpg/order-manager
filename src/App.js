@@ -412,6 +412,8 @@ export default function App() {
   const [cafe24MallId, setCafe24MallId] = useState("");
   const [cafe24Syncing, setCafe24Syncing] = useState(false);
   const [cafe24SyncResult, setCafe24SyncResult] = useState("");
+  const [cafe24CustomStart, setCafe24CustomStart] = useState("");
+  const [cafe24CustomEnd, setCafe24CustomEnd] = useState("");
   const [unmappedProducts, setUnmappedProducts] = useState({});
   const [mappingBrand, setMappingBrand] = useState(null);
   const [showMappingModal, setShowMappingModal] = useState(false);
@@ -849,7 +851,7 @@ export default function App() {
     return null;
   }
 
-  async function syncCafe24Orders(brand, days = 7) {
+  async function syncCafe24Orders(brand, startDate, endDate) {
     let token = cafe24Tokens[brand.id];
     if (!token) { alert("먼저 카페24 연동을 해주세요."); return; }
     setCafe24Syncing(true); setCafe24SyncResult("");
@@ -863,9 +865,6 @@ export default function App() {
         if (refreshed) { token = refreshed; }
         else { setCafe24SyncResult("❌ 토큰 갱신 실패 — 카페24 재로그인 필요"); setCafe24Syncing(false); return; }
       }
-
-      const endDate = today();
-      const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
       // 30일 청크로 분할 (Vercel 타임아웃 방지)
       const chunks = [];
@@ -1598,13 +1597,37 @@ export default function App() {
             {cafe24Tokens[cafe24Brand.id] && (
               <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📦 주문 동기화</div>
-                <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                  {[7, 30, 90].map(d => (
-                    <button key={d} onClick={()=>syncCafe24Orders(cafe24Brand, d)} disabled={cafe24Syncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:cafe24Syncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
-                      {cafe24Syncing ? "⏳" : `최근 ${d}일`}
-                    </button>
-                  ))}
-                </div>
+                {(() => {
+                  const now = new Date();
+                  const thisMonthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+                  const lastMonthDate = new Date(now.getFullYear(), now.getMonth(), 0);
+                  const lastMonthStart = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-01`;
+                  const lastMonthEnd = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-${String(lastMonthDate.getDate()).padStart(2,'0')}`;
+                  const weekAgo = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+                  const todayStr = today();
+                  const syncOptions = [
+                    { label:"최근 7일", start:weekAgo, end:todayStr },
+                    { label:"당월", start:thisMonthStart, end:todayStr },
+                    { label:"전월", start:lastMonthStart, end:lastMonthEnd },
+                  ];
+                  return (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                        {syncOptions.map(opt => (
+                          <button key={opt.label} onClick={()=>syncCafe24Orders(cafe24Brand, opt.start, opt.end)} disabled={cafe24Syncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:cafe24Syncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
+                            {cafe24Syncing ? "⏳" : opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input type="date" value={cafe24CustomStart||""} onChange={e=>setCafe24CustomStart(e.target.value)} style={{...inp, flex:1, fontSize:12}} />
+                        <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
+                        <input type="date" value={cafe24CustomEnd||""} onChange={e=>setCafe24CustomEnd(e.target.value)} style={{...inp, flex:1, fontSize:12}} />
+                        <button onClick={()=>cafe24CustomStart&&cafe24CustomEnd&&syncCafe24Orders(cafe24Brand, cafe24CustomStart, cafe24CustomEnd)} disabled={cafe24Syncing||!cafe24CustomStart||!cafe24CustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {cafe24SyncResult && (
                   <div style={{ padding:"10px 14px", borderRadius:10, fontSize:13, background:cafe24SyncResult.startsWith("✅")?"#F0FDF4":"#FEF2F2", border:cafe24SyncResult.startsWith("✅")?"1px solid #BBF7D0":"1px solid #FCA5A5", color:cafe24SyncResult.startsWith("✅")?"#065F46":"#DC2626" }}>
                     {cafe24SyncResult}
