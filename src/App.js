@@ -832,7 +832,7 @@ export default function App() {
       totalOriginal += o.originalAmount||0;
       if (o.isCancelled) { cancelCount++; cancelAmount+=o.totalAmount||0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
-      if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; }
+      if (o.mallType !== "스마트스토어") { if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; } }
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
       if(!byBrand[o.brandId].byMallType[o.mallType]) byBrand[o.brandId].byMallType[o.mallType]={count:0,amount:0};
@@ -1185,7 +1185,14 @@ export default function App() {
             <>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
                 {[{label:"신규구매 건수",val:`${stats.newCount}건`,icon:"🆕",color:"#10B981"},{label:"신규구매 매출",val:fmt(stats.newAmount),icon:"🆕",color:"#10B981"},{label:"재구매 건수",val:`${stats.reCount}건`,icon:"🔁",color:"#3B82F6"},{label:"재구매 매출",val:fmt(stats.reAmount),icon:"🔁",color:"#3B82F6"}].map(k=>(
-                  <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
+                  <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
+                    <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
+                    <div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                    {filter.mallType === "스마트스토어"
+                      ? <div style={{fontSize:10,color:"#FCA5A5",marginTop:4}}>스마트스토어 미지원</div>
+                      : (!filter.mallType && <div style={{fontSize:10,color:"#CBD5E1",marginTop:4}}>자사몰만 해당</div>)
+                    }
+                  </div>
                 ))}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:16 }}>
