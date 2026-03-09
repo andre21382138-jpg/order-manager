@@ -4,7 +4,7 @@ const crypto = require("crypto");
 async function getNaverToken(appId, appSecret) {
   const timestamp = Date.now();
   const message = `${appId}_${timestamp}`;
-  const sign = crypto.createHmac("sha256", appSecret).update(message).digest("base64");
+  const sign = crypto.createHmac("sha256", appSecret).update(message).digest("base64url");
 
   const res = await fetch("https://api.commerce.naver.com/external/v1/oauth2/token", {
     method: "POST",
