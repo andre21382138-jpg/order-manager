@@ -1,10 +1,12 @@
-const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
 
 // 네이버 커머스 API 토큰 발급
 async function getNaverToken(appId, appSecret) {
   const timestamp = Date.now();
-  const message = `${appId}_${timestamp}`;
-  const sign = crypto.createHmac("sha256", appSecret).update(message).digest("base64url");
+  const password = `${appId}_${timestamp}`;
+  // bcrypt 해싱 후 Base64 인코딩
+  const hashed = bcrypt.hashSync(password, appSecret);
+  const sign = Buffer.from(hashed).toString("base64");
 
   const res = await fetch("https://api.commerce.naver.com/external/v1/oauth2/token", {
     method: "POST",
