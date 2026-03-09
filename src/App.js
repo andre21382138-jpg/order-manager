@@ -319,6 +319,14 @@ export default function App() {
   const [cafe24SyncResult, setCafe24SyncResult] = useState("");
   const [cafe24CustomStart, setCafe24CustomStart] = useState("");
   const [cafe24CustomEnd, setCafe24CustomEnd] = useState("");
+
+  // 스마트스토어 연동
+  const [showSmartstoreModal, setShowSmartstoreModal] = useState(false);
+  const [smartstoreBrand, setSmartStoreBrand] = useState(null);
+  const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
+  const [smartstoreSyncResult, setSmartStoreSyncResult] = useState("");
+  const [smartstoreCustomStart, setSmartStoreCustomStart] = useState("");
+  const [smartstoreCustomEnd, setSmartStoreCustomEnd] = useState("");
   const [unmappedProducts, setUnmappedProducts] = useState({});
   const [mappingBrand, setMappingBrand] = useState(null);
   const [showMappingModal, setShowMappingModal] = useState(false);
@@ -648,6 +656,85 @@ export default function App() {
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
   }
+  // ── 스마트스토어 주문 동기화 ───────────────────────────
+  async function syncSmartStoreOrders(brand, startDate, endDate) {
+    setSmartStoreSyncing(true); setSmartStoreSyncResult("");
+    try {
+      // 30일 청크 분할 (Vercel 타임아웃 방지)
+      const chunks = [];
+      let cursor = new Date(startDate);
+      const endD = new Date(endDate);
+      while (cursor <= endD) {
+        const s = cursor.toISOString().slice(0, 10);
+        const e = new Date(Math.min(cursor.getTime() + 29 * 86400000, endD.getTime())).toISOString().slice(0, 10);
+        chunks.push({ s, e });
+        cursor = new Date(cursor.getTime() + 30 * 86400000);
+      }
+
+      const allOrders = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const { s, e } = chunks[i];
+        setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}) ${s} ~ ${e}`);
+        const res = await fetch(`/api/smartstore?action=orders&start_date=${s}&end_date=${e}`);
+        const data = await res.json();
+        if (data.error && !data.orders) { setSmartStoreSyncResult("❌ API 오류: " + data.error); setSmartStoreSyncing(false); return; }
+        if (data.orders) allOrders.push(...data.orders);
+      }
+
+      if (allOrders.length === 0) { setSmartStoreSyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setSmartStoreSyncing(false); return; }
+
+      // 카테고리 매핑 로드
+      const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
+      const categoryMap = {};
+      (mapData || []).forEach(m => { categoryMap[m.product_no] = m.category; });
+
+      let successCount = 0, skipped = 0;
+      const unmappedProds = {};
+
+      const ordersToSave = allOrders.map(o => {
+        const isCancelled = o.canceled === "T";
+        const isNew = o.first_order === "T";
+        const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
+        const totalAmount = Number(amountSource?.payment_amount || 0);
+        const originalAmount = Number(amountSource?.order_price_amount || 0);
+        const items = (o.items || []).map(it => {
+          const productNo = String(it.product_no);
+          const category = categoryMap[productNo] || "";
+          if (!category && !isCancelled) unmappedProds[productNo] = it.product_name || "상품";
+          return { product_name: it.product_name || "상품", category, qty: Number(it.quantity || 1), amount: Number(it.order_price_amount || 0) };
+        });
+        const totalQty = items.reduce((s, it) => s + it.qty, 0);
+        return { orderNo: String(o.order_id), orderDate: o.order_date, isCancelled, isNew, totalAmount, originalAmount, totalQty, items };
+      });
+
+      // 배치 저장 (50건씩)
+      const BATCH = 50;
+      for (let i = 0; i < ordersToSave.length; i += BATCH) {
+        setSmartStoreSyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
+        const batch = ordersToSave.slice(i, i + BATCH);
+        const { data: savedOrders, error: bErr } = await supabase.from("orders")
+          .upsert(batch.map(o => ({ brand_id: brand.id, mall_type: "스마트스토어", order_no: o.orderNo, date: o.orderDate, total_amount: o.totalAmount, original_amount: o.originalAmount, is_cancelled: o.isCancelled, is_new: o.isNew, total_qty: o.totalQty || 1, note: "스마트스토어 자동수집" })), { onConflict: "order_no,brand_id" })
+          .select();
+        if (bErr) { skipped += batch.length; continue; }
+        const allItems = [];
+        for (const saved of savedOrders) {
+          const orig = batch.find(o => o.orderNo === saved.order_no);
+          if (!orig) continue;
+          await supabase.from("order_items").delete().eq("order_id", saved.id);
+          const items = orig.items.length > 0 ? orig.items : [{ product_name: "상품", category: "", qty: 1, amount: orig.totalAmount }];
+          allItems.push(...items.map(it => ({ order_id: saved.id, ...it })));
+          successCount++;
+        }
+        if (allItems.length > 0) await supabase.from("order_items").insert(allItems);
+      }
+
+      const unmappedCount = Object.keys(unmappedProds).length;
+      setSmartStoreSyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
+      if (unmappedCount > 0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
+    } catch(e) { setSmartStoreSyncResult("❌ 오류: " + e.message); }
+    setSmartStoreSyncing(false);
+  }
+
   async function saveCategoryMapping() {
     if (!mappingBrand) return;
     const entries = Object.entries(mappingValues).filter(([_,v]) => v);
@@ -778,7 +865,14 @@ export default function App() {
                         }} style={{ flex:1, padding:"5px 7px", borderRadius:6, border:"none", cursor:"pointer", background:isActive?MALL_TYPE_COLORS[t]+"30":"transparent", color:isActive?MALL_TYPE_COLORS[t]:"#64748B", fontSize:11, fontWeight:600, textAlign:"left" }}>
                           {t==="자사몰"?"🏪":"🛍️"} {t}
                         </button>
-                        <button onClick={e=>{e.stopPropagation(); setCafe24Brand(b); setCafe24MallId(cafe24Tokens[b.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);}} title="카페24 연동" style={{ padding:"3px 5px", borderRadius:5, cursor:"pointer", fontSize:9, fontWeight:700, border:hasToken?"none":`1px solid #334155`, background:hasToken?b.color+"90":"transparent", color:hasToken?"white":"#475569", flexShrink:0 }}>🔗</button>
+                        <button onClick={e=>{
+                          e.stopPropagation();
+                          if (t === "스마트스토어") {
+                            setSmartStoreBrand(b); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
+                          } else {
+                            setCafe24Brand(b); setCafe24MallId(cafe24Tokens[b.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
+                          }
+                        }} title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"} style={{ padding:"3px 5px", borderRadius:5, cursor:"pointer", fontSize:9, fontWeight:700, border:"1px solid #334155", background:"transparent", color:"#475569", flexShrink:0 }}>🔗</button>
                       </div>
                     );
                   })}
@@ -1262,6 +1356,53 @@ export default function App() {
               </div>
             )}
             <button onClick={()=>setShowCafe24Modal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 스마트스토어 동기화 모달 */}
+      {showSmartstoreModal && smartstoreBrand && (
+        <div style={modalBg} onClick={()=>setShowSmartstoreModal(false)}>
+          <div style={{...modalBox,width:420}} onClick={e=>e.stopPropagation()}>
+            <h3 style={modalTitle}>🛍️ 스마트스토어 동기화 — {smartstoreBrand.name}</h3>
+            <div style={{ marginBottom:14, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1px solid #BBF7D0", fontSize:13, color:"#065F46" }}>
+              ✅ API 키 등록됨 · 팔레오 브랜드스토어
+            </div>
+            <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📦 주문 동기화</div>
+              {(() => {
+                const now = new Date();
+                const thisMonthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+                const lastMonthDate = new Date(now.getFullYear(), now.getMonth(), 0);
+                const lastMonthStart = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-01`;
+                const lastMonthEnd = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-${String(lastMonthDate.getDate()).padStart(2,'0')}`;
+                const weekAgo = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+                const todayStr = today();
+                return (
+                  <div style={{ marginBottom:10 }}>
+                    <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                      {[{label:"최근 7일",start:weekAgo,end:todayStr},{label:"당월",start:thisMonthStart,end:todayStr},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=>(
+                        <button key={opt.label} onClick={()=>syncSmartStoreOrders(smartstoreBrand,opt.start,opt.end)} disabled={smartstoreSyncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:smartstoreSyncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
+                          {smartstoreSyncing?"⏳":opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <input type="date" value={smartstoreCustomStart||""} onChange={e=>setSmartStoreCustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
+                      <input type="date" value={smartstoreCustomEnd||""} onChange={e=>setSmartStoreCustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <button onClick={()=>smartstoreCustomStart&&smartstoreCustomEnd&&syncSmartStoreOrders(smartstoreBrand,smartstoreCustomStart,smartstoreCustomEnd)} disabled={smartstoreSyncing||!smartstoreCustomStart||!smartstoreCustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
+                    </div>
+                  </div>
+                );
+              })()}
+              {smartstoreSyncResult && (
+                <div style={{ padding:"10px 14px", borderRadius:10, fontSize:13, background:smartstoreSyncResult.startsWith("✅")?"#F0FDF4":"#FEF2F2", border:smartstoreSyncResult.startsWith("✅")?"1px solid #BBF7D0":"1px solid #FCA5A5", color:smartstoreSyncResult.startsWith("✅")?"#065F46":"#DC2626" }}>
+                  {smartstoreSyncResult}
+                </div>
+              )}
+            </div>
+            <button onClick={()=>setShowSmartstoreModal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
           </div>
         </div>
       )}
