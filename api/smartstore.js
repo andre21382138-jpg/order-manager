@@ -18,7 +18,7 @@ async function getNaverToken(appId, appSecret) {
     }),
   });
   const data = await res.json();
-  return data.access_token;
+  return { token: data.access_token, raw: data };
 }
 
 // 주문 상태가 취소/반품/교환인지 확인
@@ -42,15 +42,15 @@ module.exports = async function handler(req, res) {
   try {
     // 토큰 발급
     if (action === "token") {
-      const token = await getNaverToken(APP_ID, APP_SECRET);
-      if (!token) return res.status(400).json({ error: "토큰 발급 실패" });
+      const { token, raw } = await getNaverToken(APP_ID, APP_SECRET);
+      if (!token) return res.status(400).json({ error: "토큰 발급 실패", detail: raw });
       return res.json({ access_token: token });
     }
 
     // 주문 조회
     if (action === "orders") {
-      const token = await getNaverToken(APP_ID, APP_SECRET);
-      if (!token) return res.status(400).json({ error: "토큰 발급 실패" });
+      const { token, raw } = await getNaverToken(APP_ID, APP_SECRET);
+      if (!token) return res.status(400).json({ error: "토큰 발급 실패", detail: raw });
 
       // 날짜 범위 ISO 변환
       const startISO = `${start_date}T00:00:00.000Z`;

@@ -677,7 +677,7 @@ export default function App() {
         setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}) ${s} ~ ${e}`);
         const res = await fetch(`/api/smartstore?action=orders&start_date=${s}&end_date=${e}`);
         const data = await res.json();
-        if (data.error && !data.orders) { setSmartStoreSyncResult("❌ API 오류: " + data.error); setSmartStoreSyncing(false); return; }
+        if (data.error && !data.orders) { setSmartStoreSyncResult("❌ API 오류: " + data.error + (data.detail ? " / " + JSON.stringify(data.detail) : "")); setSmartStoreSyncing(false); return; }
         if (data.orders) allOrders.push(...data.orders);
       }
 
