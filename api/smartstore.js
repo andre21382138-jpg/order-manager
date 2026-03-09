@@ -3,7 +3,7 @@ const crypto = require("crypto");
 // 네이버 커머스 API 토큰 발급
 async function getNaverToken(appId, appSecret) {
   const timestamp = Date.now();
-  const message = `${timestamp}_${appId}`;
+  const message = `${appId}_${timestamp}`;
   const sign = crypto.createHmac("sha256", appSecret).update(message).digest("base64");
 
   const res = await fetch("https://api.commerce.naver.com/external/v1/oauth2/token", {
