@@ -660,7 +660,19 @@ export default function App() {
   async function syncSmartStoreOrders(brand, startDate, endDate) {
     setSmartStoreSyncing(true); setSmartStoreSyncResult("");
     try {
-      // 30일 청크 분할 (Vercel 타임아웃 방지)
+      // 브라우저에서 직접 네이버 API 호출 (사무실 고정 IP 사용)
+      const APP_ID = process.env.REACT_APP_SMARTSTORE_APP_ID;
+      const APP_SECRET = process.env.REACT_APP_SMARTSTORE_APP_SECRET;
+
+      // bcrypt 서명 생성 (서버리스 함수 경유)
+      async function getNaverToken() {
+        const res = await fetch(`/api/smartstore?action=token`);
+        const data = await res.json();
+        if (!data.access_token) throw new Error("토큰 발급 실패: " + JSON.stringify(data));
+        return data.access_token;
+      }
+
+      // 30일 청크 분할
       const chunks = [];
       let cursor = new Date(startDate);
       const endD = new Date(endDate);
@@ -675,13 +687,65 @@ export default function App() {
       for (let i = 0; i < chunks.length; i++) {
         const { s, e } = chunks[i];
         setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}) ${s} ~ ${e}`);
-        const res = await fetch(`/api/smartstore?action=orders&start_date=${s}&end_date=${e}`);
-        const data = await res.json();
-        if (data.error && !data.orders) { setSmartStoreSyncResult("❌ API 오류: " + data.error + (data.detail ? " / " + JSON.stringify(data.detail) : "") + (data.debug ? " / DEBUG: " + JSON.stringify(data.debug) : "")); setSmartStoreSyncing(false); return; }
-        if (data.orders) allOrders.push(...data.orders);
+
+        // 토큰은 매 청크마다 갱신
+        const token = await getNaverToken();
+
+        // 브라우저에서 직접 네이버 주문 API 호출
+        let pageNum = 1;
+        const pageSize = 300;
+        while (true) {
+          const r = await fetch("https://api.commerce.naver.com/external/v1/pay-order/seller/orders/query", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              searchDateType: "PAYMENT_DATE",
+              startDate: `${s}T00:00:00.000Z`,
+              endDate: `${e}T23:59:59.999Z`,
+              pageNum, pageSize,
+            }),
+          });
+          const data = await r.json();
+          if (!data.data || !Array.isArray(data.data)) {
+            throw new Error("주문 조회 실패: " + JSON.stringify(data));
+          }
+          // productOrder → order 그룹핑
+          for (const po of data.data) {
+            const orderId = po.order?.orderId || po.orderId;
+            allOrders.push({ ...po, _orderId: orderId });
+          }
+          if (data.data.length < pageSize) break;
+          pageNum++;
+        }
       }
 
-      if (allOrders.length === 0) { setSmartStoreSyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setSmartStoreSyncing(false); return; }
+      // orderId 기준 그룹핑
+      const orderMap = new Map();
+      const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","EXCHANGE_DONE","CANCEL_NOSHIPPING"];
+      for (const po of allOrders) {
+        const orderId = po._orderId;
+        const status = po.productOrderStatus;
+        const isCancelled = cancelStatuses.includes(status);
+        const paymentDate = (po.order?.paymentDate || "").slice(0,10);
+        if (!orderMap.has(orderId)) {
+          orderMap.set(orderId, {
+            order_id: orderId, order_date: paymentDate,
+            canceled: "F", first_order: po.order?.firstOrderYn === "Y" ? "T" : "F",
+            actual_order_amount: { payment_amount:0, order_price_amount:0 },
+            initial_order_amount: { payment_amount:0, order_price_amount:0 },
+            items: [],
+          });
+        }
+        const grp = orderMap.get(orderId);
+        const qty = po.productOrder?.quantity || po.quantity || 1;
+        const unitPrice = po.productOrder?.unitPrice || po.unitPrice || 0;
+        const totalAmt = po.productOrder?.totalPaymentAmount || po.totalPaymentAmount || 0;
+        grp.items.push({ product_no: String(po.productOrder?.productId || ""), product_name: po.productOrder?.productName || "상품", quantity: qty, order_price_amount: unitPrice });
+        if (isCancelled) { grp.initial_order_amount.payment_amount += totalAmt; grp.initial_order_amount.order_price_amount += unitPrice*qty; grp.canceled = "T"; }
+        else { grp.actual_order_amount.payment_amount += totalAmt; grp.actual_order_amount.order_price_amount += unitPrice*qty; }
+      }
+      const groupedOrders = Array.from(orderMap.values());
+      if (groupedOrders.length === 0) { setSmartStoreSyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setSmartStoreSyncing(false); return; }
 
       // 카테고리 매핑 로드
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
@@ -691,7 +755,7 @@ export default function App() {
       let successCount = 0, skipped = 0;
       const unmappedProds = {};
 
-      const ordersToSave = allOrders.map(o => {
+      const ordersToSave = groupedOrders.map(o => {
         const isCancelled = o.canceled === "T";
         const isNew = o.first_order === "T";
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
