@@ -43,7 +43,16 @@ module.exports = async function handler(req, res) {
     // 토큰 발급
     if (action === "token") {
       const { token, raw } = await getNaverToken(APP_ID, APP_SECRET);
-      if (!token) return res.status(400).json({ error: "토큰 발급 실패", detail: raw });
+      if (!token) return res.status(400).json({ 
+        error: "토큰 발급 실패", 
+        detail: raw,
+        debug: {
+          app_id: APP_ID,
+          secret_length: APP_SECRET?.length,
+          secret_first5: APP_SECRET?.slice(0,5),
+          secret_last5: APP_SECRET?.slice(-5),
+        }
+      });
       return res.json({ access_token: token });
     }
 
