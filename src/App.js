@@ -673,75 +673,76 @@ export default function App() {
         return data.access_token;
       }
 
-      // 30일 청크 분할
+      // 1일 단위 청크 분할 (네이버 API 최대 24시간 제한)
       const chunks = [];
       let cursor = new Date(startDate);
       const endD = new Date(endDate);
       while (cursor <= endD) {
-        const s = cursor.toISOString().slice(0, 10);
-        const e = new Date(Math.min(cursor.getTime() + 29 * 86400000, endD.getTime())).toISOString().slice(0, 10);
-        chunks.push({ s, e });
-        cursor = new Date(cursor.getTime() + 30 * 86400000);
+        chunks.push(cursor.toISOString().slice(0, 10));
+        cursor = new Date(cursor.getTime() + 86400000);
       }
 
       const allOrders = [];
       for (let i = 0; i < chunks.length; i++) {
-        const { s, e } = chunks[i];
-        setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}) ${s} ~ ${e}`);
-
-        // 토큰은 매 청크마다 갱신
-        const token = await getNaverToken();
-
-        // 브라우저에서 직접 네이버 주문 API 호출
-        let pageNum = 1;
-        const pageSize = 300;
-        while (true) {
-          const r = await fetch("http://localhost:3001/orders", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              searchDateType: "PAYMENT_DATE",
-              startDate: `${s}T00:00:00.000Z`,
-              endDate: `${e}T23:59:59.999Z`,
-              pageNum, pageSize,
-            }),
-          });
-          const data = await r.json();
-          if (!data.data || !Array.isArray(data.data)) {
-            throw new Error("주문 조회 실패: " + JSON.stringify(data));
-          }
-          // productOrder → order 그룹핑
+        const day = chunks[i];
+        setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}일) ${day}`);
+        const from = encodeURIComponent(`${day}T00:00:00.000+09:00`);
+        const to = encodeURIComponent(`${day}T23:59:59.999+09:00`);
+        const r = await fetch(`http://localhost:3001/orders?from=${from}&to=${to}`);
+        const data = await r.json();
+        if (data.code || data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
+        if (data.data && Array.isArray(data.data)) {
           for (const po of data.data) {
-            const orderId = po.order?.orderId || po.orderId;
-            allOrders.push({ ...po, _orderId: orderId });
+            allOrders.push({ ...po, _orderId: po.orderId });
           }
-          if (data.data.length < pageSize) break;
-          pageNum++;
         }
+      }
+
+      // 상품주문번호 목록 수집 후 상세 조회
+      const productOrderIds = [...new Set(allOrders.map(o => o.productOrderId).filter(Boolean))];
+      if (productOrderIds.length === 0) { setSmartStoreSyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setSmartStoreSyncing(false); return; }
+
+      // 상품 주문 상세 조회 (100개씩)
+      const detailChunkSize = 100;
+      const allDetails = [];
+      for (let i = 0; i < productOrderIds.length; i += detailChunkSize) {
+        const ids = productOrderIds.slice(i, i + detailChunkSize);
+        setSmartStoreSyncResult(`⏳ 주문 상세 조회 중... (${Math.min(i+detailChunkSize, productOrderIds.length)}/${productOrderIds.length}건)`);
+        const r = await fetch("http://localhost:3001/product-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productOrderIds: ids }),
+        });
+        const data = await r.json();
+        if (data.error) throw new Error("상세 조회 실패: " + JSON.stringify(data));
+        if (data.data) allDetails.push(...data.data);
       }
 
       // orderId 기준 그룹핑
       const orderMap = new Map();
       const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","EXCHANGE_DONE","CANCEL_NOSHIPPING"];
-      for (const po of allOrders) {
-        const orderId = po._orderId;
+      for (const item of allDetails) {
+        const po = item.productOrder;
+        const order = item.order;
+        if (!po || !order) continue;
+        const orderId = order.orderId;
         const status = po.productOrderStatus;
         const isCancelled = cancelStatuses.includes(status);
-        const paymentDate = (po.order?.paymentDate || "").slice(0,10);
+        const paymentDate = (order.paymentDate || "").slice(0,10);
         if (!orderMap.has(orderId)) {
           orderMap.set(orderId, {
             order_id: orderId, order_date: paymentDate,
-            canceled: "F", first_order: po.order?.firstOrderYn === "Y" ? "T" : "F",
+            canceled: "F", first_order: order.firstOrderYn === "Y" ? "T" : "F",
             actual_order_amount: { payment_amount:0, order_price_amount:0 },
             initial_order_amount: { payment_amount:0, order_price_amount:0 },
             items: [],
           });
         }
         const grp = orderMap.get(orderId);
-        const qty = po.productOrder?.quantity || po.quantity || 1;
-        const unitPrice = po.productOrder?.unitPrice || po.unitPrice || 0;
-        const totalAmt = po.productOrder?.totalPaymentAmount || po.totalPaymentAmount || 0;
-        grp.items.push({ product_no: String(po.productOrder?.productId || ""), product_name: po.productOrder?.productName || "상품", quantity: qty, order_price_amount: unitPrice });
+        const qty = Number(po.quantity || 1);
+        const unitPrice = Number(po.unitPrice || 0);
+        const totalAmt = Number(po.totalPaymentAmount || 0);
+        grp.items.push({ product_no: String(po.productId || ""), product_name: po.productName || "상품", quantity: qty, order_price_amount: unitPrice });
         if (isCancelled) { grp.initial_order_amount.payment_amount += totalAmt; grp.initial_order_amount.order_price_amount += unitPrice*qty; grp.canceled = "T"; }
         else { grp.actual_order_amount.payment_amount += totalAmt; grp.actual_order_amount.order_price_amount += unitPrice*qty; }
       }
