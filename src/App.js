@@ -665,24 +665,9 @@ export default function App() {
       const APP_ID = process.env.REACT_APP_SMARTSTORE_APP_ID;
       const APP_SECRET = process.env.REACT_APP_SMARTSTORE_APP_SECRET;
 
-      // bcrypt 서명 + 토큰 발급 브라우저에서 직접 호출 (사무실 고정 IP 사용)
+      // 로컬 프록시 서버 경유 (사무실 고정 IP)
       async function getNaverToken() {
-        const timestamp = Date.now();
-        const password = `${APP_ID}_${timestamp}`;
-        const hashed = bcrypt.hashSync(password, APP_SECRET);
-        const sign = btoa(hashed);
-        const params = new URLSearchParams({
-          client_id: APP_ID,
-          timestamp: String(timestamp),
-          client_secret_sign: sign,
-          grant_type: "client_credentials",
-          type: "SELF",
-        });
-        const res = await fetch("https://api.commerce.naver.com/external/v1/oauth2/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: params,
-        });
+        const res = await fetch("http://localhost:3001/token");
         const data = await res.json();
         if (!data.access_token) throw new Error("토큰 발급 실패: " + JSON.stringify(data));
         return data.access_token;
@@ -711,9 +696,9 @@ export default function App() {
         let pageNum = 1;
         const pageSize = 300;
         while (true) {
-          const r = await fetch("https://api.commerce.naver.com/external/v1/pay-order/seller/orders/query", {
+          const r = await fetch("http://localhost:3001/orders", {
             method: "POST",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               searchDateType: "PAYMENT_DATE",
               startDate: `${s}T00:00:00.000Z`,
