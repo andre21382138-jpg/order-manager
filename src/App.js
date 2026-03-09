@@ -692,9 +692,10 @@ export default function App() {
         const data = await r.json();
         if (data.code || data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
         await new Promise(res => setTimeout(res, 300)); // rate limit 방지
-        const statuses = data.data?.lastChangeStatuses;
-        if (statuses && Array.isArray(statuses)) {
-          for (const po of statuses) {
+        // 조건형 API: data.data 가 상품주문 배열
+        const items = data.data;
+        if (items && Array.isArray(items)) {
+          for (const po of items) {
             allOrders.push(po);
           }
         }
