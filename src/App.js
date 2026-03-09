@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
 
@@ -664,9 +665,24 @@ export default function App() {
       const APP_ID = process.env.REACT_APP_SMARTSTORE_APP_ID;
       const APP_SECRET = process.env.REACT_APP_SMARTSTORE_APP_SECRET;
 
-      // bcrypt 서명 생성 (서버리스 함수 경유)
+      // bcrypt 서명 + 토큰 발급 브라우저에서 직접 호출 (사무실 고정 IP 사용)
       async function getNaverToken() {
-        const res = await fetch(`/api/smartstore?action=token`);
+        const timestamp = Date.now();
+        const password = `${APP_ID}_${timestamp}`;
+        const hashed = bcrypt.hashSync(password, APP_SECRET);
+        const sign = btoa(hashed);
+        const params = new URLSearchParams({
+          client_id: APP_ID,
+          timestamp: String(timestamp),
+          client_secret_sign: sign,
+          grant_type: "client_credentials",
+          type: "SELF",
+        });
+        const res = await fetch("https://api.commerce.naver.com/external/v1/oauth2/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params,
+        });
         const data = await res.json();
         if (!data.access_token) throw new Error("토큰 발급 실패: " + JSON.stringify(data));
         return data.access_token;
