@@ -691,6 +691,7 @@ export default function App() {
         const r = await fetch(`http://localhost:3001/orders?from=${from}&to=${to}`);
         const data = await r.json();
         if (data.code || data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
+        await new Promise(res => setTimeout(res, 300)); // rate limit 방지
         if (data.data && Array.isArray(data.data)) {
           for (const po of data.data) {
             allOrders.push({ ...po, _orderId: po.orderId });
