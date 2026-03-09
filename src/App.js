@@ -29,7 +29,7 @@ const MALL_TYPES = ["자사몰","스마트스토어"];
 const MALL_TYPE_COLORS = { "자사몰":"#8B5CF6", "스마트스토어":"#10B981" };
 
 const fmt = (n) => new Intl.NumberFormat("ko-KR").format(n) + "원";
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const d = new Date(Date.now() + 9*60*60*1000); return d.toISOString().slice(0, 10); }; // KST 기준
 const pad = n => String(n).padStart(2,"0");
 const emptyItem = () => ({ id: Date.now() + Math.random(), category: "", productName: "", qty: "", amount: "" });
 
