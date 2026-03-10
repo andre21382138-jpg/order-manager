@@ -101,6 +101,43 @@ module.exports = async (req, res) => {
       res.status(500).json({ error: e.message });
     }
   }
+  else if (action === "analytics") {
+    // 방문통계: 날짜별 방문자수
+    try {
+      const headers = {
+        "Authorization": `Bearer ${access_token}`,
+        "Content-Type": "application/json",
+        "X-Cafe24-Api-Version": "2025-12-01"
+      };
+      const base = `https://${mall_id}.cafe24api.com/api/v2/admin`;
+
+      // 1. 방문자 통계 (일별)
+      const visitRes = await fetch(`${base}/analytics/visits?shop_no=1&start_date=${start_date}&end_date=${end_date}&date_type=day`, { headers });
+      const visitData = await visitRes.json();
+
+      // 2. 유입경로
+      const inflowRes = await fetch(`${base}/analytics/inflows?shop_no=1&start_date=${start_date}&end_date=${end_date}`, { headers });
+      const inflowData = await inflowRes.json();
+
+      // 3. 기기별
+      const deviceRes = await fetch(`${base}/analytics/devices?shop_no=1&start_date=${start_date}&end_date=${end_date}`, { headers });
+      const deviceData = await deviceRes.json();
+
+      // 4. 페이지별 조회수
+      const pageRes = await fetch(`${base}/analytics/pages?shop_no=1&start_date=${start_date}&end_date=${end_date}&limit=10`, { headers });
+      const pageData = await pageRes.json();
+
+      res.status(200).json({
+        visits: visitData,
+        inflows: inflowData,
+        devices: deviceData,
+        pages: pageData,
+        _raw: { visits: visitData, inflows: inflowData, devices: deviceData, pages: pageData }
+      });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
   else {
     res.status(400).json({ error: "잘못된 action" });
   }
