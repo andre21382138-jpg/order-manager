@@ -553,7 +553,7 @@ export default function App() {
   }, [session]);
 
   function openCafe24Auth(brand, mallId) {
-    const CLIENT_IDS = { afrimo: process.env.REACT_APP_CAFE24_CLIENT_ID_AFRIMO, cocoel: process.env.REACT_APP_CAFE24_CLIENT_ID_COCOEL };
+    const CLIENT_IDS = { afrimo: process.env.REACT_APP_CAFE24_CLIENT_ID_AFRIMO, cocoel: process.env.REACT_APP_CAFE24_CLIENT_ID_COCOEL, cocoel021: process.env.REACT_APP_CAFE24_CLIENT_ID_COCOEL };
     const clientId = CLIENT_IDS[mallId] || process.env.REACT_APP_CAFE24_CLIENT_ID;
     const redirectUri = encodeURIComponent("https://order-manager-kappa.vercel.app/auth/cafe24.html");
     const scope = "mall.read_order,mall.write_order,mall.read_analytics,mall.read_product,mall.read_category";
