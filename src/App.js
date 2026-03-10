@@ -747,7 +747,11 @@ export default function App() {
         const grp = orderMap.get(orderId);
         const qty = Number(po.quantity || 1);
         const unitPrice = Number(po.unitPrice || 0);
-        const totalAmt = Number(po.totalPaymentAmount || 0);
+        // 정산기준금액 = totalPaymentAmount + 스토어쿠폰(판매자부담) + 네이버부담 상품할인
+        const totalPayAmt = Number(po.totalPaymentAmount || 0);
+        const sellerStoreDc = Number(po.sellerBurdenStoreDiscountAmount || 0);
+        const naverProdDc = Math.max(0, Number(po.productProductDiscountAmount || 0) - Number(po.sellerBurdenProductDiscountAmount || 0));
+        const totalAmt = totalPayAmt + sellerStoreDc + naverProdDc;
         grp.items.push({ product_no: String(po.productId || ""), product_name: po.productName || "상품", quantity: qty, order_price_amount: unitPrice });
         if (isCancelled) { grp.initial_order_amount.payment_amount += totalAmt; grp.initial_order_amount.order_price_amount += unitPrice*qty; grp.canceled = "T"; }
         else { grp.actual_order_amount.payment_amount += totalAmt; grp.actual_order_amount.order_price_amount += unitPrice*qty; }
