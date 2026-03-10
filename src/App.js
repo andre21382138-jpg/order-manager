@@ -726,7 +726,7 @@ export default function App() {
 
       // orderId 기준 그룹핑
       const orderMap = new Map();
-      const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","EXCHANGE_DONE","CANCEL_NOSHIPPING"];
+      const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","EXCHANGE_DONE","CANCEL_NOSHIPPING","CANCELED_BY_NOPAYMENT","CANCELED"];
       for (const item of allDetails) {
         const po = item.productOrder;
         const order = item.order;
