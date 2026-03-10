@@ -10,7 +10,11 @@ module.exports = async (req, res) => {
     afrimo: {
       CLIENT_ID: process.env.CAFE24_CLIENT_ID_AFRIMO,
       CLIENT_SECRET: process.env.CAFE24_CLIENT_SECRET_AFRIMO,
-    }
+    },
+    cocoel: {
+      CLIENT_ID: process.env.CAFE24_CLIENT_ID_COCOEL,
+      CLIENT_SECRET: process.env.CAFE24_CLIENT_SECRET_COCOEL,
+    },
   };
   const cred = CREDENTIALS[mall_id] || {
     CLIENT_ID: process.env.CAFE24_CLIENT_ID,
