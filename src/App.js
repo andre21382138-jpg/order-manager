@@ -454,14 +454,15 @@ export default function App() {
   useEffect(() => { setForm(f => ({ ...f, brandId: activeBrandId, mallType: activeMallType })); setItems([emptyItem()]); }, [activeBrandId, activeMallType]);
   useEffect(() => { setActiveMallType(""); }, [activeBrandId]);
 
-  // 자사몰 선택 시 analytics 자동 조회
+  // 자사몰 선택 시 analytics 자동 조회 (cafe24Tokens 제외 → 토큰 갱신 시 무한루프 방지)
+  const hasToken = !!(filter.brandId && cafe24Tokens[filter.brandId]);
   useEffect(() => {
-    if (filter.mallType === "자사몰" && filter.brandId && cafe24Tokens[filter.brandId]) {
+    if (filter.mallType === "자사몰" && filter.brandId && hasToken) {
       fetchAnalytics(filter.brandId, filter.from, filter.to);
     } else {
       setAnalytics(null);
     }
-  }, [filter.brandId, filter.mallType, filter.from, filter.to, cafe24Tokens]);
+  }, [filter.brandId, filter.mallType, filter.from, filter.to, hasToken]);
 
   const isMobile = useIsMobile();
   const getBrand = id => brands.find(b => b.id === id);
