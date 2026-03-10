@@ -606,12 +606,12 @@ export default function App() {
     if (!token) { setAnalytics(null); return; }
     setAnalyticsLoading(true);
     try {
-      let accessToken = token.access_token;
-      // 토큰 갱신
+      // 토큰 갱신 (token 인자 전달)
       const brand = getBrand(brandId);
-      const refreshed = await refreshCafe24Token(brand);
-      if (refreshed) accessToken = cafe24Tokens[brandId]?.access_token || accessToken;
-      const res = await fetch(`/api/cafe24?action=analytics&mall_id=${token.mall_id}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
+      const refreshed = await refreshCafe24Token(brand, token);
+      const accessToken = refreshed ? refreshed.access_token : token.access_token;
+      const mallId = token.mall_id;
+      const res = await fetch(`/api/cafe24?action=analytics&mall_id=${mallId}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
       const data = await res.json();
       if (data.error) { setAnalytics(null); }
       else { setAnalytics(data); }
@@ -1242,92 +1242,59 @@ export default function App() {
                   <h2 style={{...cardTitle, marginBottom:14}}>📊 방문 통계</h2>
                   {analyticsLoading ? (
                     <div style={{textAlign:"center",padding:"24px",color:"#94A3B8"}}>⏳ 불러오는 중...</div>
-                  ) : !analytics ? (
+                  ) : !analytics || analytics.error ? (
                     <div style={{textAlign:"center",padding:"24px",color:"#94A3B8"}}>데이터 없음</div>
                   ) : (()=>{
-                    // 방문자 합산
-                    const visits = analytics.visits?.visits || [];
-                    const totalVisitors = visits.reduce((s,v)=>s+(Number(v.visitors||0)),0);
-                    const totalNewVisitors = visits.reduce((s,v)=>s+(Number(v.new_visitors||0)),0);
-                    const totalReturnVisitors = totalVisitors - totalNewVisitors;
-                    const newPct = totalVisitors>0?((totalNewVisitors/totalVisitors)*100).toFixed(1):0;
-                    const retPct = totalVisitors>0?((totalReturnVisitors/totalVisitors)*100).toFixed(1):0;
+                    // visitors/view 응답: visits.view[]
+                    const viewArr = analytics.visits?.view || [];
+                    const totalVisitors = viewArr.reduce((s,v)=>s+(Number(v.visit_count||0)),0);
+                    const totalNew = viewArr.reduce((s,v)=>s+(Number(v.first_visit_count||0)),0);
+                    const totalReturn = viewArr.reduce((s,v)=>s+(Number(v.re_visit_count||0)),0);
+                    const newPct = totalVisitors>0?((totalNew/totalVisitors)*100).toFixed(1):"0";
+                    const retPct = totalVisitors>0?((totalReturn/totalVisitors)*100).toFixed(1):"0";
+                    const cvr = totalVisitors>0?(stats.totalOrders/totalVisitors*100).toFixed(2)+"%":"-";
 
-                    // 유입경로
-                    const inflows = analytics.inflows?.inflows || [];
-                    // 기기별
-                    const devices = analytics.devices?.devices || [];
-                    const totalDeviceVisits = devices.reduce((s,d)=>s+(Number(d.visitors||0)),0);
-                    // 페이지별
-                    const pages = analytics.pages?.pages || [];
+                    // 유입경로: inflows.domains[]
+                    const domains = analytics.inflows?.domains || [];
+                    const totalDomainVisit = domains.reduce((s,d)=>s+(Number(d.visit_count||0)),0);
 
                     return (
                       <div>
                         {/* 요약 카드 */}
                         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10,marginBottom:16}}>
                           {[
-                            {label:"총 방문자수",val:`${totalVisitors.toLocaleString()}명`,icon:"👥",color:"#3B82F6"},
-                            {label:"신규 방문",val:`${totalNewVisitors.toLocaleString()}명 (${newPct}%)`,icon:"🆕",color:"#10B981"},
-                            {label:"재방문",val:`${totalReturnVisitors.toLocaleString()}명 (${retPct}%)`,icon:"🔁",color:"#F59E0B"},
-                            {label:"구매전환률",val:totalVisitors>0?`${(stats.totalOrders/totalVisitors*100).toFixed(2)}%`:"-",icon:"🎯",color:"#8B5CF6"},
+                            {label:"전체 방문자수",val:`${totalVisitors.toLocaleString()}명`,icon:"👥",color:"#3B82F6",sub:"신규+재방문 합계"},
+                            {label:"신규 방문",val:`${totalNew.toLocaleString()}명`,icon:"🆕",color:"#10B981",sub:`전체의 ${newPct}%`},
+                            {label:"재방문",val:`${totalReturn.toLocaleString()}명`,icon:"🔁",color:"#F59E0B",sub:`전체의 ${retPct}%`},
+                            {label:"구매전환률",val:cvr,icon:"🎯",color:"#8B5CF6",sub:"주문수 ÷ 전체방문자"},
                           ].map(k=>(
                             <div key={k.label} style={{...card,padding:"12px 14px",borderLeft:`4px solid ${k.color}`,margin:0}}>
                               <div style={{fontSize:11,color:"#94A3B8",fontWeight:600,marginBottom:3}}>{k.icon} {k.label}</div>
                               <div style={{fontSize:15,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                              <div style={{fontSize:10,color:"#CBD5E1",marginTop:2}}>{k.sub}</div>
                             </div>
                           ))}
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:12}}>
-                          {/* 유입경로 */}
-                          <div>
-                            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>🔗 유입경로</div>
-                            {inflows.length===0?<div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div>:
-                            inflows.slice(0,6).map((inf,i)=>{
-                              const total=inflows.reduce((s,x)=>s+(Number(x.visitors||0)),0);
-                              const pct=total>0?((Number(inf.visitors||0)/total)*100).toFixed(1):0;
+                        {/* 유입경로 */}
+                        <div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>🔗 유입경로 (도메인별)</div>
+                          {domains.length===0 ? <div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div> :
+                          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"4px 24px"}}>
+                            {domains.slice(0,10).map((d,i)=>{
+                              const pct=totalDomainVisit>0?((Number(d.visit_count||0)/totalDomainVisit)*100).toFixed(1):"0";
                               return(
                                 <div key={i} style={{marginBottom:6}}>
                                   <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
-                                    <span style={{color:"#475569"}}>{inf.inflow_path_name||inf.inflow_type||"기타"}</span>
-                                    <span style={{fontWeight:700,color:"#1E293B"}}>{Number(inf.visitors||0).toLocaleString()}명 ({pct}%)</span>
+                                    <span style={{color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%"}}>{d.domain||"기타"}</span>
+                                    <span style={{fontWeight:700,color:"#1E293B",whiteSpace:"nowrap"}}>{Number(d.visit_count||0).toLocaleString()}회 ({pct}%)</span>
                                   </div>
-                                  <div style={{height:4,background:"#F1F5F9",borderRadius:2}}>
-                                    <div style={{height:4,background:"#3B82F6",borderRadius:2,width:`${pct}%`}}/>
+                                  <div style={{height:3,background:"#F1F5F9",borderRadius:2}}>
+                                    <div style={{height:3,background:"#3B82F6",borderRadius:2,width:`${Math.min(100,pct)}%`}}/>
                                   </div>
                                 </div>
                               );
                             })}
-                          </div>
-                          {/* 기기별 */}
-                          <div>
-                            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📱 기기별</div>
-                            {devices.length===0?<div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div>:
-                            devices.map((d,i)=>{
-                              const pct=totalDeviceVisits>0?((Number(d.visitors||0)/totalDeviceVisits)*100).toFixed(1):0;
-                              return(
-                                <div key={i} style={{marginBottom:6}}>
-                                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
-                                    <span style={{color:"#475569"}}>{d.device_name||d.device_type||"기타"}</span>
-                                    <span style={{fontWeight:700,color:"#1E293B"}}>{Number(d.visitors||0).toLocaleString()}명 ({pct}%)</span>
-                                  </div>
-                                  <div style={{height:4,background:"#F1F5F9",borderRadius:2}}>
-                                    <div style={{height:4,background:"#10B981",borderRadius:2,width:`${pct}%`}}/>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {/* 페이지별 조회수 */}
-                          <div>
-                            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📄 페이지별 조회수</div>
-                            {pages.length===0?<div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div>:
-                            pages.slice(0,6).map((p,i)=>(
-                              <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:"1px solid #F1F5F9"}}>
-                                <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:8}}>{p.page_name||p.page_url||"페이지"}</span>
-                                <span style={{fontWeight:700,color:"#1E293B",whiteSpace:"nowrap"}}>{Number(p.page_views||p.views||0).toLocaleString()}</span>
-                              </div>
-                            ))}
-                          </div>
+                          </div>}
                         </div>
                       </div>
                     );
@@ -1366,10 +1333,14 @@ export default function App() {
                     <div style={{ overflowY:"auto", maxHeight:520 }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                         {(()=>{
-                          const showVisitor = filter.mallType==="자사몰" && analytics && !analyticsLoading;
+                          const showVisitor = filter.mallType==="자사몰" && analytics && !analyticsLoading && !analytics.error;
                           const visitByDate = {};
                           if (showVisitor) {
-                            (analytics.visits?.visits||[]).forEach(v=>{ visitByDate[v.date||v.visit_date||""]=(Number(v.visitors||0)); });
+                            // visits_daily.view[]: { date: "2026-03-09T00:00+09:00", visit_count, first_visit_count, re_visit_count }
+                            (analytics.visits_daily?.view||[]).forEach(v=>{
+                              const d = (v.date||"").slice(0,10);
+                              if(d) visitByDate[d] = Number(v.visit_count||0);
+                            });
                           }
                           const headers = showVisitor ? ["날짜","주문","수량","방문자수","전환률","매출","객단가"] : ["날짜","주문","수량","매출","객단가"];
                           return (<>
