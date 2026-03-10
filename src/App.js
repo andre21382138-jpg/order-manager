@@ -320,6 +320,8 @@ export default function App() {
   const [cafe24SyncResult, setCafe24SyncResult] = useState("");
   const [cafe24CustomStart, setCafe24CustomStart] = useState("");
   const [cafe24CustomEnd, setCafe24CustomEnd] = useState("");
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // 스마트스토어 연동
   const [showSmartstoreModal, setShowSmartstoreModal] = useState(false);
@@ -451,6 +453,15 @@ export default function App() {
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
   useEffect(() => { setForm(f => ({ ...f, brandId: activeBrandId, mallType: activeMallType })); setItems([emptyItem()]); }, [activeBrandId, activeMallType]);
   useEffect(() => { setActiveMallType(""); }, [activeBrandId]);
+
+  // 자사몰 선택 시 analytics 자동 조회
+  useEffect(() => {
+    if (filter.mallType === "자사몰" && filter.brandId && cafe24Tokens[filter.brandId]) {
+      fetchAnalytics(filter.brandId, filter.from, filter.to);
+    } else {
+      setAnalytics(null);
+    }
+  }, [filter.brandId, filter.mallType, filter.from, filter.to, cafe24Tokens]);
 
   const isMobile = useIsMobile();
   const getBrand = id => brands.find(b => b.id === id);
@@ -589,6 +600,28 @@ export default function App() {
     } catch(e) {}
     return null;
   }
+  // 자사몰 방문 통계 조회
+  async function fetchAnalytics(brandId, from, to) {
+    const token = cafe24Tokens[brandId];
+    if (!token) { setAnalytics(null); return; }
+    setAnalyticsLoading(true);
+    try {
+      let accessToken = token.access_token;
+      // 토큰 갱신
+      const brand = getBrand(brandId);
+      const refreshed = await refreshCafe24Token(brand);
+      if (refreshed) accessToken = cafe24Tokens[brandId]?.access_token || accessToken;
+      const res = await fetch(`/api/cafe24?action=analytics&mall_id=${token.mall_id}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
+      const data = await res.json();
+      if (data.error) { setAnalytics(null); }
+      else { setAnalytics(data); }
+    } catch(e) {
+      setAnalytics(null);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }
+
   async function syncCafe24Orders(brand, startDate, endDate) {
     let token = cafe24Tokens[brand.id];
     if (!token) { alert("먼저 카페24 연동을 해주세요."); return; }
@@ -1203,6 +1236,105 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              {/* 방문통계 - 자사몰 단독 선택 시만 노출 */}
+              {filter.mallType === "자사몰" && filter.brandId && (
+                <div style={{...card, marginBottom:14}}>
+                  <h2 style={{...cardTitle, marginBottom:14}}>📊 방문 통계</h2>
+                  {analyticsLoading ? (
+                    <div style={{textAlign:"center",padding:"24px",color:"#94A3B8"}}>⏳ 불러오는 중...</div>
+                  ) : !analytics ? (
+                    <div style={{textAlign:"center",padding:"24px",color:"#94A3B8"}}>데이터 없음</div>
+                  ) : (()=>{
+                    // 방문자 합산
+                    const visits = analytics.visits?.visits || [];
+                    const totalVisitors = visits.reduce((s,v)=>s+(Number(v.visitors||0)),0);
+                    const totalNewVisitors = visits.reduce((s,v)=>s+(Number(v.new_visitors||0)),0);
+                    const totalReturnVisitors = totalVisitors - totalNewVisitors;
+                    const newPct = totalVisitors>0?((totalNewVisitors/totalVisitors)*100).toFixed(1):0;
+                    const retPct = totalVisitors>0?((totalReturnVisitors/totalVisitors)*100).toFixed(1):0;
+
+                    // 유입경로
+                    const inflows = analytics.inflows?.inflows || [];
+                    // 기기별
+                    const devices = analytics.devices?.devices || [];
+                    const totalDeviceVisits = devices.reduce((s,d)=>s+(Number(d.visitors||0)),0);
+                    // 페이지별
+                    const pages = analytics.pages?.pages || [];
+
+                    return (
+                      <div>
+                        {/* 요약 카드 */}
+                        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10,marginBottom:16}}>
+                          {[
+                            {label:"총 방문자수",val:`${totalVisitors.toLocaleString()}명`,icon:"👥",color:"#3B82F6"},
+                            {label:"신규 방문",val:`${totalNewVisitors.toLocaleString()}명 (${newPct}%)`,icon:"🆕",color:"#10B981"},
+                            {label:"재방문",val:`${totalReturnVisitors.toLocaleString()}명 (${retPct}%)`,icon:"🔁",color:"#F59E0B"},
+                            {label:"구매전환률",val:totalVisitors>0?`${(stats.totalOrders/totalVisitors*100).toFixed(2)}%`:"-",icon:"🎯",color:"#8B5CF6"},
+                          ].map(k=>(
+                            <div key={k.label} style={{...card,padding:"12px 14px",borderLeft:`4px solid ${k.color}`,margin:0}}>
+                              <div style={{fontSize:11,color:"#94A3B8",fontWeight:600,marginBottom:3}}>{k.icon} {k.label}</div>
+                              <div style={{fontSize:15,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:12}}>
+                          {/* 유입경로 */}
+                          <div>
+                            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>🔗 유입경로</div>
+                            {inflows.length===0?<div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div>:
+                            inflows.slice(0,6).map((inf,i)=>{
+                              const total=inflows.reduce((s,x)=>s+(Number(x.visitors||0)),0);
+                              const pct=total>0?((Number(inf.visitors||0)/total)*100).toFixed(1):0;
+                              return(
+                                <div key={i} style={{marginBottom:6}}>
+                                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
+                                    <span style={{color:"#475569"}}>{inf.inflow_path_name||inf.inflow_type||"기타"}</span>
+                                    <span style={{fontWeight:700,color:"#1E293B"}}>{Number(inf.visitors||0).toLocaleString()}명 ({pct}%)</span>
+                                  </div>
+                                  <div style={{height:4,background:"#F1F5F9",borderRadius:2}}>
+                                    <div style={{height:4,background:"#3B82F6",borderRadius:2,width:`${pct}%`}}/>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* 기기별 */}
+                          <div>
+                            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📱 기기별</div>
+                            {devices.length===0?<div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div>:
+                            devices.map((d,i)=>{
+                              const pct=totalDeviceVisits>0?((Number(d.visitors||0)/totalDeviceVisits)*100).toFixed(1):0;
+                              return(
+                                <div key={i} style={{marginBottom:6}}>
+                                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
+                                    <span style={{color:"#475569"}}>{d.device_name||d.device_type||"기타"}</span>
+                                    <span style={{fontWeight:700,color:"#1E293B"}}>{Number(d.visitors||0).toLocaleString()}명 ({pct}%)</span>
+                                  </div>
+                                  <div style={{height:4,background:"#F1F5F9",borderRadius:2}}>
+                                    <div style={{height:4,background:"#10B981",borderRadius:2,width:`${pct}%`}}/>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* 페이지별 조회수 */}
+                          <div>
+                            <div style={{fontSize:12,fontWeight:700,color:"#475569",marginBottom:8}}>📄 페이지별 조회수</div>
+                            {pages.length===0?<div style={{color:"#94A3B8",fontSize:12}}>데이터 없음</div>:
+                            pages.slice(0,6).map((p,i)=>(
+                              <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:"1px solid #F1F5F9"}}>
+                                <span style={{color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:8}}>{p.page_name||p.page_url||"페이지"}</span>
+                                <span style={{fontWeight:700,color:"#1E293B",whiteSpace:"nowrap"}}>{Number(p.page_views||p.views||0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:16 }}>
                 <div style={card}>
                   <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 브랜드별 결산</h2>
@@ -1233,9 +1365,41 @@ export default function App() {
                   {Object.keys(stats.byDate).length===0 ? <Empty text="데이터가 없습니다" /> : (
                     <div style={{ overflowY:"auto", maxHeight:520 }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-                        <thead><tr style={{ borderBottom:"2px solid #F1F5F9" }}>{["날짜","주문","수량","매출","객단가"].map(h=><th key={h} style={{ padding:"6px 8px", textAlign:h==="날짜"?"left":"right", color:"#94A3B8", fontWeight:700, fontSize:12 }}>{h}</th>)}</tr></thead>
-                        <tbody>{Object.entries(stats.byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,s])=><tr key={date} style={{ borderBottom:"1px solid #F8FAFC" }}><td style={{ padding:"8px", fontWeight:600, color:"#475569" }}>{date}</td><td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.count}건</td><td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.qty}개</td><td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#1E293B" }}>{fmt(s.amount)}</td><td style={{ padding:"8px", textAlign:"right", color:"#7C3AED", fontWeight:600 }}>{fmt(s.count>0?Math.round(s.amount/s.count):0)}</td></tr>)}</tbody>
-                        <tfoot><tr style={{ borderTop:"2px solid #F1F5F9", background:"#F8FAFC" }}><td style={{ padding:"8px", fontWeight:800 }}>합계</td><td style={{ padding:"8px", textAlign:"right", fontWeight:800 }}>{stats.totalOrders}건</td><td style={{ padding:"8px", textAlign:"right", fontWeight:800 }}>{stats.totalQty}개</td><td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#3B82F6" }}>{fmt(stats.totalAmount)}</td><td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#7C3AED" }}>{fmt(stats.totalOrders>0?Math.round(stats.totalAmount/stats.totalOrders):0)}</td></tr></tfoot>
+                        {(()=>{
+                          const showVisitor = filter.mallType==="자사몰" && analytics && !analyticsLoading;
+                          const visitByDate = {};
+                          if (showVisitor) {
+                            (analytics.visits?.visits||[]).forEach(v=>{ visitByDate[v.date||v.visit_date||""]=(Number(v.visitors||0)); });
+                          }
+                          const headers = showVisitor ? ["날짜","주문","수량","방문자수","전환률","매출","객단가"] : ["날짜","주문","수량","매출","객단가"];
+                          return (<>
+                          <thead><tr style={{ borderBottom:"2px solid #F1F5F9" }}>{headers.map(h=><th key={h} style={{ padding:"6px 8px", textAlign:h==="날짜"?"left":"right", color:"#94A3B8", fontWeight:700, fontSize:12 }}>{h}</th>)}</tr></thead>
+                          <tbody>{Object.entries(stats.byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,s])=>{
+                            const visitors = visitByDate[date]||0;
+                            const cvr = visitors>0?(s.count/visitors*100).toFixed(2)+"%":"-";
+                            return (
+                              <tr key={date} style={{ borderBottom:"1px solid #F8FAFC" }}>
+                                <td style={{ padding:"8px", fontWeight:600, color:"#475569" }}>{date}</td>
+                                <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.count}건</td>
+                                <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.qty}개</td>
+                                {showVisitor && <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{visitors>0?visitors.toLocaleString()+"명":"-"}</td>}
+                                {showVisitor && <td style={{ padding:"8px", textAlign:"right", color:"#10B981", fontWeight:600 }}>{cvr}</td>}
+                                <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#1E293B" }}>{fmt(s.amount)}</td>
+                                <td style={{ padding:"8px", textAlign:"right", color:"#7C3AED", fontWeight:600 }}>{fmt(s.count>0?Math.round(s.amount/s.count):0)}</td>
+                              </tr>
+                            );
+                          })}</tbody>
+                          <tfoot><tr style={{ borderTop:"2px solid #F1F5F9", background:"#F8FAFC" }}>
+                            <td style={{ padding:"8px", fontWeight:800 }}>합계</td>
+                            <td style={{ padding:"8px", textAlign:"right", fontWeight:800 }}>{stats.totalOrders}건</td>
+                            <td style={{ padding:"8px", textAlign:"right", fontWeight:800 }}>{stats.totalQty}개</td>
+                            {showVisitor && <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#3B82F6" }}>{Object.values(visitByDate).reduce((s,v)=>s+v,0).toLocaleString()}명</td>}
+                            {showVisitor && <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#10B981" }}>{Object.values(visitByDate).reduce((s,v)=>s+v,0)>0?(stats.totalOrders/Object.values(visitByDate).reduce((s,v)=>s+v,0)*100).toFixed(2)+"%":"-"}</td>}
+                            <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#3B82F6" }}>{fmt(stats.totalAmount)}</td>
+                            <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#7C3AED" }}>{fmt(stats.totalOrders>0?Math.round(stats.totalAmount/stats.totalOrders):0)}</td>
+                          </tr></tfoot>
+                          </>);
+                        })()}
                       </table>
                     </div>
                   )}
