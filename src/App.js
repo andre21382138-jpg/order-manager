@@ -1587,9 +1587,21 @@ export default function App() {
         <div style={modalBg} onClick={()=>setShowSmartstoreModal(false)}>
           <div style={{...modalBox,width:420}} onClick={e=>e.stopPropagation()}>
             <h3 style={modalTitle}>🛍️ 스마트스토어 동기화 — {smartstoreBrand.name}</h3>
-            <div style={{ marginBottom:14, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1px solid #BBF7D0", fontSize:13, color:"#065F46" }}>
-              ✅ API 키 등록됨 · 팔레오 브랜드스토어
-            </div>
+            {(() => {
+              const SMARTSTORE_CONNECTED_IDS = [
+                "fd66b113-548b-44b0-8510-b7f49e302145", // 팔레오
+              ];
+              const isConnected = SMARTSTORE_CONNECTED_IDS.includes(smartstoreBrand?.id);
+              return isConnected ? (
+                <div style={{ marginBottom:14, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1px solid #BBF7D0", fontSize:13, color:"#065F46" }}>
+                  ✅ API 키 등록됨 · {smartstoreBrand.name} 브랜드스토어
+                </div>
+              ) : (
+                <div style={{ marginBottom:14, padding:"10px 14px", background:"#FEF2F2", borderRadius:10, border:"1px solid #FCA5A5", fontSize:13, color:"#DC2626" }}>
+                  ❌ 스마트스토어 API 미연동 — 네이버 커머스 API 센터에서 앱 등록 후 연동해주세요
+                </div>
+              );
+            })()}
             <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
               <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📦 주문 동기화</div>
               {(() => {
