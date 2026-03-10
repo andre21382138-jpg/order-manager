@@ -617,6 +617,7 @@ export default function App() {
       } catch(e) {}
       const res = await fetch(`/api/cafe24?action=analytics&mall_id=${token.mall_id}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
       const data = await res.json();
+      console.log("[Analytics API 응답]", JSON.stringify(data));
       if (data.error) { setAnalytics(null); }
       else { setAnalytics(data); }
     } catch(e) {
