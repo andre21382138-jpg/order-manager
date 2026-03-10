@@ -613,13 +613,10 @@ export default function App() {
       try {
         const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
         const rData = await rRes.json();
-        console.log("[Analytics Token Refresh]", JSON.stringify(rData));
         if (rData.access_token) accessToken = rData.access_token;
-      } catch(e) { console.log("[Analytics Token Refresh Error]", e); }
-      console.log("[Analytics 사용 토큰 앞10자]", accessToken?.slice(0,10));
+      } catch(e) {}
       const res = await fetch(`/api/cafe24?action=analytics&mall_id=${token.mall_id}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
       const data = await res.json();
-      console.log("[Analytics API 응답]", JSON.stringify(data));
       if (data.error) { setAnalytics(null); }
       else { setAnalytics(data); }
     } catch(e) {
