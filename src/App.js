@@ -601,18 +601,21 @@ export default function App() {
     } catch(e) {}
     return null;
   }
-  // 자사몰 방문 통계 조회
+  // 자사몰 방문 통계 조회 (토큰 state 변경 없이 직접 갱신)
   async function fetchAnalytics(brandId, from, to) {
     const token = cafe24Tokens[brandId];
     if (!token) { setAnalytics(null); return; }
     setAnalyticsLoading(true);
     try {
-      // 토큰 갱신 (token 인자 전달)
       const brand = getBrand(brandId);
-      const refreshed = await refreshCafe24Token(brand, token);
-      const accessToken = refreshed ? refreshed.access_token : token.access_token;
-      const mallId = token.mall_id;
-      const res = await fetch(`/api/cafe24?action=analytics&mall_id=${mallId}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
+      // 토큰 갱신: setCafe24Tokens 호출 없이 새 토큰만 반환
+      let accessToken = token.access_token;
+      try {
+        const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
+        const rData = await rRes.json();
+        if (rData.access_token) accessToken = rData.access_token;
+      } catch(e) {}
+      const res = await fetch(`/api/cafe24?action=analytics&mall_id=${token.mall_id}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
       const data = await res.json();
       if (data.error) { setAnalytics(null); }
       else { setAnalytics(data); }
