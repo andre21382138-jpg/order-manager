@@ -92,8 +92,7 @@ module.exports = async (req, res) => {
         if (d.error || d.errors) { return res.status(200).json({ error: d.error || d.errors, raw: d }); }
         if (!d.orders || d.orders.length === 0) break;
         allOrders.push(...d.orders);
-        const hasNext = d.links?.some(l => l.rel === "next");
-        if (!hasNext) break;
+        if (d.orders.length < pageSize) break;
         offset += pageSize;
       }
       res.status(200).json({ orders: allOrders, total: allOrders.length });
