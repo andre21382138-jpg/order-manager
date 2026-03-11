@@ -649,11 +649,18 @@ export default function App() {
       const allOrders = [];
       for (let i = 0; i < chunks.length; i++) {
         const { s, e } = chunks[i];
+        // 정상 주문 수집
         setCafe24SyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}) ${s} ~ ${e}`);
-        const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${s}&end_date=${e}`);
+        const res = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${s}&end_date=${e}&canceled=F`);
         const data = await res.json();
         if (!data.orders) { setCafe24SyncResult("❌ API 오류: " + JSON.stringify(data)); setCafe24Syncing(false); return; }
         allOrders.push(...data.orders);
+        // 취소 주문 수집
+        setCafe24SyncResult(`⏳ 수집 중 (취소포함)... (${i+1}/${chunks.length}) ${s} ~ ${e}`);
+        const resC = await fetch(`/api/cafe24?action=orders&mall_id=${token.mall_id}&access_token=${token.access_token}&start_date=${s}&end_date=${e}&canceled=T`);
+        const dataC = await resC.json();
+        if (!dataC.orders) { setCafe24SyncResult("❌ API 오류(취소): " + JSON.stringify(dataC)); setCafe24Syncing(false); return; }
+        allOrders.push(...dataC.orders);
       }
       if (allOrders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
