@@ -1354,7 +1354,7 @@ export default function App() {
                             const cvr = visitors>0?(s.count/visitors*100).toFixed(2)+"%":"-";
                             return (
                               <tr key={date} style={{ borderBottom:"1px solid #F8FAFC" }}>
-                                <td style={{ padding:"8px", fontWeight:600, color:"#475569" }}>{date}</td>
+                                <td style={{ padding:"8px", fontWeight:600, color:"#475569" }}>{date} {['일','월','화','수','목','금','토'][new Date(date).getDay()]}</td>
                                 <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.count}건</td>
                                 <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.qty}개</td>
                                 {showVisitor && <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{visitors>0?visitors.toLocaleString()+"명":"-"}</td>}
