@@ -698,19 +698,7 @@ export default function App() {
   async function syncSmartStoreOrders(brand, startDate, endDate) {
     setSmartStoreSyncing(true); setSmartStoreSyncResult("");
     try {
-      // 브라우저에서 직접 네이버 API 호출 (사무실 고정 IP 사용)
-      const APP_ID = process.env.REACT_APP_SMARTSTORE_APP_ID;
-      const APP_SECRET = process.env.REACT_APP_SMARTSTORE_APP_SECRET;
-
-      // 로컬 프록시 서버 경유 (사무실 고정 IP)
-      async function getNaverToken() {
-        const res = await fetch("http://localhost:3001/token");
-        const data = await res.json();
-        if (!data.access_token) throw new Error("토큰 발급 실패: " + JSON.stringify(data));
-        return data.access_token;
-      }
-
-      // 1일 단위 청크 분할 (네이버 API 최대 24시간 제한)
+      // 1일 단위 청크 분할
       const chunks = [];
       let cursor = new Date(startDate);
       const endD = new Date(endDate);
@@ -719,7 +707,8 @@ export default function App() {
         cursor = new Date(cursor.getTime() + 86400000);
       }
 
-      const allOrders = [];
+      // 프록시 경유: product-orders API (주문목록+상세 1단계 수집)
+      const allDetails = [];
       for (let i = 0; i < chunks.length; i++) {
         const day = chunks[i];
         setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}일) ${day}`);
@@ -727,46 +716,21 @@ export default function App() {
         const to = encodeURIComponent(`${day}T23:59:59.999+09:00`);
         const r = await fetch(`http://localhost:3001/orders?from=${from}&to=${to}`);
         const data = await r.json();
-        if (data.code || data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
-        await new Promise(res => setTimeout(res, 300)); // rate limit 방지
-        // 조건형 API 응답 구조 자동 감지
-        // 가능한 구조: data.data(배열), data.contents, data.data.contents
-        const items = Array.isArray(data.data) ? data.data
-          : Array.isArray(data.contents) ? data.contents
-          : Array.isArray(data.data?.contents) ? data.data.contents
-          : [];
-        console.log(`[스마트스토어] ${day} 응답 구조:`, JSON.stringify(data).slice(0, 200), `items: ${items.length}건`);
-        for (const po of items) {
-          allOrders.push(po);
-        }
+        if (data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
+        const items = Array.isArray(data.data) ? data.data : [];
+        allDetails.push(...items);
+        await new Promise(res => setTimeout(res, 300));
       }
 
-      // 상품주문번호 목록 수집 후 상세 조회
-      const productOrderIds = [...new Set(allOrders.map(o => o.productOrderId).filter(Boolean))];
-      if (productOrderIds.length === 0) { setSmartStoreSyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setSmartStoreSyncing(false); return; }
-
-      // 상품 주문 상세 조회 (100개씩)
-      const detailChunkSize = 100;
-      const allDetails = [];
-      for (let i = 0; i < productOrderIds.length; i += detailChunkSize) {
-        const ids = productOrderIds.slice(i, i + detailChunkSize);
-        setSmartStoreSyncResult(`⏳ 주문 상세 조회 중... (${Math.min(i+detailChunkSize, productOrderIds.length)}/${productOrderIds.length}건)`);
-        const r = await fetch("http://localhost:3001/product-orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productOrderIds: ids }),
-        });
-        const data = await r.json();
-        if (data.error) throw new Error("상세 조회 실패: " + JSON.stringify(data));
-        if (data.data) allDetails.push(...data.data);
-      }
+      if (allDetails.length === 0) { setSmartStoreSyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setSmartStoreSyncing(false); return; }
 
       // orderId 기준 그룹핑
+      // 새 API 응답 구조: item.content.order / item.content.productOrder
       const orderMap = new Map();
       const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","EXCHANGE_DONE","CANCEL_NOSHIPPING","CANCELED_BY_NOPAYMENT","CANCELED"];
       for (const item of allDetails) {
-        const po = item.productOrder;
-        const order = item.order;
+        const po = item.content?.productOrder || item.productOrder;
+        const order = item.content?.order || item.order;
         if (!po || !order) continue;
         const orderId = order.orderId;
         const status = po.productOrderStatus;
