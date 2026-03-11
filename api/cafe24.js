@@ -82,18 +82,22 @@ module.exports = async (req, res) => {
       };
       const allOrders = [];
       const pageSize = 100;
-      let offset = 0;
-      while (true) {
-        const r = await fetch(
-          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}&order_status=pending,preparing_product,preparing_shipment,hold_shipment,shipping,shipped,purchase_confirm,cancel_request,canceling,canceled,return_request,returning,returned,exchange_request,exchanging,exchanged&limit=${pageSize}&offset=${offset}&embed=items`,
-          { headers }
-        );
-        const d = await r.json();
-        if (d.error || d.errors) { return res.status(200).json({ error: d.error || d.errors, raw: d }); }
-        if (!d.orders || d.orders.length === 0) break;
-        allOrders.push(...d.orders);
-        if (d.orders.length < pageSize) break;
-        offset += pageSize;
+
+      // 정상 주문(F) + 취소 주문(T) 각각 조회 후 합산
+      for (const canceledFlag of ['F', 'T']) {
+        let offset = 0;
+        while (true) {
+          const r = await fetch(
+            `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}&canceled=${canceledFlag}&limit=${pageSize}&offset=${offset}&embed=items`,
+            { headers }
+          );
+          const d = await r.json();
+          if (d.error || d.errors) { return res.status(200).json({ error: d.error || d.errors, raw: d }); }
+          if (!d.orders || d.orders.length === 0) break;
+          allOrders.push(...d.orders);
+          if (d.orders.length < pageSize) break;
+          offset += pageSize;
+        }
       }
       res.status(200).json({ orders: allOrders, total: allOrders.length });
     } catch(e) {
