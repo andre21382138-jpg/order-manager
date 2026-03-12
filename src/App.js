@@ -413,40 +413,46 @@ export default function App() {
     window.location.reload();
   }
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function loadAll() {
+    if (!session) return;
+    setRefreshing(true);
+    try {
+      const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
+      if (bErr) throw bErr;
+      setBrands(brandsData.map(b => ({ id:b.id, name:b.name, color:b.color||COLORS[0], department:b.department||"", mallTypes:b.mall_types||[], categories:b.categories||[] })));
+      const allOrdersData = [];
+      let orderOffset = 0;
+      while (true) {
+        const { data: p, error: oErr } = await supabase.from("orders").select("*").order("date",{ascending:false}).range(orderOffset, orderOffset+999);
+        if (oErr) throw oErr;
+        if (!p || p.length === 0) break;
+        allOrdersData.push(...p);
+        if (p.length < 1000) break;
+        orderOffset += 1000;
+      }
+      const allItems = [];
+      let itemOffset = 0;
+      while (true) {
+        const { data: p } = await supabase.from("order_items").select("*").range(itemOffset, itemOffset+999);
+        if (!p || p.length === 0) break;
+        allItems.push(...p);
+        if (p.length < 1000) break;
+        itemOffset += 1000;
+      }
+      const itemsByOrderId = {};
+      allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
+      setOrders(allOrdersData.map(o => ({ id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, naverAmount:o.naver_amount||0, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) })));
+      const saved = localStorage.getItem("categories");
+      if (saved) setCategories(JSON.parse(saved));
+    } catch(e) { setError("데이터 로드 오류: " + e.message); }
+    setLoaded(true);
+    setRefreshing(false);
+  }
+
   useEffect(() => {
     if (!session) return;
-    async function loadAll() {
-      try {
-        const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
-        if (bErr) throw bErr;
-        setBrands(brandsData.map(b => ({ id:b.id, name:b.name, color:b.color||COLORS[0], department:b.department||"", mallTypes:b.mall_types||[], categories:b.categories||[] })));
-        const allOrdersData = [];
-        let orderOffset = 0;
-        while (true) {
-          const { data: p, error: oErr } = await supabase.from("orders").select("*").order("date",{ascending:false}).range(orderOffset, orderOffset+999);
-          if (oErr) throw oErr;
-          if (!p || p.length === 0) break;
-          allOrdersData.push(...p);
-          if (p.length < 1000) break;
-          orderOffset += 1000;
-        }
-        const allItems = [];
-        let itemOffset = 0;
-        while (true) {
-          const { data: p } = await supabase.from("order_items").select("*").range(itemOffset, itemOffset+999);
-          if (!p || p.length === 0) break;
-          allItems.push(...p);
-          if (p.length < 1000) break;
-          itemOffset += 1000;
-        }
-        const itemsByOrderId = {};
-        allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
-        setOrders(allOrdersData.map(o => ({ id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, naverAmount:o.naver_amount||0, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) })));
-        const saved = localStorage.getItem("categories");
-        if (saved) setCategories(JSON.parse(saved));
-      } catch(e) { setError("데이터 로드 오류: " + e.message); }
-      setLoaded(true);
-    }
     loadAll();
   }, [session]);
 
@@ -999,6 +1005,7 @@ export default function App() {
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:5, alignItems:"center" }}>
             {isAdmin && <button onClick={()=>setShowApprovalModal(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:15 }}>🔔{pendingUsers.length>0&&<span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:11, height:11, fontSize:7, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}</button>}
+            <button onClick={loadAll} disabled={refreshing} style={{ background:"none", border:"none", cursor:refreshing?"not-allowed":"pointer", fontSize:15, opacity:refreshing?0.4:1 }} title="데이터 새로고침">{refreshing?"⏳":"🔄"}</button>
             <button onClick={handleLogout} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"#64748B" }} title="로그아웃">🚪</button>
           </div>
         )}
