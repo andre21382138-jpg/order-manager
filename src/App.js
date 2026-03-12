@@ -675,7 +675,7 @@ export default function App() {
         const rawPayment = Number(amountSource?.payment_amount||0);
         const originalAmount = Number(amountSource?.order_price_amount||0);
         const isNaverPay = !isCancelled && o.order_place_id === "NCHECKOUT";
-        const naverPoint = isNaverPay ? Number(o.naver_point || 0) || originalAmount : 0;
+        const naverPoint = isNaverPay ? (Number(o.naver_point || 0) || Math.max(0, originalAmount - rawPayment)) : 0;
         const totalAmount = rawPayment + naverPoint;
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => { const productNo=String(it.product_no); const category=categoryMap[productNo]||""; if (!category&&!isCancelled) unmappedProds[productNo]=it.product_name||it.product_name_default||"상품"; return { product_name:it.product_name||it.product_name_default||"상품", category, qty:Number(it.quantity||1), amount:Number(it.order_price_amount||it.product_price||0) }; });
