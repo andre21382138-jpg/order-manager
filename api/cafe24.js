@@ -28,6 +28,25 @@ module.exports = async (req, res) => {
   const CLIENT_SECRET = cred.CLIENT_SECRET;
   const REDIRECT_URI = process.env.CAFE24_REDIRECT_URI;
 
+  if (action === "order_detail") {
+    try {
+      const order_id = req.query.order_id;
+      const headers = {
+        "Authorization": `Bearer ${access_token}`,
+        "Content-Type": "application/json",
+        "X-Cafe24-Api-Version": "2025-12-01"
+      };
+      const r = await fetch(
+        `https://${mall_id}.cafe24api.com/api/v2/admin/orders/${order_id}?shop_no=1&embed=items,naverpay`,
+        { headers }
+      );
+      const d = await r.json();
+      res.status(200).json(d);
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+    return;
+  }
   if (action === "debug") {
     res.status(200).json({
       mall_id: mall_id || "없음",
