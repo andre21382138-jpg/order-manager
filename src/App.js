@@ -1207,7 +1207,7 @@ export default function App() {
 
           {tab==="결산" && (
             <>
-              <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
+              {filter.mallType !== "스마트스토어" && <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 {(()=>{
                   const totalCount = stats.newCount + stats.reCount;
                   const newCountPct = totalCount>0?((stats.newCount/totalCount)*100).toFixed(1):0;
@@ -1244,7 +1244,7 @@ export default function App() {
                     </div>
                   </>);
                 })()}
-              </div>
+              </div>}
               {/* 방문통계 - 자사몰 단독 선택 시만 노출 */}
               {filter.mallType === "자사몰" && filter.brandId && (
                 <div style={{...card, marginBottom:14}}>
