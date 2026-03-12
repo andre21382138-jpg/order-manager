@@ -999,6 +999,7 @@ export default function App() {
               )}
               {isAdmin && <button onClick={()=>setShowCreateUserModal(true)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"2px 3px" }} title="직원추가">👤</button>}
               <button onClick={()=>setShowChangePasswordModal(true)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"2px 3px" }} title="비밀번호변경">🔑</button>
+              <button onClick={loadAll} disabled={refreshing} style={{ background:"none", border:"none", cursor:refreshing?"not-allowed":"pointer", fontSize:13, padding:"2px 3px", opacity:refreshing?0.4:1 }} title="데이터 새로고침">{refreshing?"⏳":"🔄"}</button>
               <button onClick={handleLogout} style={{ background:"none", border:"none", cursor:"pointer", fontSize:10, padding:"2px 3px", color:"#64748B" }}>나가기</button>
             </div>
           </div>
