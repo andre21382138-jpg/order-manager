@@ -672,7 +672,9 @@ export default function App() {
         const isCancelled = o.canceled === "T";
         const isNew = o.first_order === "T" || (!o.member_id);
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
-        const totalAmount = Number(amountSource?.payment_amount||0);
+        const naverPoint = Number(o.naver_point || 0);
+        const rawPayment = Number(amountSource?.payment_amount||0);
+        const totalAmount = rawPayment > 0 ? rawPayment : naverPoint;
         const originalAmount = Number(amountSource?.order_price_amount||0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => { const productNo=String(it.product_no); const category=categoryMap[productNo]||""; if (!category&&!isCancelled) unmappedProds[productNo]=it.product_name||it.product_name_default||"상품"; return { product_name:it.product_name||it.product_name_default||"상품", category, qty:Number(it.quantity||1), amount:Number(it.order_price_amount||it.product_price||0) }; });
@@ -682,7 +684,7 @@ export default function App() {
       for (let i = 0; i < ordersToSave.length; i += BATCH) {
         setCafe24SyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
         const batch = ordersToSave.slice(i, i+BATCH);
-        const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, note:"카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
+        const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, note: naverPoint > 0 && rawPayment === 0 ? "카페24(네이버페이)" : "카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
         if (bErr) { skipped += batch.length; continue; }
         const allItems = [];
         for (const saved of savedOrders) {
@@ -842,12 +844,13 @@ export default function App() {
   ), [orders, filter, canAccessAll, userBrandIds, brands]);
 
   const stats = useMemo(() => {
-    let totalAmount=0,totalQty=0,totalOriginal=0,cancelCount=0,cancelAmount=0,newCount=0,newAmount=0,reCount=0,reAmount=0;
+    let totalAmount=0,totalQty=0,totalOriginal=0,cancelCount=0,cancelAmount=0,newCount=0,newAmount=0,reCount=0,reAmount=0,naverAmount=0;
     const byBrand={},byMallType={},byCategory={},byDate={},byProduct={};
     filtered.forEach(o => {
       totalOriginal += o.originalAmount||0;
       if (o.isCancelled) { cancelCount++; cancelAmount+=o.totalAmount||0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
+      if ((o.note||"").includes("네이버페이")) naverAmount+=o.totalAmount;
       if (o.mallType !== "스마트스토어") { if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; } }
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
@@ -855,13 +858,14 @@ export default function App() {
       byBrand[o.brandId].byMallType[o.mallType].count++; byBrand[o.brandId].byMallType[o.mallType].amount+=o.totalAmount;
       if(!byMallType[o.mallType]) byMallType[o.mallType]={count:0,qty:0,amount:0};
       byMallType[o.mallType].count++; byMallType[o.mallType].qty+=o.totalQty; byMallType[o.mallType].amount+=o.totalAmount;
-      if(!byDate[o.date]) byDate[o.date]={count:0,qty:0,amount:0};
+      if(!byDate[o.date]) byDate[o.date]={count:0,qty:0,amount:0,naverAmount:0};
       byDate[o.date].count++; byDate[o.date].qty+=o.totalQty; byDate[o.date].amount+=o.totalAmount;
+      if ((o.note||"").includes("네이버페이")) byDate[o.date].naverAmount+= o.totalAmount;
       o.items.forEach(it => { const cat=it.category||"미분류"; if(!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0}; byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++; const pname=it.productName||it.product_name||"상품"; if(!byProduct[pname]) byProduct[pname]={qty:0,amount:0,count:0}; byProduct[pname].qty+=it.qty; byProduct[pname].amount+=it.amount; byProduct[pname].count++; });
     });
     const validOrders = filtered.filter(o => !o.isCancelled);
     const hasCat = Object.keys(byCategory).some(k => k!=="미분류"&&k!==""&&k!==null);
-    return { totalAmount,totalQty,totalOrders:validOrders.length,totalOriginal,cancelCount,cancelAmount,newCount,newAmount,reCount,reAmount,byBrand,byMallType,byCategory,byDate,byProduct,hasCat };
+    return { totalAmount,totalQty,totalOrders:validOrders.length,totalOriginal,cancelCount,cancelAmount,newCount,newAmount,reCount,reAmount,naverAmount,byBrand,byMallType,byCategory,byDate,byProduct,hasCat };
   }, [filtered]);
 
   const todayOrders = useMemo(() => orders.filter(o => o.date===form.date&&(!activeBrandId||o.brandId===activeBrandId)&&(!activeMallType||o.mallType===activeMallType)).sort((a,b)=>b.id.localeCompare(a.id)), [orders,form.date,activeBrandId,activeMallType]);
@@ -1177,13 +1181,13 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)", gap:12, marginBottom:14 }}>
-                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"실제 결제금액",val:fmt(stats.totalAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"}].map(k=>(
+              <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:14 }}>
+                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"실제 결제금액",val:fmt(stats.totalAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
                   <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
                 ))}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)", gap:12, marginBottom:14 }}>
-                {[{label:"환불건수 / 환불금액",val:`${stats.cancelCount}건 / ${fmt(stats.cancelAmount)}`,icon:"↩️",color:"#EF4444"},{label:"최종 매출",val:fmt(stats.totalAmount),icon:"💰",color:"#8B5CF6"},{label:"객단가",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#F59E0B"}].map(k=>(
+                {[{label:"환불건수 / 환불금액",val:`${stats.cancelCount}건 / ${fmt(stats.cancelAmount)}`,icon:"↩️",color:"#EF4444"},{label:"최종 매출 (네이버페이 포함)",val:fmt(stats.totalAmount),icon:"💰",color:"#8B5CF6"},{label:"객단가",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#F59E0B"}].map(k=>(
                   <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
                 ))}
               </div>
@@ -1317,7 +1321,7 @@ export default function App() {
                               if(d) visitByDate[d] = Number(v.visit_count||0);
                             });
                           }
-                          const headers = showVisitor ? ["날짜","주문","수량","방문자수","전환률","매출","객단가"] : ["날짜","주문","수량","매출","객단가"];
+                          const headers = showVisitor ? ["날짜","주문","수량","방문자수","전환률","네이버페이","매출","객단가"] : ["날짜","주문","수량","네이버페이","매출","객단가"];
                           return (<>
                           <thead><tr style={{ borderBottom:"2px solid #F1F5F9" }}>{headers.map(h=><th key={h} style={{ padding:"6px 8px", textAlign:h==="날짜"?"left":"right", color:"#94A3B8", fontWeight:700, fontSize:12 }}>{h}</th>)}</tr></thead>
                           <tbody>{Object.entries(stats.byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,s])=>{
@@ -1330,6 +1334,7 @@ export default function App() {
                                 <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{s.qty}개</td>
                                 {showVisitor && <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{visitors>0?visitors.toLocaleString()+"명":"-"}</td>}
                                 {showVisitor && <td style={{ padding:"8px", textAlign:"right", color:"#10B981", fontWeight:600 }}>{cvr}</td>}
+                                <td style={{ padding:"8px", textAlign:"right", color:"#03C75A", fontWeight:600 }}>{s.naverAmount>0?fmt(s.naverAmount):"-"}</td>
                                 <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#1E293B" }}>{fmt(s.amount)}</td>
                                 <td style={{ padding:"8px", textAlign:"right", color:"#7C3AED", fontWeight:600 }}>{fmt(s.count>0?Math.round(s.amount/s.count):0)}</td>
                               </tr>
@@ -1341,6 +1346,7 @@ export default function App() {
                             <td style={{ padding:"8px", textAlign:"right", fontWeight:800 }}>{stats.totalQty}개</td>
                             {showVisitor && <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#3B82F6" }}>{Object.values(visitByDate).reduce((s,v)=>s+v,0).toLocaleString()}명</td>}
                             {showVisitor && <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#10B981" }}>{Object.values(visitByDate).reduce((s,v)=>s+v,0)>0?(stats.totalOrders/Object.values(visitByDate).reduce((s,v)=>s+v,0)*100).toFixed(2)+"%":"-"}</td>}
+                            <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#03C75A" }}>{fmt(stats.naverAmount)}</td>
                             <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#3B82F6" }}>{fmt(stats.totalAmount)}</td>
                             <td style={{ padding:"8px", textAlign:"right", fontWeight:800, color:"#7C3AED" }}>{fmt(stats.totalOrders>0?Math.round(stats.totalAmount/stats.totalOrders):0)}</td>
                           </tr></tfoot>
