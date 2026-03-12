@@ -678,13 +678,14 @@ export default function App() {
         const originalAmount = Number(amountSource?.order_price_amount||0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => { const productNo=String(it.product_no); const category=categoryMap[productNo]||""; if (!category&&!isCancelled) unmappedProds[productNo]=it.product_name||it.product_name_default||"상품"; return { product_name:it.product_name||it.product_name_default||"상품", category, qty:Number(it.quantity||1), amount:Number(it.order_price_amount||it.product_price||0) }; });
-        return { orderNo:o.order_id, orderDate:o.order_date?.slice(0,10)||today(), isCancelled, isNew, totalAmount, originalAmount, totalQty:items.reduce((s,it)=>s+it.qty,0), items };
+        const isNaverPay = naverPoint > 0 && rawPayment === 0;
+        return { orderNo:o.order_id, orderDate:o.order_date?.slice(0,10)||today(), isCancelled, isNew, totalAmount, originalAmount, totalQty:items.reduce((s,it)=>s+it.qty,0), items, isNaverPay };
       });
       const BATCH = 50;
       for (let i = 0; i < ordersToSave.length; i += BATCH) {
         setCafe24SyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
         const batch = ordersToSave.slice(i, i+BATCH);
-        const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, note: naverPoint > 0 && rawPayment === 0 ? "카페24(네이버페이)" : "카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
+        const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, note: o.isNaverPay ? "카페24(네이버페이)" : "카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
         if (bErr) { skipped += batch.length; continue; }
         const allItems = [];
         for (const saved of savedOrders) {
