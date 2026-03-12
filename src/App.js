@@ -672,9 +672,9 @@ export default function App() {
         const isCancelled = o.canceled === "T";
         const isNew = o.first_order === "T" || (!o.member_id);
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
-        const naverPoint = Number(o.naver_point || 0);
+        const naverPoint = isCancelled ? 0 : Number(o.naver_point || 0);
         const rawPayment = Number(amountSource?.payment_amount||0);
-        const totalAmount = rawPayment > 0 ? rawPayment : naverPoint;
+        const totalAmount = rawPayment + naverPoint;
         const originalAmount = Number(amountSource?.order_price_amount||0);
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => { const productNo=String(it.product_no); const category=categoryMap[productNo]||""; if (!category&&!isCancelled) unmappedProds[productNo]=it.product_name||it.product_name_default||"상품"; return { product_name:it.product_name||it.product_name_default||"상품", category, qty:Number(it.quantity||1), amount:Number(it.order_price_amount||it.product_price||0) }; });
@@ -1183,7 +1183,7 @@ export default function App() {
               </div>
 
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:14 }}>
-                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"실제 결제금액",val:fmt(stats.totalAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
+                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"실제 결제금액",val:fmt(stats.totalAmount+stats.cancelAmount-stats.naverAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
                   <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
                 ))}
               </div>
