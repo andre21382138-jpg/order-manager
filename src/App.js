@@ -1182,15 +1182,18 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:12 }}>
-                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
-                  <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`,minHeight:80}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
-                ))}
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:14 }}>
-                {[{label:"환불건수",val:`${stats.cancelCount}건`,icon:"↩️",color:"#EF4444"},{label:"환불금액",val:fmt(stats.cancelAmount),icon:"💸",color:"#F87171"},{label:"최종 매출 (네이버페이 포함)",val:fmt(stats.totalAmount),icon:"💰",color:"#8B5CF6"},{label:"객단가",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#F59E0B"}].map(k=>(
-                  <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`,minHeight:80}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
-                ))}
+              <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
+                <h2 style={{...cardTitle, marginBottom:14}}>💹 매출 요약</h2>
+                <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:12 }}>
+                  {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
+                    <div key={k.label} style={{background:"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.color}`,minHeight:72}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:17,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
+                  ))}
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12 }}>
+                  {[{label:"환불건수",val:`${stats.cancelCount}건`,icon:"↩️",color:"#EF4444"},{label:"환불금액",val:fmt(stats.cancelAmount),icon:"💸",color:"#F87171"},{label:"최종 매출 (네이버페이 포함)",val:fmt(stats.totalAmount),icon:"💰",color:"#8B5CF6"},{label:"객단가",val:stats.totalOrders>0?fmt(Math.round(stats.totalAmount/stats.totalOrders)):"-",icon:"📈",color:"#F59E0B"}].map(k=>(
+                    <div key={k.label} style={{background:"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.color}`,minHeight:72}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:17,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
+                  ))}
+                </div>
               </div>
             </>
           )}
@@ -1204,17 +1207,20 @@ export default function App() {
 
           {tab==="결산" && (
             <>
-              <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:12, marginBottom:14 }}>
-                {[{label:"신규구매 건수",val:`${stats.newCount}건`,icon:"🆕",color:"#10B981"},{label:"신규구매 매출",val:fmt(stats.newAmount),icon:"🆕",color:"#10B981"},{label:"재구매 건수",val:`${stats.reCount}건`,icon:"🔁",color:"#3B82F6"},{label:"재구매 매출",val:fmt(stats.reAmount),icon:"🔁",color:"#3B82F6"}].map(k=>(
-                  <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}>
-                    <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
-                    <div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
-                    {filter.mallType === "스마트스토어"
-                      ? <div style={{fontSize:10,color:"#FCA5A5",marginTop:4}}>스마트스토어 미지원</div>
-                      : (!filter.mallType && <div style={{fontSize:10,color:"#CBD5E1",marginTop:4}}>자사몰만 해당</div>)
-                    }
-                  </div>
-                ))}
+              <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
+                <h2 style={{...cardTitle, marginBottom:14}}>🔄 신규구매 / 재구매 현황</h2>
+                <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"1fr 1fr 1fr 1fr", gap:12 }}>
+                  {[{label:"신규구매 건수",val:`${stats.newCount}건`,icon:"🆕",color:"#10B981"},{label:"신규구매 매출",val:fmt(stats.newAmount),icon:"🆕",color:"#10B981"},{label:"재구매 건수",val:`${stats.reCount}건`,icon:"🔁",color:"#3B82F6"},{label:"재구매 매출",val:fmt(stats.reAmount),icon:"🔁",color:"#3B82F6"}].map(k=>(
+                    <div key={k.label} style={{background:"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.color}`,minHeight:72}}>
+                      <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
+                      <div style={{fontSize:17,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
+                      {filter.mallType === "스마트스토어"
+                        ? <div style={{fontSize:10,color:"#FCA5A5",marginTop:4}}>스마트스토어 미지원</div>
+                        : (!filter.mallType && <div style={{fontSize:10,color:"#CBD5E1",marginTop:4}}>자사몰만 해당</div>)
+                      }
+                    </div>
+                  ))}
+                </div>
               </div>
               {/* 방문통계 - 자사몰 단독 선택 시만 노출 */}
               {filter.mallType === "자사몰" && filter.brandId && (
