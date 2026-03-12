@@ -441,7 +441,7 @@ export default function App() {
         }
         const itemsByOrderId = {};
         allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
-        setOrders(allOrdersData.map(o => ({ id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) })));
+        setOrders(allOrdersData.map(o => ({ id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, naverAmount:o.naver_amount||0, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) })));
         const saved = localStorage.getItem("categories");
         if (saved) setCategories(JSON.parse(saved));
       } catch(e) { setError("데이터 로드 오류: " + e.message); }
@@ -672,20 +672,20 @@ export default function App() {
         const isCancelled = o.canceled === "T";
         const isNew = o.first_order === "T" || (!o.member_id);
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
-        const naverPoint = isCancelled ? 0 : Number(o.naver_point || 0);
         const rawPayment = Number(amountSource?.payment_amount||0);
-        const totalAmount = rawPayment + naverPoint;
         const originalAmount = Number(amountSource?.order_price_amount||0);
+        const isNaverPay = !isCancelled && o.order_place_id === "NCHECKOUT";
+        const naverPoint = isNaverPay ? Number(o.naver_point || 0) || originalAmount : 0;
+        const totalAmount = rawPayment + naverPoint;
         const itemsRaw = o.items || o.order_items || [];
         const items = itemsRaw.map(it => { const productNo=String(it.product_no); const category=categoryMap[productNo]||""; if (!category&&!isCancelled) unmappedProds[productNo]=it.product_name||it.product_name_default||"상품"; return { product_name:it.product_name||it.product_name_default||"상품", category, qty:Number(it.quantity||1), amount:Number(it.order_price_amount||it.product_price||0) }; });
-        const isNaverPay = naverPoint > 0 && rawPayment === 0;
-        return { orderNo:o.order_id, orderDate:o.order_date?.slice(0,10)||today(), isCancelled, isNew, totalAmount, originalAmount, totalQty:items.reduce((s,it)=>s+it.qty,0), items, isNaverPay };
+        return { orderNo:o.order_id, orderDate:o.order_date?.slice(0,10)||today(), isCancelled, isNew, totalAmount, originalAmount, naverAmount:naverPoint, totalQty:items.reduce((s,it)=>s+it.qty,0), items, isNaverPay };
       });
       const BATCH = 50;
       for (let i = 0; i < ordersToSave.length; i += BATCH) {
         setCafe24SyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
         const batch = ordersToSave.slice(i, i+BATCH);
-        const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, note: o.isNaverPay ? "카페24(네이버페이)" : "카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
+        const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, naver_amount: o.naverAmount||0, note: o.isNaverPay ? "카페24(네이버페이)" : "카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
         if (bErr) { skipped += batch.length; continue; }
         const allItems = [];
         for (const saved of savedOrders) {
@@ -851,7 +851,7 @@ export default function App() {
       totalOriginal += o.originalAmount||0;
       if (o.isCancelled) { cancelCount++; cancelAmount+=o.totalAmount||0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
-      if ((o.note||"").includes("네이버페이")) naverAmount+=o.totalAmount;
+      naverAmount += o.naverAmount||0;
       if (o.mallType !== "스마트스토어") { if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; } }
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
@@ -861,7 +861,7 @@ export default function App() {
       byMallType[o.mallType].count++; byMallType[o.mallType].qty+=o.totalQty; byMallType[o.mallType].amount+=o.totalAmount;
       if(!byDate[o.date]) byDate[o.date]={count:0,qty:0,amount:0,naverAmount:0};
       byDate[o.date].count++; byDate[o.date].qty+=o.totalQty; byDate[o.date].amount+=o.totalAmount;
-      if ((o.note||"").includes("네이버페이")) byDate[o.date].naverAmount+= o.totalAmount;
+      byDate[o.date].naverAmount += o.naverAmount||0;
       o.items.forEach(it => { const cat=it.category||"미분류"; if(!byCategory[cat]) byCategory[cat]={qty:0,amount:0,count:0}; byCategory[cat].qty+=it.qty; byCategory[cat].amount+=it.amount; byCategory[cat].count++; const pname=it.productName||it.product_name||"상품"; if(!byProduct[pname]) byProduct[pname]={qty:0,amount:0,count:0}; byProduct[pname].qty+=it.qty; byProduct[pname].amount+=it.amount; byProduct[pname].count++; });
     });
     const validOrders = filtered.filter(o => !o.isCancelled);
@@ -1183,7 +1183,7 @@ export default function App() {
               </div>
 
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:14 }}>
-                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"실제 결제금액",val:fmt(stats.totalAmount+stats.cancelAmount-stats.naverAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
+                {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:"실제 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
                   <div key={k.label} style={{...card,padding:"15px 18px",borderLeft:`4px solid ${k.color}`}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:18,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
                 ))}
               </div>
