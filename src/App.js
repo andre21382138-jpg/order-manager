@@ -1576,15 +1576,15 @@ export default function App() {
             {cafe24Tokens[cafe24Brand.id] && (
               <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📦 주문 동기화</div>
-                {(()=>{ const now=new Date(); const thisMonthStart=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`; const lm=new Date(now.getFullYear(),now.getMonth(),0); const lastMonthStart=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-01`; const lastMonthEnd=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`; const weekAgo=new Date(Date.now()-7*86400000).toISOString().slice(0,10); const todayStr=today(); return (
+                {(()=>{ const now=new Date(); const yest=new Date(Date.now()-86400000).toISOString().slice(0,10); const thisMonthStart=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`; const lm=new Date(now.getFullYear(),now.getMonth(),0); const lastMonthStart=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-01`; const lastMonthEnd=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`; const weekAgo=new Date(Date.now()-7*86400000).toISOString().slice(0,10); const todayStr=today(); return (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                      {[{label:"최근 7일",start:weekAgo,end:todayStr},{label:"당월",start:thisMonthStart,end:todayStr},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=><button key={opt.label} onClick={()=>syncCafe24Orders(cafe24Brand,opt.start,opt.end)} disabled={cafe24Syncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:cafe24Syncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>{cafe24Syncing?"⏳":opt.label}</button>)}
+                      {[{label:"최근 7일",start:weekAgo,end:yest},{label:"당월",start:thisMonthStart,end:yest},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=><button key={opt.label} onClick={()=>syncCafe24Orders(cafe24Brand,opt.start,opt.end)} disabled={cafe24Syncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:cafe24Syncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>{cafe24Syncing?"⏳":opt.label}</button>)}
                     </div>
                     <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <input type="date" value={cafe24CustomStart||""} onChange={e=>setCafe24CustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <input type="date" value={cafe24CustomStart||""} max={new Date(Date.now()-86400000).toISOString().slice(0,10)} onChange={e=>setCafe24CustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
                       <span style={{ fontSize:12, color:"#94A3B8" }}>~</span>
-                      <input type="date" value={cafe24CustomEnd||""} onChange={e=>setCafe24CustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <input type="date" value={cafe24CustomEnd||""} max={new Date(Date.now()-86400000).toISOString().slice(0,10)} onChange={e=>setCafe24CustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
                       <button onClick={()=>cafe24CustomStart&&cafe24CustomEnd&&syncCafe24Orders(cafe24Brand,cafe24CustomStart,cafe24CustomEnd)} disabled={cafe24Syncing||!cafe24CustomStart||!cafe24CustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
                     </div>
                   </div>
@@ -1626,20 +1626,20 @@ export default function App() {
                 const lastMonthStart = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-01`;
                 const lastMonthEnd = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-${String(lastMonthDate.getDate()).padStart(2,'0')}`;
                 const weekAgo = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
-                const todayStr = today();
+                const yest = new Date(Date.now()-86400000).toISOString().slice(0,10);
                 return (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                      {[{label:"최근 7일",start:weekAgo,end:todayStr},{label:"당월",start:thisMonthStart,end:todayStr},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=>(
+                      {[{label:"최근 7일",start:weekAgo,end:yest},{label:"당월",start:thisMonthStart,end:yest},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=>(
                         <button key={opt.label} onClick={()=>syncSmartStoreOrders(smartstoreBrand,opt.start,opt.end)} disabled={smartstoreSyncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:smartstoreSyncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
                           {smartstoreSyncing?"⏳":opt.label}
                         </button>
                       ))}
                     </div>
                     <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <input type="date" value={smartstoreCustomStart||""} onChange={e=>setSmartStoreCustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <input type="date" value={smartstoreCustomStart||""} max={yest} onChange={e=>setSmartStoreCustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
                       <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
-                      <input type="date" value={smartstoreCustomEnd||""} onChange={e=>setSmartStoreCustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <input type="date" value={smartstoreCustomEnd||""} max={yest} onChange={e=>setSmartStoreCustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
                       <button onClick={()=>smartstoreCustomStart&&smartstoreCustomEnd&&syncSmartStoreOrders(smartstoreBrand,smartstoreCustomStart,smartstoreCustomEnd)} disabled={smartstoreSyncing||!smartstoreCustomStart||!smartstoreCustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
                     </div>
                   </div>
