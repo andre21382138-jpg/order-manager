@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-const spinStyle = document.createElement("style");
-spinStyle.textContent = "@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }";
-document.head.appendChild(spinStyle);
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -1038,6 +1035,7 @@ export default function App() {
   // ── 메인 렌더 ─────────────────────────────────────────────
   return (
     <div style={{ display:"flex", height:"100vh", background:"#F0F4F8", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif", overflow:"hidden" }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {!isMobile && <SidebarContent />}
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
