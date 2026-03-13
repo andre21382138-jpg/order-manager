@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -287,6 +287,7 @@ export default function App() {
   const [changePasswordForm, setChangePasswordForm] = useState({ current:"", next:"", confirm:"" });
   const [changePasswordMsg, setChangePasswordMsg] = useState("");
   const [userRole, setUserRole] = useState("manager");
+  const [userName, setUserName] = useState("");
   const [userBrandIds, setUserBrandIds] = useState([]);
   const isAdmin = userRole === "admin";
   const isDirector = userRole === "director";
@@ -346,9 +347,10 @@ export default function App() {
   useEffect(() => {
     async function loadUserRole(uid) {
       try {
-        const { data: prof } = await supabase.from("profiles").select("role").eq("id", uid).single();
+        const { data: prof } = await supabase.from("profiles").select("role,name").eq("id", uid).single();
         const role = prof?.role || "manager";
         setUserRole(role);
+        setUserName(prof?.name || "");
         if (role === "manager") {
           const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", uid);
           setUserBrandIds((bm || []).map(b => b.brand_id));
@@ -1742,7 +1744,7 @@ export default function App() {
                         const {error}=await supabase.from("notices").update({title:noticeForm.title,content:noticeForm.content,is_pinned:noticeForm.is_pinned||false}).eq("id",editingNotice.id);
                         if (!error) { setNotices(prev=>{const updated=prev.map(n=>n.id===editingNotice.id?{...n,...noticeForm}:n); return [...updated].sort((a,b)=>(b.is_pinned?1:0)-(a.is_pinned?1:0)||new Date(b.created_at)-new Date(a.created_at));}); setShowNoticeForm(false); setEditingNotice(null); }
                       } else {
-                        const {data,error}=await supabase.from("notices").insert({title:noticeForm.title,content:noticeForm.content,is_pinned:noticeForm.is_pinned||false,author:profile?.name||session?.user?.email}).select().single();
+                        const {data,error}=await supabase.from("notices").insert({title:noticeForm.title,content:noticeForm.content,is_pinned:noticeForm.is_pinned||false,author:userName||session?.user?.email}).select().single();
                         if (!error&&data) { setNotices(prev=>[data,...prev].sort((a,b)=>(b.is_pinned?1:0)-(a.is_pinned?1:0)||new Date(b.created_at)-new Date(a.created_at))); setShowNoticeForm(false); }
                       }
                     }} style={{ padding:"8px 16px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>저장</button>
@@ -1775,7 +1777,7 @@ export default function App() {
                     {isExp && (
                       <div style={{ borderTop:"1px solid #F1F5F9", padding:"14px 16px" }}>
                         <div style={{ fontSize:13, color:"#334155", lineHeight:1.7, whiteSpace:"pre-wrap", marginBottom:16 }}>{n.content}</div>
-                        <NoticeComments noticeId={n.id} profile={profile} isAdmin={isAdmin} supabase={supabase} />
+                        <NoticeComments noticeId={n.id} userName={userName} isAdmin={isAdmin} supabase={supabase} />
                       </div>
                     )}
                   </div>
@@ -1820,13 +1822,13 @@ export default function App() {
   );
 }
 
-function NoticeComments({ noticeId, profile, isAdmin, supabase }) {
-  const [comments, setComments] = React.useState([]);
-  const [loaded, setLoaded] = React.useState(false);
-  const [text, setText] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+function NoticeComments({ noticeId, userName, isAdmin, supabase }) {
+  const [comments, setComments] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     supabase.from("notice_comments").select("*").eq("notice_id", noticeId).order("created_at", {ascending:true}).then(({data})=>{
       if (data) setComments(data);
       setLoaded(true);
@@ -1836,7 +1838,7 @@ function NoticeComments({ noticeId, profile, isAdmin, supabase }) {
   const addComment = async () => {
     if (!text.trim()) return;
     setSaving(true);
-    const {data, error} = await supabase.from("notice_comments").insert({notice_id:noticeId, content:text.trim(), author:profile?.name||"사용자"}).select().single();
+    const {data, error} = await supabase.from("notice_comments").insert({notice_id:noticeId, content:text.trim(), author:userName||"사용자"}).select().single();
     if (!error && data) { setComments(prev=>[...prev, data]); setText(""); }
     setSaving(false);
   };
@@ -1856,7 +1858,7 @@ function NoticeComments({ noticeId, profile, isAdmin, supabase }) {
             <span style={{ fontSize:11, color:"#94A3B8" }}>{(c.created_at||"").slice(0,10)}</span>
             <div style={{ fontSize:13, color:"#334155", marginTop:4 }}>{c.content}</div>
           </div>
-          {(isAdmin || c.author===profile?.name) && (
+          {(isAdmin || c.author===userName) && (
             <button onClick={()=>deleteComment(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#94A3B8", fontSize:12, flexShrink:0 }}>✕</button>
           )}
         </div>
