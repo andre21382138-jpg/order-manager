@@ -34,11 +34,21 @@ module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
   const { action, start_date, end_date } = req.query;
-  const APP_ID = process.env.SMARTSTORE_APP_ID;
-  const APP_SECRET = process.env.SMARTSTORE_APP_SECRET;
+  const { brand_id } = req.query;
+
+  // 브랜드별 자격증명 분기
+  const COCOEL_ID = "0a37b281-f262-4402-979c-e63a739bee53";
+  const isCocoel = brand_id === COCOEL_ID;
+
+  const APP_ID = isCocoel
+    ? process.env.SMARTSTORE_APP_ID_COCOEL
+    : process.env.SMARTSTORE_APP_ID;
+  const APP_SECRET = isCocoel
+    ? process.env.SMARTSTORE_APP_SECRET_COCOEL
+    : process.env.SMARTSTORE_APP_SECRET;
 
   if (!APP_ID || !APP_SECRET) {
-    return res.status(500).json({ error: "환경변수 누락: SMARTSTORE_APP_ID, SMARTSTORE_APP_SECRET" });
+    return res.status(500).json({ error: `환경변수 누락: ${isCocoel ? "SMARTSTORE_APP_ID_COCOEL, SMARTSTORE_APP_SECRET_COCOEL" : "SMARTSTORE_APP_ID, SMARTSTORE_APP_SECRET"}` });
   }
 
   try {

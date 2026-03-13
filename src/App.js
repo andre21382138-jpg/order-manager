@@ -740,7 +740,7 @@ export default function App() {
         setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}일) ${day}`);
         const from = encodeURIComponent(`${day}T00:00:00.000+09:00`);
         const to = encodeURIComponent(`${day}T23:59:59.999+09:00`);
-        const r = await fetch(`http://localhost:3001/orders?from=${from}&to=${to}`);
+        const r = await fetch(`http://localhost:3001/orders?brandId=${brand.id}&from=${from}&to=${to}`);
         const data = await r.json();
         if (data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
         const items = Array.isArray(data.data) ? data.data : [];
@@ -1665,6 +1665,7 @@ export default function App() {
             {(() => {
               const SMARTSTORE_CONNECTED_IDS = [
                 "fd66b113-548b-44b0-8510-b7f49e302145", // 팔레오
+                "0a37b281-f262-4402-979c-e63a739bee53", // 코코엘
               ];
               const isConnected = SMARTSTORE_CONNECTED_IDS.includes(smartstoreBrand?.id);
               return isConnected ? (
