@@ -264,7 +264,8 @@ export default function App() {
   const [brands, setBrands] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [orders, setOrders] = useState([]);
-  const [tab, setTab] = useState("입력");
+  const [tab, setTab] = useState("결산");
+  const [subTab, setSubTab] = useState("결산조회");
   const [loaded, setLoaded] = useState(false);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -907,8 +908,8 @@ export default function App() {
 
       {/* 탭 */}
       <div style={{ padding:"8px 6px", borderBottom:"1px solid #334155", flexShrink:0 }}>
-        {[["입력","✏️"],["조회","🔍"],["결산","📊"]].map(([t,icon]) => (
-          <button key={t} onClick={()=>setTab(t)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"9px 10px":"9px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8", fontSize:13, fontWeight:700, marginBottom:2, whiteSpace:"nowrap" }}>
+        {[["원가","💰"],["광고","📣"],["결산","📊"]].map(([t,icon]) => (
+          <button key={t} onClick={()=>{setTab(t);setSubTab(t==="원가"?"원가조회":t==="광고"?"광고현황조회":"결산조회");}} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"9px 10px":"9px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8", fontSize:13, fontWeight:700, marginBottom:2, whiteSpace:"nowrap" }}>
             <span style={{ fontSize:15, flexShrink:0 }}>{icon}</span>
             {sidebarOpen && t}
           </button>
@@ -955,7 +956,7 @@ export default function App() {
                     return (
                       <div key={t} style={{ display:"flex", alignItems:"center", gap:3 }}>
                         <button onClick={()=>{
-                          if (tab==="조회"||tab==="결산") { setFilter(f=>({...f,brandId:b.id,mallType:t})); setPendingFilter(f=>({...f,brandId:b.id,mallType:t})); }
+                          if (tab==="결산") { setFilter(f=>({...f,brandId:b.id,mallType:t})); setPendingFilter(f=>({...f,brandId:b.id,mallType:t})); }
                           else { setActiveBrandId(b.id); setActiveMallType(t); }
                         }} style={{ flex:1, padding:"5px 7px", borderRadius:6, border:"none", cursor:"pointer", background:isActive?MALL_TYPE_COLORS[t]+"30":"transparent", color:isActive?MALL_TYPE_COLORS[t]:"#64748B", fontSize:11, fontWeight:600, textAlign:"left" }}>
                           {t==="자사몰"?"🏪":"🛍️"} {t}
@@ -1042,8 +1043,48 @@ export default function App() {
         {/* 스크롤 영역 */}
         <div style={{ flex:1, overflowY:"auto", padding:isMobile?"12px 10px 80px":"20px 20px" }}>
 
-          {/* 카테고리 관리 (입력 탭) */}
-          {tab==="입력" && (
+          {/* 서브탭 바 */}
+          {(()=>{
+            const subTabs = tab==="원가"?["원가입력","원가조회"]:tab==="광고"?["광고입력","광고현황조회"]:["주문입력","주문조회","결산조회"];
+            return (
+              <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                {subTabs.map(s=>(
+                  <button key={s} onClick={()=>setSubTab(s)} style={{ flex:1, padding:"8px 12px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:subTab===s?700:500, background:subTab===s?"#3B82F6":"transparent", color:subTab===s?"white":"#64748B" }}>{s}</button>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* ── 원가 탭 ── */}
+          {tab==="원가" && subTab==="원가입력" && (
+            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>💰 원가 입력</div>
+              <div style={{ color:"#94A3B8", fontSize:13 }}>원가 입력 기능은 준비 중입니다.</div>
+            </div>
+          )}
+          {tab==="원가" && subTab==="원가조회" && (
+            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>💰 원가 조회</div>
+              <div style={{ color:"#94A3B8", fontSize:13 }}>원가 조회 기능은 준비 중입니다.</div>
+            </div>
+          )}
+
+          {/* ── 광고 탭 ── */}
+          {tab==="광고" && subTab==="광고입력" && (
+            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고 입력</div>
+              <div style={{ color:"#94A3B8", fontSize:13 }}>광고 입력 기능은 준비 중입니다.</div>
+            </div>
+          )}
+          {tab==="광고" && subTab==="광고현황조회" && (
+            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고 현황 조회</div>
+              <div style={{ color:"#94A3B8", fontSize:13 }}>광고 현황 조회 기능은 준비 중입니다.</div>
+            </div>
+          )}
+
+          {/* 카테고리 관리 (주문입력) */}
+          {tab==="결산" && subTab==="주문입력" && (
             <div style={{ background:"white", borderRadius:14, padding:"10px 16px", marginBottom:14, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
                 <span style={{ ...labelStyle, color:"#94A3B8", fontSize:11 }}>기본 카테고리</span>
@@ -1053,8 +1094,8 @@ export default function App() {
             </div>
           )}
 
-          {/* ── 입력 탭 ── */}
-          {tab==="입력" && (
+          {/* ── 주문입력 ── */}
+          {tab==="결산" && subTab==="주문입력" && (
             <div>
               <div style={{ background:"white", borderRadius:14, padding:"16px 20px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
                 <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>STEP 1 · 브랜드 선택</div>
@@ -1140,7 +1181,7 @@ export default function App() {
           )}
 
           {/* ── 조회/결산 공통 필터 ── */}
-          {(tab==="조회"||tab==="결산") && (
+          {tab==="결산" && (subTab==="주문조회"||subTab==="결산조회") && (
             <>
               {canAccessAll && (() => {
                 const depts = [...new Set(brands.map(b=>b.department).filter(Boolean))];
@@ -1206,14 +1247,14 @@ export default function App() {
             </>
           )}
 
-          {tab==="조회" && (
+          {tab==="결산" && subTab==="주문조회" && (
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>주문 목록 ({filtered.length}건)</h2>
               {filtered.length===0 ? <Empty text="해당 기간에 주문이 없습니다" /> : <OrderList orders={[...filtered].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id))} expandedOrder={expandedOrder} setExpandedOrder={setExpandedOrder} getBrand={getBrand} deleteOrder={deleteOrder} fmt={fmt} showDate />}
             </div>
           )}
 
-          {tab==="결산" && (
+          {tab==="결산" && subTab==="결산조회" && (
             <>
               {filter.mallType !== "스마트스토어" && <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 {(()=>{
@@ -1422,8 +1463,8 @@ export default function App() {
       {/* 모바일 하단 탭바 */}
       {isMobile && (
         <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"white", borderTop:"1px solid #E2E8F0", display:"flex", zIndex:100, boxShadow:"0 -2px 10px rgba(0,0,0,0.08)" }}>
-          {[["입력","📦"],["조회","🔍"],["결산","📊"]].map(([t,icon])=>(
-            <button key={t} onClick={()=>setTab(t)} style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+          {[["원가","💰"],["광고","📣"],["결산","📊"]].map(([t,icon])=>(
+            <button key={t} onClick={()=>{setTab(t);setSubTab(t==="원가"?"원가조회":t==="광고"?"광고현황조회":"결산조회");}} style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
               <span style={{ fontSize:20 }}>{icon}</span>
               <span style={{ fontSize:11, fontWeight:700, color:tab===t?"#3B82F6":"#94A3B8" }}>{t}</span>
               {tab===t && <div style={{ width:20, height:2, background:"#3B82F6", borderRadius:2 }} />}
