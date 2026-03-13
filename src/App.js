@@ -274,6 +274,7 @@ export default function App() {
   const [editingNotice, setEditingNotice] = useState(null);
   const [expandedNotice, setExpandedNotice] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const initialLoadDone = useRef(false);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -463,6 +464,8 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
     loadAll();
   }, [session?.user?.id]);
 
@@ -1829,6 +1832,7 @@ export default function App() {
 function NoticeComments({ noticeId, userName, isAdmin, supabase }) {
   const [comments, setComments] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const initialLoadDone = useRef(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
 
