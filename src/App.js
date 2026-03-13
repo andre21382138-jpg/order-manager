@@ -743,7 +743,8 @@ export default function App() {
         const r = await fetch(`http://localhost:3001/orders?brandId=${brand.id}&from=${from}&to=${to}`);
         const data = await r.json();
         if (data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
-        const items = Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data.data?.contents) ? data.data.contents :
+                      Array.isArray(data.data) ? data.data : [];
         allDetails.push(...items);
         await new Promise(res => setTimeout(res, 300));
       }
