@@ -462,9 +462,9 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!session) return;
+    if (!session?.user?.id) return;
     loadAll();
-  }, [session]);
+  }, [session?.user?.id]);
 
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
   useEffect(() => { setForm(f => ({ ...f, brandId: activeBrandId, mallType: activeMallType })); setItems([emptyItem()]); }, [activeBrandId, activeMallType]);
