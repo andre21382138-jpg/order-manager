@@ -266,6 +266,13 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [tab, setTab] = useState("결산");
   const [subTab, setSubTab] = useState("결산조회");
+  const [showNoticeTab, setShowNoticeTab] = useState(false);
+  const [notices, setNotices] = useState([]);
+  const [noticeLoading, setNoticeLoading] = useState(false);
+  const [showNoticeForm, setShowNoticeForm] = useState(false);
+  const [noticeForm, setNoticeForm] = useState({title:"",content:""});
+  const [editingNotice, setEditingNotice] = useState(null);
+  const [expandedNotice, setExpandedNotice] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -914,6 +921,14 @@ export default function App() {
             {sidebarOpen && t}
           </button>
         ))}
+      </div>
+
+      {/* 공지사항 바로가기 */}
+      <div style={{ padding:"4px 6px", borderBottom:"1px solid #334155", flexShrink:0 }}>
+        <button onClick={async()=>{ setShowNoticeTab(true); setNoticeLoading(true); const {data}=await supabase.from("notices").select("*").order("is_pinned",{ascending:false}).order("created_at",{ascending:false}); if(data) setNotices(data); setNoticeLoading(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+          <span style={{ fontSize:14, flexShrink:0 }}>📢</span>
+          {sidebarOpen && "공지사항"}
+        </button>
       </div>
 
       {/* 브랜드 목록 */}
@@ -1697,7 +1712,80 @@ export default function App() {
         </div>
       )}
 
-      {/* 카테고리 매핑 모달 */}
+      {/* 공지사항 모달 */}
+      {showNoticeTab && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={()=>{setShowNoticeTab(false);setShowNoticeForm(false);setEditingNotice(null);}}>
+          <div style={{ background:"white", borderRadius:16, width:"100%", maxWidth:640, maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ padding:"18px 20px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"#1E293B" }}>📢 공지사항</div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                {isAdmin && !showNoticeForm && <button onClick={()=>{setNoticeForm({title:"",content:"",is_pinned:false});setEditingNotice(null);setShowNoticeForm(true);}} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>+ 공지 작성</button>}
+                <button onClick={()=>{setShowNoticeTab(false);setShowNoticeForm(false);setEditingNotice(null);}} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#94A3B8", lineHeight:1 }}>✕</button>
+              </div>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
+              {showNoticeForm && (
+                <div style={{ background:"#F8FAFC", borderRadius:12, padding:16, marginBottom:16, border:"1px solid #E2E8F0" }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:12 }}>{editingNotice?"✏️ 공지 수정":"📝 새 공지 작성"}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                    <input value={noticeForm.title} onChange={e=>setNoticeForm(f=>({...f,title:e.target.value}))} placeholder="제목" style={{ flex:1, padding:"9px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:14, fontWeight:600, boxSizing:"border-box" }} />
+                    <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:13, color:"#64748B", cursor:"pointer", whiteSpace:"nowrap" }}>
+                      <input type="checkbox" checked={noticeForm.is_pinned||false} onChange={e=>setNoticeForm(f=>({...f,is_pinned:e.target.checked}))} />📌 상단고정
+                    </label>
+                  </div>
+                  <textarea value={noticeForm.content} onChange={e=>setNoticeForm(f=>({...f,content:e.target.value}))} placeholder="내용을 입력하세요" rows={5} style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, resize:"vertical", boxSizing:"border-box" }} />
+                  <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                    <button onClick={()=>{setShowNoticeForm(false);setEditingNotice(null);}} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", fontSize:13, cursor:"pointer", color:"#64748B" }}>취소</button>
+                    <button onClick={async()=>{
+                      if (!noticeForm.title.trim()||!noticeForm.content.trim()) return;
+                      if (editingNotice) {
+                        const {error}=await supabase.from("notices").update({title:noticeForm.title,content:noticeForm.content,is_pinned:noticeForm.is_pinned||false}).eq("id",editingNotice.id);
+                        if (!error) { setNotices(prev=>{const updated=prev.map(n=>n.id===editingNotice.id?{...n,...noticeForm}:n); return [...updated].sort((a,b)=>(b.is_pinned?1:0)-(a.is_pinned?1:0)||new Date(b.created_at)-new Date(a.created_at));}); setShowNoticeForm(false); setEditingNotice(null); }
+                      } else {
+                        const {data,error}=await supabase.from("notices").insert({title:noticeForm.title,content:noticeForm.content,is_pinned:noticeForm.is_pinned||false,author:profile?.name||session?.user?.email}).select().single();
+                        if (!error&&data) { setNotices(prev=>[data,...prev].sort((a,b)=>(b.is_pinned?1:0)-(a.is_pinned?1:0)||new Date(b.created_at)-new Date(a.created_at))); setShowNoticeForm(false); }
+                      }
+                    }} style={{ padding:"8px 16px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>저장</button>
+                  </div>
+                </div>
+              )}
+              {noticeLoading ? (
+                <div style={{ textAlign:"center", padding:32, color:"#94A3B8" }}>⏳ 불러오는 중...</div>
+              ) : notices.length===0 ? (
+                <div style={{ textAlign:"center", padding:32, color:"#94A3B8", fontSize:14 }}>등록된 공지사항이 없습니다.</div>
+              ) : notices.map(n=>{
+                const isExp = expandedNotice===n.id;
+                return (
+                  <div key={n.id} style={{ borderRadius:12, border:n.is_pinned?"1px solid #FCD34D":"1px solid #E2E8F0", marginBottom:10, overflow:"hidden", background:n.is_pinned?"#FFFBEB":"white" }}>
+                    <div onClick={()=>setExpandedNotice(isExp?null:n.id)} style={{ padding:"14px 16px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+                        {n.is_pinned && <span style={{ fontSize:11, fontWeight:700, color:"#B45309", background:"#FDE68A", padding:"2px 7px", borderRadius:20, whiteSpace:"nowrap" }}>📌 고정</span>}
+                        <span style={{ fontSize:14, fontWeight:700, color:"#1E293B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{n.title}</span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                        <span style={{ fontSize:11, color:"#94A3B8" }}>{n.author} · {(n.created_at||"").slice(0,10)}</span>
+                        {isAdmin && <div style={{ display:"flex", gap:4 }}>
+                          <button onClick={e=>{e.stopPropagation();setNoticeForm({title:n.title,content:n.content,is_pinned:n.is_pinned||false});setEditingNotice(n);setShowNoticeForm(true);}} style={{ padding:"3px 8px", borderRadius:6, border:"1px solid #E2E8F0", background:"white", fontSize:11, cursor:"pointer", color:"#64748B" }}>수정</button>
+                          <button onClick={async e=>{e.stopPropagation();if(!window.confirm("삭제하시겠습니까?")) return;await supabase.from("notice_comments").delete().eq("notice_id",n.id);await supabase.from("notices").delete().eq("id",n.id);setNotices(prev=>prev.filter(x=>x.id!==n.id));if(expandedNotice===n.id)setExpandedNotice(null);}} style={{ padding:"3px 8px", borderRadius:6, border:"1px solid #FCA5A5", background:"#FEF2F2", fontSize:11, cursor:"pointer", color:"#DC2626" }}>삭제</button>
+                          <button onClick={async e=>{e.stopPropagation();const newPin=!n.is_pinned;await supabase.from("notices").update({is_pinned:newPin}).eq("id",n.id);setNotices(prev=>[...prev.map(x=>x.id===n.id?{...x,is_pinned:newPin}:x)].sort((a,b)=>(b.is_pinned?1:0)-(a.is_pinned?1:0)||new Date(b.created_at)-new Date(a.created_at)));}} style={{ padding:"3px 8px", borderRadius:6, border:"1px solid #FCD34D", background:n.is_pinned?"#FDE68A":"white", fontSize:11, cursor:"pointer", color:"#B45309" }}>{n.is_pinned?"고정해제":"고정"}</button>
+                        </div>}
+                        <span style={{ fontSize:12, color:"#94A3B8" }}>{isExp?"▲":"▼"}</span>
+                      </div>
+                    </div>
+                    {isExp && (
+                      <div style={{ borderTop:"1px solid #F1F5F9", padding:"14px 16px" }}>
+                        <div style={{ fontSize:13, color:"#334155", lineHeight:1.7, whiteSpace:"pre-wrap", marginBottom:16 }}>{n.content}</div>
+                        <NoticeComments noticeId={n.id} profile={profile} isAdmin={isAdmin} supabase={supabase} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showMappingModal && mappingBrand && (
         <div style={modalBg}>
           <div style={{...modalBox,width:500,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -1728,6 +1816,55 @@ export default function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function NoticeComments({ noticeId, profile, isAdmin, supabase }) {
+  const [comments, setComments] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(false);
+  const [text, setText] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    supabase.from("notice_comments").select("*").eq("notice_id", noticeId).order("created_at", {ascending:true}).then(({data})=>{
+      if (data) setComments(data);
+      setLoaded(true);
+    });
+  }, [noticeId]);
+
+  const addComment = async () => {
+    if (!text.trim()) return;
+    setSaving(true);
+    const {data, error} = await supabase.from("notice_comments").insert({notice_id:noticeId, content:text.trim(), author:profile?.name||"사용자"}).select().single();
+    if (!error && data) { setComments(prev=>[...prev, data]); setText(""); }
+    setSaving(false);
+  };
+
+  const deleteComment = async (id) => {
+    await supabase.from("notice_comments").delete().eq("id", id);
+    setComments(prev=>prev.filter(c=>c.id!==id));
+  };
+
+  return (
+    <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:12 }}>
+      <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:8 }}>💬 댓글 {comments.length}개</div>
+      {loaded && comments.map(c=>(
+        <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 10px", borderRadius:8, background:"#F8FAFC", marginBottom:6 }}>
+          <div>
+            <span style={{ fontSize:12, fontWeight:700, color:"#1E293B", marginRight:8 }}>{c.author}</span>
+            <span style={{ fontSize:11, color:"#94A3B8" }}>{(c.created_at||"").slice(0,10)}</span>
+            <div style={{ fontSize:13, color:"#334155", marginTop:4 }}>{c.content}</div>
+          </div>
+          {(isAdmin || c.author===profile?.name) && (
+            <button onClick={()=>deleteComment(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#94A3B8", fontSize:12, flexShrink:0 }}>✕</button>
+          )}
+        </div>
+      ))}
+      <div style={{ display:"flex", gap:8, marginTop:8 }}>
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&addComment()} placeholder="댓글을 입력하세요..." style={{ flex:1, padding:"8px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13 }} />
+        <button onClick={addComment} disabled={saving||!text.trim()} style={{ padding:"8px 14px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", opacity:saving||!text.trim()?0.5:1 }}>등록</button>
+      </div>
     </div>
   );
 }
