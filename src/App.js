@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+const spinStyle = document.createElement("style");
+spinStyle.textContent = "@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }";
+document.head.appendChild(spinStyle);
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -1017,14 +1020,14 @@ export default function App() {
               )}
               {isAdmin && <button onClick={()=>setShowCreateUserModal(true)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"2px 3px" }} title="직원추가">👤</button>}
               <button onClick={()=>setShowChangePasswordModal(true)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, padding:"2px 3px" }} title="비밀번호변경">🔑</button>
-              <button onClick={loadAll} disabled={refreshing} style={{ background:"none", border:"none", cursor:refreshing?"not-allowed":"pointer", fontSize:13, padding:"2px 3px", opacity:refreshing?0.4:1 }} title="데이터 새로고침">{refreshing?"⏳":"🔄"}</button>
+              <button onClick={loadAll} disabled={refreshing} style={{ background:"none", border:"none", cursor:refreshing?"not-allowed":"pointer", fontSize:13, padding:"2px 3px" }} title="데이터 새로고침"><span style={{ display:"inline-block", animation:refreshing?"spin 0.8s linear infinite":"none" }}>🔄</span></button>
               <button onClick={handleLogout} style={{ background:"none", border:"none", cursor:"pointer", fontSize:10, padding:"2px 3px", color:"#64748B" }}>나가기</button>
             </div>
           </div>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:5, alignItems:"center" }}>
             {isAdmin && <button onClick={()=>setShowApprovalModal(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:15 }}>🔔{pendingUsers.length>0&&<span style={{ position:"absolute", top:0, right:0, background:"#EF4444", color:"white", borderRadius:"50%", width:11, height:11, fontSize:7, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{pendingUsers.length}</span>}</button>}
-            <button onClick={loadAll} disabled={refreshing} style={{ background:"none", border:"none", cursor:refreshing?"not-allowed":"pointer", fontSize:15, opacity:refreshing?0.4:1 }} title="데이터 새로고침">{refreshing?"⏳":"🔄"}</button>
+            <button onClick={loadAll} disabled={refreshing} style={{ background:"none", border:"none", cursor:refreshing?"not-allowed":"pointer", fontSize:15 }} title="데이터 새로고침"><span style={{ display:"inline-block", animation:refreshing?"spin 0.8s linear infinite":"none" }}>🔄</span></button>
             <button onClick={handleLogout} style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"#64748B" }} title="로그아웃">🚪</button>
           </div>
         )}
@@ -1055,6 +1058,7 @@ export default function App() {
         )}
 
         {saving && <div style={{ height:3, background:"#3B82F6", flexShrink:0 }} />}
+        {refreshing && <div style={{ background:"#EFF6FF", border:"1px solid #BFDBFE", color:"#1D4ED8", padding:"8px 16px", fontSize:13, flexShrink:0, display:"flex", alignItems:"center", gap:8 }}><span style={{ animation:"spin 0.8s linear infinite", display:"inline-block" }}>🔄</span> 데이터를 새로고침하는 중입니다...</div>}
         {error && <div style={{ background:"#FEF2F2", border:"1px solid #FCA5A5", color:"#DC2626", padding:"8px 16px", fontSize:13, flexShrink:0 }}>{error}<span onClick={()=>setError("")} style={{ marginLeft:10, cursor:"pointer" }}>✕</span></div>}
 
         {/* 스크롤 영역 */}
