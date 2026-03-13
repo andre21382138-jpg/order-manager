@@ -958,7 +958,7 @@ export default function App() {
                         <button onClick={()=>{
                           if (tab==="결산") { setFilter(f=>({...f,brandId:b.id,mallType:t})); setPendingFilter(f=>({...f,brandId:b.id,mallType:t})); }
                           else { setActiveBrandId(b.id); setActiveMallType(t); }
-                        }} style={{ flex:1, padding:"5px 7px", borderRadius:6, border:"none", cursor:"pointer", background:isActive?MALL_TYPE_COLORS[t]+"30":"transparent", color:isActive?MALL_TYPE_COLORS[t]:"#64748B", fontSize:11, fontWeight:600, textAlign:"left" }}>
+                        }} style={{ flex:1, padding:"5px 7px", borderRadius:6, border:"none", cursor:"pointer", background:isActive?MALL_TYPE_COLORS[t]+"30":"transparent", color:isActive?MALL_TYPE_COLORS[t]:"#94A3B8", fontSize:11, fontWeight:600, textAlign:"left" }}>
                           {t==="자사몰"?"🏪":"🛍️"} {t}
                         </button>
                         <button onClick={e=>{
@@ -968,7 +968,7 @@ export default function App() {
                           } else {
                             setCafe24Brand(b); setCafe24MallId(cafe24Tokens[b.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
                           }
-                        }} title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"} style={{ padding:"3px 5px", borderRadius:5, cursor:"pointer", fontSize:9, fontWeight:700, border:"1px solid #334155", background:"transparent", color:"#475569", flexShrink:0 }}>🔗</button>
+                        }} title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"} style={{ padding:"3px 5px", borderRadius:5, cursor:"pointer", fontSize:9, fontWeight:700, border:"1px solid #475569", background:"transparent", color:"#94A3B8", flexShrink:0 }}>🔗</button>
                       </div>
                     );
                   })}
