@@ -1641,7 +1641,7 @@ export default function App() {
             {cafe24Tokens[cafe24Brand.id] && (
               <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📦 주문 동기화</div>
-                {(()=>{ const now=new Date(); const yest=new Date(Date.now()-86400000).toISOString().slice(0,10); const thisMonthStart=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`; const lm=new Date(now.getFullYear(),now.getMonth(),0); const lastMonthStart=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-01`; const lastMonthEnd=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`; const weekAgo=new Date(Date.now()-7*86400000).toISOString().slice(0,10); const todayStr=today(); return (
+                {(()=>{ const now=new Date(Date.now()+9*60*60*1000); const yest=yesterday(); const thisMonthStart=`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-01`; const lm=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),0)); const lastMonthStart=`${lm.getUTCFullYear()}-${String(lm.getUTCMonth()+1).padStart(2,'0')}-01`; const lastMonthEnd=`${lm.getUTCFullYear()}-${String(lm.getUTCMonth()+1).padStart(2,'0')}-${String(lm.getUTCDate()).padStart(2,'0')}`; const weekAgo=new Date(Date.now()+9*60*60*1000-7*86400000).toISOString().slice(0,10); const todayStr=today(); return (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ display:"flex", gap:8, marginBottom:8 }}>
                       {[{label:"최근 7일",start:weekAgo,end:yest},{label:"당월",start:thisMonthStart,end:yest},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=><button key={opt.label} onClick={()=>syncCafe24Orders(cafe24Brand,opt.start,opt.end)} disabled={cafe24Syncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:cafe24Syncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>{cafe24Syncing?"⏳":opt.label}</button>)}
@@ -1692,7 +1692,7 @@ export default function App() {
                 const lastMonthStart = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-01`;
                 const lastMonthEnd = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth()+1).padStart(2,'0')}-${String(lastMonthDate.getDate()).padStart(2,'0')}`;
                 const weekAgo = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
-                const yest = new Date(Date.now()-86400000).toISOString().slice(0,10);
+                const yest = yesterday();
                 return (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ display:"flex", gap:8, marginBottom:8 }}>
