@@ -475,13 +475,13 @@ export default function App() {
   // 동기화 중 탭 전환 경고
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.hidden && (cafe24Syncing || smartStoreSyncing)) {
+      if (document.hidden && (cafe24Syncing || smartstoreSyncing)) {
         alert("⚠️ 동기화가 진행 중입니다.\n다른 탭으로 이동하면 동기화가 중단될 수 있어요.\n동기화 완료 후 이동해주세요.");
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [cafe24Syncing, smartStoreSyncing]);
+  }, [cafe24Syncing, smartstoreSyncing]);
   useEffect(() => { setForm(f => ({ ...f, brandId: activeBrandId, mallType: activeMallType })); setItems([emptyItem()]); }, [activeBrandId, activeMallType]);
   useEffect(() => { setActiveMallType(""); }, [activeBrandId]);
 
