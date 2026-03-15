@@ -639,12 +639,17 @@ export default function App() {
     setAnalyticsLoading(true);
     try {
       const brand = getBrand(brandId);
-      // 토큰 갱신: setCafe24Tokens 호출 없이 새 토큰만 반환
+      // 토큰 갱신 후 DB 저장
       let accessToken = token.access_token;
       try {
         const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
         const rData = await rRes.json();
-        if (rData.access_token) accessToken = rData.access_token;
+        if (rData.access_token) {
+          accessToken = rData.access_token;
+          const updatedToken = { ...token, access_token: rData.access_token, ...(rData.refresh_token ? { refresh_token: rData.refresh_token } : {}) };
+          await supabase.from("cafe24_tokens").upsert({ brand_id: brandId, ...updatedToken }, { onConflict: "brand_id" });
+          setCafe24Tokens(prev => ({ ...prev, [brandId]: updatedToken }));
+        }
       } catch(e) {}
       const res = await fetch(`/api/cafe24?action=analytics&mall_id=${token.mall_id}&access_token=${accessToken}&start_date=${from}&end_date=${to}`);
       const data = await res.json();
