@@ -736,6 +736,7 @@ export default function App() {
       }
       const unmappedCount = Object.keys(unmappedProds).length;
       setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""}${unmappedCount>0?` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개`:""}`);
+      loadAll();
       if (unmappedCount>0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
@@ -854,6 +855,7 @@ export default function App() {
 
       const unmappedCount = Object.keys(unmappedProds).length;
       setSmartStoreSyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
+      loadAll();
       if (unmappedCount > 0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
     } catch(e) { setSmartStoreSyncResult("❌ 오류: " + e.message); }
     setSmartStoreSyncing(false);
