@@ -30,6 +30,7 @@ const MALL_TYPE_COLORS = { "자사몰":"#8B5CF6", "스마트스토어":"#10B981"
 
 const fmt = (n) => new Intl.NumberFormat("ko-KR").format(n) + "원";
 const today = () => { const d = new Date(Date.now() + 9*60*60*1000); return d.toISOString().slice(0, 10); }; // KST 기준
+const yesterday = () => { const d = new Date(Date.now() + 9*60*60*1000 - 86400000); return d.toISOString().slice(0, 10); }; // KST 기준 어제
 const pad = n => String(n).padStart(2,"0");
 const emptyItem = () => ({ id: Date.now() + Math.random(), category: "", productName: "", qty: "", amount: "" });
 
@@ -1245,8 +1246,8 @@ export default function App() {
               </div>
 
               <div style={{...card,padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-                <Field label="시작일"><input type="date" value={pendingFilter.from} max={new Date(Date.now()-86400000).toISOString().slice(0,10)} onChange={e=>setPendingFilter(f=>({...f,from:e.target.value}))} style={{...inp,width:130}} /></Field>
-                <Field label="종료일"><input type="date" value={pendingFilter.to} max={new Date(Date.now()-86400000).toISOString().slice(0,10)} onChange={e=>setPendingFilter(f=>({...f,to:e.target.value}))} style={{...inp,width:130}} /></Field>
+                <Field label="시작일"><input type="date" value={pendingFilter.from} max={yesterday()} onChange={e=>setPendingFilter(f=>({...f,from:e.target.value}))} style={{...inp,width:130}} /></Field>
+                <Field label="종료일"><input type="date" value={pendingFilter.to} max={yesterday()} onChange={e=>setPendingFilter(f=>({...f,to:e.target.value}))} style={{...inp,width:130}} /></Field>
                 <Field label="카테고리"><select value={pendingFilter.category} onChange={e=>setPendingFilter(f=>({...f,category:e.target.value}))} style={{...inp,width:120}}><option value="">전체</option>{filterCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></Field>
                 <div style={{ display:"flex",gap:6,alignItems:"flex-end" }}>
                   {[["이번달",()=>{const n=new Date();setPendingFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setPendingFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],["올해",()=>{setPendingFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}]].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
