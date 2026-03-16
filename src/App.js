@@ -363,17 +363,19 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        loadAll(session);
+        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
       }
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED" || event === "INITIAL_SESSION") return;
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "SIGNED_IN") loadAll(session);
-      } else { setUserRole("manager"); setUserBrandIds([]); }
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+        }
+      } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
       setAuthChecked(true);
     });
     const timeout = setTimeout(() => setAuthChecked(true), 5000);
@@ -915,10 +917,10 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
-    supabase.auth.signOut().then(() => {
-      Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
-      window.location.reload();
-    });
+    initialLoadDone.current = false;
+    Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+    supabase.auth.signOut();
+    window.location.href = window.location.href;
   }
 
   function toggleBrandExpand(brandId) {
