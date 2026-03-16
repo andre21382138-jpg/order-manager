@@ -28,25 +28,6 @@ module.exports = async (req, res) => {
   const CLIENT_SECRET = cred.CLIENT_SECRET;
   const REDIRECT_URI = process.env.CAFE24_REDIRECT_URI;
 
-  if (action === "order_detail") {
-    try {
-      const order_id = req.query.order_id;
-      const headers = {
-        "Authorization": `Bearer ${access_token}`,
-        "Content-Type": "application/json",
-        "X-Cafe24-Api-Version": "2025-12-01"
-      };
-      const r = await fetch(
-        `https://${mall_id}.cafe24api.com/api/v2/admin/orders/${order_id}?shop_no=1&embed=items,naverpay`,
-        { headers }
-      );
-      const d = await r.json();
-      res.status(200).json(d);
-    } catch(e) {
-      res.status(500).json({ error: e.message });
-    }
-    return;
-  }
   if (action === "debug") {
     res.status(200).json({
       mall_id: mall_id || "없음",
@@ -102,17 +83,17 @@ module.exports = async (req, res) => {
       const allOrders = [];
       const pageSize = 100;
       let offset = 0;
-      const canceledParam = req.query.canceled ? `&canceled=${req.query.canceled}` : '';
       while (true) {
         const r = await fetch(
-          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}${canceledParam}&limit=${pageSize}&offset=${offset}&embed=items`,
+          `https://${mall_id}.cafe24api.com/api/v2/admin/orders?shop_no=1&start_date=${start_date}&end_date=${end_date}&limit=${pageSize}&offset=${offset}&embed=items`,
           { headers }
         );
         const d = await r.json();
         if (d.error || d.errors) { return res.status(200).json({ error: d.error || d.errors, raw: d }); }
         if (!d.orders || d.orders.length === 0) break;
         allOrders.push(...d.orders);
-        if (d.orders.length < pageSize) break;
+        const hasNext = d.links?.some(l => l.rel === "next");
+        if (!hasNext) break;
         offset += pageSize;
       }
       res.status(200).json({ orders: allOrders, total: allOrders.length });
@@ -152,7 +133,42 @@ module.exports = async (req, res) => {
       res.status(500).json({ error: e.message });
     }
   }
-  else {
-    res.status(400).json({ error: "잘못된 action" });
+  else if (action === "products") {
+    try {
+      const headers = {
+        "Authorization": `Bearer ${access_token}`,
+        "Content-Type": "application/json",
+        "X-Cafe24-Api-Version": "2025-12-01"
+      };
+      const allProducts = [];
+      const pageSize = 100;
+      let offset = 0;
+      while (true) {
+        const r = await fetch(
+          `https://${mall_id}.cafe24api.com/api/v2/admin/products?shop_no=1&limit=${pageSize}&offset=${offset}&display=T&selling=T`,
+          { headers }
+        );
+        const d = await r.json();
+        if (d.error || d.errors) { return res.status(200).json({ error: d.error || d.errors }); }
+        if (!d.products || d.products.length === 0) break;
+        allProducts.push(...d.products.map(p => ({
+          product_no: p.product_no,
+          product_name: p.product_name,
+          summary_description: p.summary_description || "",
+          price: p.price,
+          retail_price: p.retail_price || "",
+          supply_price: p.supply_price || "",
+          manufacturer: p.manufacturer || "",
+          weight: p.weight || "",
+          image: p.detail_image || "",
+          small_image: p.small_image || p.detail_image || "",
+        })));
+        if (d.products.length < pageSize) break;
+        offset += pageSize;
+      }
+      res.status(200).json({ products: allProducts, total: allProducts.length });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
   }
 };

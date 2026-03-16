@@ -268,6 +268,13 @@ export default function App() {
   const [tab, setTab] = useState("결산");
   const [subTab, setSubTab] = useState("결산조회");
   const [showNoticeTab, setShowNoticeTab] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [catalogBrand, setCatalogBrand] = useState(null);
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [catalogView, setCatalogView] = useState(false);
+  const [editableProducts, setEditableProducts] = useState([]);
   const [notices, setNotices] = useState([]);
   const [noticeLoading, setNoticeLoading] = useState(false);
   const [showNoticeForm, setShowNoticeForm] = useState(false);
@@ -957,6 +964,14 @@ export default function App() {
         <button onClick={async()=>{ setShowNoticeTab(true); setNoticeLoading(true); const {data}=await supabase.from("notices").select("*").order("is_pinned",{ascending:false}).order("created_at",{ascending:false}); if(data) setNotices(data); setNoticeLoading(false); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
           <span style={{ fontSize:14, flexShrink:0 }}>📢</span>
           {sidebarOpen && "공지사항"}
+        </button>
+      </div>
+
+      {/* 상품소개서 바로가기 */}
+      <div style={{ padding:"4px 6px", borderBottom:"1px solid #334155", flexShrink:0 }}>
+        <button onClick={()=>{setShowCatalogModal(true);setCatalogBrand(null);setCatalogProducts([]);setSelectedProducts([]);setCatalogView(false);}} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+          <span style={{ fontSize:14, flexShrink:0 }}>📋</span>
+          {sidebarOpen && "상품소개서"}
         </button>
       </div>
 
@@ -1744,6 +1759,150 @@ export default function App() {
       )}
 
       {/* 공지사항 모달 */}
+      {/* 상품소개서 모달 */}
+      {showCatalogModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={()=>setShowCatalogModal(false)}>
+          <div style={{ background:"white", borderRadius:16, width:"100%", maxWidth:900, maxHeight:"90vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }} onClick={e=>e.stopPropagation()}>
+            {/* 헤더 */}
+            <div style={{ padding:"18px 20px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"#1E293B" }}>
+                📋 상품소개서
+                {catalogView && <button onClick={()=>setCatalogView(false)} style={{ marginLeft:12, fontSize:12, padding:"4px 10px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:"pointer", color:"#64748B", fontWeight:600 }}>← 상품 선택으로</button>}
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                {catalogView && <button onClick={()=>window.print()} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>🖨️ 인쇄 / PDF</button>}
+                <button onClick={()=>setShowCatalogModal(false)} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#94A3B8" }}>✕</button>
+              </div>
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
+              {!catalogView ? (
+                <>
+                  {/* 브랜드 선택 */}
+                  {!catalogBrand ? (
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#64748B", marginBottom:12 }}>브랜드 선택 (카페24 연동 브랜드만 가능)</div>
+                      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                        {brands.filter(b => cafe24Tokens[b.id]).map(b => (
+                          <button key={b.id} onClick={async()=>{
+                            setCatalogBrand(b);
+                            setCatalogLoading(true);
+                            const token = cafe24Tokens[b.id];
+                            let accessToken = token.access_token;
+                            try {
+                              const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
+                              const rData = await rRes.json();
+                              if (rData.access_token) accessToken = rData.access_token;
+                            } catch(e) {}
+                            const res = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${accessToken}`);
+                            const data = await res.json();
+                            setCatalogProducts(data.products || []);
+                            setCatalogLoading(false);
+                          }} style={{ padding:"12px 20px", borderRadius:12, border:`2px solid ${b.color}`, background:b.color+"12", cursor:"pointer", fontSize:14, fontWeight:700, color:b.color }}>
+                            {b.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 상품 목록 */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#64748B" }}>
+                          {catalogBrand.name} 상품 목록 {catalogLoading ? "로딩중..." : `(${catalogProducts.length}개)`}
+                          <span style={{ marginLeft:8, fontSize:12, color:"#94A3B8" }}>선택: {selectedProducts.length}개</span>
+                        </div>
+                        <div style={{ display:"flex", gap:8 }}>
+                          <button onClick={()=>setSelectedProducts(catalogProducts.map(p=>p.product_no))} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B" }}>전체선택</button>
+                          <button onClick={()=>setSelectedProducts([])} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B" }}>선택해제</button>
+                          <button onClick={()=>{
+                            if (selectedProducts.length===0) return alert("상품을 선택해주세요.");
+                            const selected = catalogProducts.filter(p=>selectedProducts.includes(p.product_no));
+                            setEditableProducts(selected.map(p=>({...p})));
+                            setCatalogView(true);
+                          }} style={{ padding:"6px 16px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:12, fontWeight:700, cursor:"pointer" }}>소개서 만들기 →</button>
+                        </div>
+                      </div>
+                      {catalogLoading ? (
+                        <div style={{ textAlign:"center", padding:40, color:"#94A3B8" }}>⏳ 상품 불러오는 중...</div>
+                      ) : (
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:10 }}>
+                          {catalogProducts.map(p => {
+                            const isSelected = selectedProducts.includes(p.product_no);
+                            return (
+                              <div key={p.product_no} onClick={()=>setSelectedProducts(prev=>isSelected?prev.filter(x=>x!==p.product_no):[...prev,p.product_no])} style={{ borderRadius:10, border:isSelected?"2px solid #3B82F6":"2px solid #E2E8F0", background:isSelected?"#EFF6FF":"white", cursor:"pointer", overflow:"hidden", transition:"all 0.15s" }}>
+                                {p.small_image && <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:120, objectFit:"cover" }} />}
+                                <div style={{ padding:"8px 10px" }}>
+                                  {isSelected && <div style={{ fontSize:10, color:"#3B82F6", fontWeight:700, marginBottom:3 }}>✓ 선택됨</div>}
+                                  <div style={{ fontSize:12, fontWeight:600, color:"#1E293B", lineHeight:1.4, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.product_name}</div>
+                                  <div style={{ fontSize:11, color:"#64748B", marginTop:4 }}>{Number(p.price||0).toLocaleString()}원</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                /* 소개서 뷰 */
+                <div id="catalog-print-area">
+                  <style>{`@media print { body * { visibility: hidden; } #catalog-print-area, #catalog-print-area * { visibility: visible; } #catalog-print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`}</style>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(380px, 1fr))", gap:20 }}>
+                    {editableProducts.map((p, idx) => (
+                      <div key={p.product_no} style={{ border:"1px solid #E2E8F0", borderRadius:14, overflow:"hidden", background:"white", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                        {/* 이미지 */}
+                        {p.small_image && <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:220, objectFit:"cover" }} />}
+                        <div style={{ padding:"16px 18px" }}>
+                          {/* 브랜드명 */}
+                          <div style={{ marginBottom:8 }}>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>브랜드</div>
+                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],brand_name:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:13, fontWeight:700, color:"#1E293B", boxSizing:"border-box" }} />
+                          </div>
+                          {/* 상품명 */}
+                          <div style={{ marginBottom:8 }}>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>상품명</div>
+                            <input value={p.product_name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],product_name:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:14, fontWeight:700, color:"#1E293B", boxSizing:"border-box" }} />
+                          </div>
+                          {/* 가격 */}
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                            <div>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>판매가</div>
+                              <input value={p.price||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],price:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:13, color:"#3B82F6", fontWeight:700, boxSizing:"border-box" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>공급가</div>
+                              <input value={p.supply_price||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],supply_price:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:13, color:"#10B981", fontWeight:700, boxSizing:"border-box" }} />
+                            </div>
+                          </div>
+                          {/* 제조사/규격 */}
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                            <div>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>제조사</div>
+                              <input value={p.manufacturer||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],manufacturer:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:12, boxSizing:"border-box" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>무게/규격</div>
+                              <input value={p.weight||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],weight:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:12, boxSizing:"border-box" }} />
+                            </div>
+                          </div>
+                          {/* 요약설명 */}
+                          <div>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>상품 요약설명</div>
+                            <textarea value={p.summary_description||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],summary_description:e.target.value};setEditableProducts(arr);}} rows={3} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:12, resize:"vertical", boxSizing:"border-box", color:"#475569" }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNoticeTab && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={()=>{setShowNoticeTab(false);setShowNoticeForm(false);setEditingNotice(null);}}>
           <div style={{ background:"white", borderRadius:16, width:"100%", maxWidth:640, maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }} onClick={e=>e.stopPropagation()}>
