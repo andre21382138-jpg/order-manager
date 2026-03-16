@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+let _loadAllRunning = false;
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -275,6 +276,7 @@ export default function App() {
   const [editingNotice, setEditingNotice] = useState(null);
   const [expandedNotice, setExpandedNotice] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const initialLoadDone = useRef(false);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -358,15 +360,23 @@ export default function App() {
         }
       } catch(e) { console.error("role load error", e); }
     }
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        await loadUserRole(session.user.id);
+        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+      }
+      setAuthChecked(true);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
-          loadAll(session);
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
         }
-      } else { setUserRole("manager"); setUserBrandIds([]); }
+      } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
       setAuthChecked(true);
     });
     const timeout = setTimeout(() => setAuthChecked(true), 5000);
@@ -425,14 +435,12 @@ export default function App() {
   }
 
   const [refreshing, setRefreshing] = useState(false);
-  const lastLoadedUserId = useRef(null);
 
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
-    // 자동호출(sessionParam 있을 때)은 같은 유저면 중복 실행 방지
-    if (sessionParam && lastLoadedUserId.current === sessionParam.user?.id) return;
-    if (sessionParam) lastLoadedUserId.current = sessionParam.user?.id;
+    if (_loadAllRunning) return;
+    _loadAllRunning = true;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -465,9 +473,10 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { setLoaded(true); setRefreshing(false); }
+    finally { _loadAllRunning = false; setLoaded(true); setRefreshing(false); }
   }
 
+  // loadAll은 onAuthStateChange SIGNED_IN 이벤트에서 호출됨
 
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
 
@@ -911,14 +920,9 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
-    lastLoadedUserId.current = null;
-    supabase.auth.signOut().then(() => {
-      setSession(null);
-      setOrders([]);
-      setBrands([]);
-      setUserRole("manager");
-      setUserBrandIds([]);
-    });
+    _loadAllRunning = false;
+    initialLoadDone.current = false;
+    supabase.auth.signOut().then(() => window.location.reload());
   }
 
   function toggleBrandExpand(brandId) {
@@ -1276,12 +1280,6 @@ export default function App() {
 
               <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 <h2 style={{...cardTitle, marginBottom:14}}>💹 매출 요약</h2>
-                <div style={{fontSize:11,color:"#94A3B8",marginBottom:8}}>
-                  DB전체: {orders.length}건 / 
-                  팔레오SS: {orders.filter(o=>o.brandId==='fd66b113-548b-44b0-8510-b7f49e302145'&&o.mallType==='스마트스토어').length}건 / 
-                  팔레오SS3/9: {orders.filter(o=>o.brandId==='fd66b113-548b-44b0-8510-b7f49e302145'&&o.mallType==='스마트스토어'&&o.date==='2026-03-09').length}건 / 
-                  filtered: {filtered.length}건
-                </div>
                 <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:12 }}>
                   {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (전체 ${stats.totalOrders+stats.cancelCount}건 중 취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:filter.mallType==="스마트스토어"?"스토어 결제금액":"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
                     <div key={k.label} style={{background:"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.color}`,minHeight:72}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:17,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
@@ -1858,6 +1856,7 @@ export default function App() {
 function NoticeComments({ noticeId, userName, isAdmin, supabase }) {
   const [comments, setComments] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const initialLoadDone = useRef(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
 
