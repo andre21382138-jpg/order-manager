@@ -430,6 +430,7 @@ export default function App() {
   async function loadAll() {
     if (!session) return;
     setRefreshing(true);
+    const timeout = setTimeout(() => { setRefreshing(false); }, 15000); // 15초 타임아웃
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
       if (bErr) throw bErr;
@@ -461,7 +462,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { setLoaded(true); setRefreshing(false); }
+    finally { clearTimeout(timeout); setLoaded(true); setRefreshing(false); }
   }
 
   useEffect(() => {
