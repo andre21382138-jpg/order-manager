@@ -431,10 +431,13 @@ export default function App() {
   }
 
   const [refreshing, setRefreshing] = useState(false);
+  const isLoadingRef = useRef(false);
 
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -467,7 +470,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { setLoaded(true); setRefreshing(false); }
+    finally { isLoadingRef.current = false; setLoaded(true); setRefreshing(false); }
   }
 
 
