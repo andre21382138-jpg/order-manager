@@ -430,7 +430,6 @@ export default function App() {
   async function loadAll() {
     if (!session) return;
     setRefreshing(true);
-    const timeout = setTimeout(() => { setRefreshing(false); }, 15000); // 15초 타임아웃
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
       if (bErr) throw bErr;
@@ -462,7 +461,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { clearTimeout(timeout); setLoaded(true); setRefreshing(false); }
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
   useEffect(() => {
@@ -1077,7 +1076,6 @@ export default function App() {
         )}
 
         {saving && <div style={{ height:3, background:"#3B82F6", flexShrink:0 }} />}
-        {refreshing && <div style={{ background:"#EFF6FF", border:"1px solid #BFDBFE", color:"#1D4ED8", padding:"8px 16px", fontSize:13, flexShrink:0, display:"flex", alignItems:"center", gap:8 }}><span style={{ animation:"spin 0.8s linear infinite", display:"inline-block" }}>🔄</span> 데이터를 새로고침하는 중입니다...</div>}
         {error && <div style={{ background:"#FEF2F2", border:"1px solid #FCA5A5", color:"#DC2626", padding:"8px 16px", fontSize:13, flexShrink:0 }}>{error}<span onClick={()=>setError("")} style={{ marginLeft:10, cursor:"pointer" }}>✕</span></div>}
 
         {/* 스크롤 영역 */}
