@@ -916,7 +916,7 @@ export default function App() {
 
   function handleLogout() {
     supabase.auth.signOut().then(() => {
-      Object.keys(localStorage).forEach(k => localStorage.removeItem(k));
+      Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
       window.location.reload();
     });
   }
