@@ -361,13 +361,21 @@ export default function App() {
     }
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      if (session) await loadUserRole(session.user.id);
+      if (session) {
+        await loadUserRole(session.user.id);
+        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(); }
+      }
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
-      if (session) { await loadUserRole(session.user.id); } else { setUserRole("manager"); setUserBrandIds([]); }
+      if (session) {
+        await loadUserRole(session.user.id);
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(); }
+        }
+      } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
       setAuthChecked(true);
     });
     const timeout = setTimeout(() => setAuthChecked(true), 5000);
@@ -464,12 +472,7 @@ export default function App() {
     finally { setLoaded(true); setRefreshing(false); }
   }
 
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
-    loadAll();
-  }, [session?.user?.id]);
+  // loadAll은 onAuthStateChange SIGNED_IN 이벤트에서 호출됨
 
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
 
