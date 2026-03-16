@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-let _loadAllRunning = false;
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
+
+let _loadAllRunning = false;
 
 if (window.location.pathname === "/auth/cafe24") {
   const params = new URLSearchParams(window.location.search);
