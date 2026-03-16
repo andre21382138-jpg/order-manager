@@ -748,8 +748,7 @@ export default function App() {
         if (allItems.length>0) await supabase.from("order_items").insert(allItems);
       }
       const unmappedCount = Object.keys(unmappedProds).length;
-      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""}${unmappedCount>0?` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개`:""}`);
-      if (unmappedCount>0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
+      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""}`);
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
   }
@@ -866,8 +865,7 @@ export default function App() {
       }
 
       const unmappedCount = Object.keys(unmappedProds).length;
-      setSmartStoreSyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
-      if (unmappedCount > 0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
+      setSmartStoreSyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}`);
     } catch(e) { setSmartStoreSyncResult("❌ 오류: " + e.message); }
     setSmartStoreSyncing(false);
   }
@@ -1907,61 +1905,57 @@ export default function App() {
                     const p = editableProducts[slideIndex];
                     const idx = slideIndex;
                     const upd = (k,v) => { const arr=[...editableProducts]; arr[idx]={...arr[idx],[k]:v}; setEditableProducts(arr); };
-                    const Field = ({label, children}) => (
-                      <div>
-                        <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:4, textTransform:"uppercase" }}>{label}</div>
-                        {children}
-                      </div>
-                    );
                     return (
-                      <div style={{ background:"white", borderRadius:14, overflow:"hidden", boxShadow:"0 4px 24px rgba(0,0,0,0.08)", display:"flex", minHeight:480, border:"1px solid #F0F0F0" }}>
+                      <div style={{ background:"white", borderRadius:16, overflow:"hidden", boxShadow:"0 4px 32px rgba(0,0,0,0.10)", display:"flex", minHeight:500, border:"1px solid #E8EDF2" }}>
 
                         {/* 왼쪽: 이미지 */}
-                        <div style={{ width:"40%", flexShrink:0, background:"#F8F8F6", display:"flex", flexDirection:"column" }}>
-                          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-                            {p.small_image
-                              ? <img src={p.small_image} alt="" style={{ maxWidth:"100%", maxHeight:320, objectFit:"contain" }} />
-                              : <div style={{ fontSize:48, color:"#CBD5E1" }}>📦</div>
-                            }
-                          </div>
-                          <div style={{ background:"#1E293B", padding:"12px 20px" }}>
-                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>upd("brand_name",e.target.value)} className="si" style={{ fontSize:12, fontWeight:700, color:"white", letterSpacing:2 }} />
+                        <div style={{ width:"36%", flexShrink:0, background:"#F8F9FA", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, position:"relative", borderRight:"1px solid #F0F0F0" }}>
+                          {p.small_image
+                            ? <img src={p.small_image} alt="" style={{ maxWidth:"100%", maxHeight:300, objectFit:"contain" }} />
+                            : <div style={{ fontSize:48, color:"#CBD5E1" }}>📦</div>
+                          }
+                          <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"#1E293B", padding:"10px 16px", textAlign:"center" }}>
+                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>upd("brand_name",e.target.value)} style={{ background:"transparent", border:"none", outline:"none", fontSize:12, fontWeight:700, color:"white", letterSpacing:2, textAlign:"center", width:"100%" }} />
                           </div>
                         </div>
 
                         {/* 오른쪽: 정보 */}
-                        <div style={{ flex:1, padding:"28px 32px", display:"flex", flexDirection:"column", gap:16, overflowY:"auto" }}>
+                        <div style={{ flex:1, padding:"28px 32px", display:"flex", flexDirection:"column", gap:14 }}>
 
                           {/* 상품명 */}
-                          <Field label="상품명">
-                            <textarea value={p.product_name||""} onChange={e=>upd("product_name",e.target.value)} className="si" rows={2} style={{ fontSize:18, fontWeight:700, color:"#1E293B", lineHeight:1.4, resize:"none", padding:0, borderBottom:"2px solid #E2E8F0" }} />
-                          </Field>
+                          <div>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>상품명</div>
+                            <textarea value={p.product_name||""} onChange={e=>upd("product_name",e.target.value)} rows={2} style={{ width:"100%", fontSize:18, fontWeight:700, color:"#1E293B", lineHeight:1.45, resize:"none", border:"none", borderBottom:"2px solid #E2E8F0", outline:"none", background:"transparent", padding:"0 0 8px 0", boxSizing:"border-box" }} />
+                          </div>
 
                           {/* 요약설명 */}
-                          <Field label="상품 요약설명">
-                            <textarea value={p.summary_description||""} onChange={e=>upd("summary_description",e.target.value)} className="si" rows={3} style={{ fontSize:13, color:"#64748B", lineHeight:1.7, resize:"none", padding:0 }} />
-                          </Field>
+                          <div>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>상품 요약설명</div>
+                            <textarea value={p.summary_description||""} onChange={e=>upd("summary_description",e.target.value)} placeholder="요약설명을 입력하세요" rows={3} style={{ width:"100%", fontSize:13, color:"#475569", lineHeight:1.7, resize:"none", border:"1px solid #E2E8F0", borderRadius:8, outline:"none", background:"#FAFAFA", padding:"8px 12px", boxSizing:"border-box" }} />
+                          </div>
 
                           {/* 가격 */}
                           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                             <div style={{ background:"#1E293B", borderRadius:10, padding:"12px 16px" }}>
                               <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>판매가</div>
-                              <input value={p.price ? Number(String(p.price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("price",e.target.value.replace(/[^0-9]/g,""))} className="si" style={{ fontSize:20, fontWeight:800, color:"white" }} />
+                              <input value={p.price ? Number(String(p.price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("price",e.target.value.replace(/[^0-9]/g,""))} placeholder="0원" style={{ background:"transparent", border:"none", outline:"none", fontSize:20, fontWeight:800, color:"white", width:"100%" }} />
                             </div>
                             <div style={{ background:"#EFF6FF", border:"1px solid #BFDBFE", borderRadius:10, padding:"12px 16px" }}>
                               <div style={{ fontSize:10, color:"#3B82F6", fontWeight:700, letterSpacing:1, marginBottom:6 }}>공급가</div>
-                              <input value={p.supply_price ? Number(String(p.supply_price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("supply_price",e.target.value.replace(/[^0-9]/g,""))} className="si" style={{ fontSize:20, fontWeight:800, color:"#1D4ED8" }} />
+                              <input value={p.supply_price ? Number(String(p.supply_price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("supply_price",e.target.value.replace(/[^0-9]/g,""))} placeholder="0원" style={{ background:"transparent", border:"none", outline:"none", fontSize:20, fontWeight:800, color:"#1D4ED8", width:"100%" }} />
                             </div>
                           </div>
 
                           {/* 제조사 / 용량·무게 */}
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, background:"#F8FAFC", borderRadius:10, padding:"14px 16px" }}>
-                            <Field label="제조사">
-                              <input value={p.manufacturer||""} onChange={e=>upd("manufacturer",e.target.value)} className="si" style={{ fontSize:14, color:"#334155", fontWeight:500, borderBottom:"1px solid #E2E8F0", paddingBottom:2 }} />
-                            </Field>
-                            <Field label="용량 / 무게">
-                              <input value={p.weight||""} onChange={e=>upd("weight",e.target.value)} className="si" style={{ fontSize:14, color:"#334155", fontWeight:500, borderBottom:"1px solid #E2E8F0", paddingBottom:2 }} />
-                            </Field>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                            <div style={{ background:"#F8FAFC", border:"1px solid #E2E8F0", borderRadius:10, padding:"10px 14px" }}>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>제조사</div>
+                              <input value={p.manufacturer||""} onChange={e=>upd("manufacturer",e.target.value)} placeholder="제조사 입력" style={{ background:"transparent", border:"none", outline:"none", fontSize:14, color:"#334155", fontWeight:500, width:"100%" }} />
+                            </div>
+                            <div style={{ background:"#F8FAFC", border:"1px solid #E2E8F0", borderRadius:10, padding:"10px 14px" }}>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>용량 / 무게</div>
+                              <input value={p.weight||""} onChange={e=>upd("weight",e.target.value)} placeholder="용량/무게 입력" style={{ background:"transparent", border:"none", outline:"none", fontSize:14, color:"#334155", fontWeight:500, width:"100%" }} />
+                            </div>
                           </div>
 
                         </div>
@@ -2044,25 +2038,6 @@ export default function App() {
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
-
-      {showMappingModal && mappingBrand && (
-        <div style={modalBg}>
-          <div style={{...modalBox,width:500,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <h3 style={modalTitle}>🏷️ 상품 카테고리 지정 — {mappingBrand.name}</h3>
-            <p style={{ fontSize:13, color:"#64748B", marginBottom:16 }}>한 번만 지정하면 다음 동기화부터 자동 적용돼요!</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
-              {Object.entries(unmappedProducts).map(([productNo,productName])=>{
-                const brandCats = getBrand(mappingBrand.id)?.categories?.length>0 ? getBrand(mappingBrand.id).categories : categories;
-                return (<div key={productNo} style={{ padding:"10px 14px", borderRadius:10, border:"1px solid #E2E8F0", background:"#F8FAFC" }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:"#1E293B", marginBottom:6, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{productName}</div>
-                  <select value={mappingValues[productNo]||""} onChange={e=>setMappingValues(prev=>({...prev,[productNo]:e.target.value}))} style={{...inp,marginBottom:0,fontSize:13}}><option value="">카테고리 선택</option>{brandCats.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                </div>);
-              })}
-            </div>
-            <div style={{ display:"flex", gap:8 }}><button onClick={saveCategoryMapping} style={{...primaryBtn,flex:1}}>💾 저장</button><button onClick={()=>setShowMappingModal(false)} style={{...secondaryBtn,flex:1}}>나중에</button></div>
           </div>
         </div>
       )}
