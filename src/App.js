@@ -466,6 +466,8 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
     loadAll();
   }, [session?.user?.id]);
 
@@ -911,6 +913,7 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
+    initialLoadDone.current = false;
     Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
     supabase.auth.signOut();
     window.location.href = window.location.href;
