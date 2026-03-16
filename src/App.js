@@ -467,8 +467,6 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
     loadAll();
   }, [session?.user?.id]);
 
