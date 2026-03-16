@@ -428,15 +428,12 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
 
   async function loadAll() {
-    if (!session) { console.log("loadAll: no session"); return; }
-    console.log("loadAll: start");
+    if (!session) return;
     setRefreshing(true);
     try {
-      console.log("loadAll: step1 brands");
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
       if (bErr) throw bErr;
       setBrands(brandsData.map(b => ({ id:b.id, name:b.name, color:b.color||COLORS[0], department:b.department||"", mallTypes:b.mall_types||[], categories:b.categories||[] })));
-      console.log("loadAll: step2 orders");
       const allOrdersData = [];
       let orderOffset = 0;
       while (true) {
@@ -447,7 +444,6 @@ export default function App() {
         if (p.length < 1000) break;
         orderOffset += 1000;
       }
-      console.log("loadAll: step3 items", allOrdersData.length);
       const allItems = [];
       let itemOffset = 0;
       while (true) {
@@ -457,7 +453,6 @@ export default function App() {
         if (p.length < 1000) break;
         itemOffset += 1000;
       }
-      console.log("loadAll: step4 setOrders", allItems.length);
       const itemsByOrderId = {};
       allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
       const ordersMap = new Map();
@@ -465,8 +460,8 @@ export default function App() {
       setOrders([...ordersMap.values()]);
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
-    } catch(e) { console.log("loadAll: error", e.message); setError("데이터 로드 오류: " + e.message); }
-    finally { console.log("loadAll: done"); setLoaded(true); setRefreshing(false); }
+    } catch(e) { setError("데이터 로드 오류: " + e.message); }
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
   useEffect(() => {
