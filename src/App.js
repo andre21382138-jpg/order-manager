@@ -1142,17 +1142,6 @@ export default function App() {
             </div>
           )}
 
-          {/* 카테고리 관리 (주문입력) */}
-          {tab==="결산" && subTab==="주문입력" && (
-            <div style={{ background:"white", borderRadius:14, padding:"10px 16px", marginBottom:14, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-                <span style={{ ...labelStyle, color:"#94A3B8", fontSize:11 }}>기본 카테고리</span>
-                {categories.map(c => <Chip key={c} label={c} color="#64748B" onDelete={()=>setCategories(categories.filter(x=>x!==c))} />)}
-                <button onClick={()=>setShowCatModal(true)} style={addChipBtn}>+ 추가</button>
-              </div>
-            </div>
-          )}
-
           {/* ── 주문입력 ── */}
           {tab==="결산" && subTab==="주문입력" && (
             <div>
