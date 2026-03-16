@@ -906,7 +906,7 @@ export default function App() {
   if (!authChecked) return <div style={centerStyle}><div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🛒</div><div style={{fontSize:14,color:"#94A3B8"}}>로딩 중...</div></div></div>;
   if (!session) return <LoginScreen />;
 
-  function handleLogout() {
+  async function handleLogout() {
     await supabase.auth.signOut();
     window.location.reload();
   }
