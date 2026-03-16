@@ -425,10 +425,14 @@ export default function App() {
   }
 
   const [refreshing, setRefreshing] = useState(false);
+  const lastLoadedUserId = useRef(null);
 
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
+    // 자동호출(sessionParam 있을 때)은 같은 유저면 중복 실행 방지
+    if (sessionParam && lastLoadedUserId.current === sessionParam.user?.id) return;
+    if (sessionParam) lastLoadedUserId.current = sessionParam.user?.id;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -907,6 +911,7 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
+    lastLoadedUserId.current = null;
     supabase.auth.signOut().then(() => {
       setSession(null);
       setOrders([]);
