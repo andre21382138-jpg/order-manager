@@ -1293,8 +1293,8 @@ export default function App() {
               <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 <h2 style={{...cardTitle, marginBottom:14}}>💹 매출 요약</h2>
                 <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:12 }}>
-                  {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (전체 ${stats.totalOrders+stats.cancelCount}건 중 취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:filter.mallType==="스마트스토어"?"스토어 결제금액":"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A"}].map(k=>(
-                    <div key={k.label} style={{background:"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.color}`,minHeight:72}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:17,fontWeight:800,color:"#1E293B"}}>{k.val}</div></div>
+                  {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (전체 ${stats.totalOrders+stats.cancelCount}건 중 취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:filter.mallType==="스마트스토어"?"스토어 결제금액":"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A",dim:filter.mallType==="스마트스토어"}].map(k=>(
+                    <div key={k.label} style={{background:k.dim?"#F1F5F9":"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.dim?"#CBD5E1":k.color}`,minHeight:72,opacity:k.dim?0.45:1}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:17,fontWeight:800,color:k.dim?"#94A3B8":"#1E293B"}}>{k.val}</div></div>
                   ))}
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12 }}>
