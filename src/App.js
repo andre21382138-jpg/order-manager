@@ -425,13 +425,10 @@ export default function App() {
   }
 
   const [refreshing, setRefreshing] = useState(false);
-  const loadingRef = useRef(false);
 
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
-    if (loadingRef.current) return;
-    loadingRef.current = true;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -464,7 +461,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { loadingRef.current = false; setLoaded(true); setRefreshing(false); }
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
 
@@ -910,9 +907,13 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
-    loadingRef.current = false;
-    supabase.auth.signOut();
-    window.location.reload();
+    supabase.auth.signOut().then(() => {
+      setSession(null);
+      setOrders([]);
+      setBrands([]);
+      setUserRole("manager");
+      setUserBrandIds([]);
+    });
   }
 
   function toggleBrandExpand(brandId) {
