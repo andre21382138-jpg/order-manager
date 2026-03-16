@@ -432,9 +432,11 @@ export default function App() {
     console.log("loadAll: start");
     setRefreshing(true);
     try {
+      console.log("loadAll: step1 brands");
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
       if (bErr) throw bErr;
       setBrands(brandsData.map(b => ({ id:b.id, name:b.name, color:b.color||COLORS[0], department:b.department||"", mallTypes:b.mall_types||[], categories:b.categories||[] })));
+      console.log("loadAll: step2 orders");
       const allOrdersData = [];
       let orderOffset = 0;
       while (true) {
@@ -445,6 +447,7 @@ export default function App() {
         if (p.length < 1000) break;
         orderOffset += 1000;
       }
+      console.log("loadAll: step3 items", allOrdersData.length);
       const allItems = [];
       let itemOffset = 0;
       while (true) {
@@ -454,6 +457,7 @@ export default function App() {
         if (p.length < 1000) break;
         itemOffset += 1000;
       }
+      console.log("loadAll: step4 setOrders", allItems.length);
       const itemsByOrderId = {};
       allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
       const ordersMap = new Map();
