@@ -1079,6 +1079,7 @@ export default function App() {
   return (
     <div style={{ display:"flex", height:"100vh", background:"#F0F4F8", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif", overflow:"hidden" }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
       {!isMobile && <SidebarContent />}
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
@@ -1771,7 +1772,44 @@ export default function App() {
                 {catalogView && <button onClick={()=>setCatalogView(false)} style={{ marginLeft:12, fontSize:12, padding:"4px 10px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:"pointer", color:"#64748B", fontWeight:600 }}>← 상품 선택으로</button>}
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                {catalogView && <button onClick={()=>window.print()} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>🖨️ 인쇄 / PDF</button>}
+                {catalogView && <>
+                  <button onClick={()=>window.print()} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#64748B", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>🖨️ PDF</button>
+                  <button onClick={async()=>{
+                    const PptxGenJS = window.PptxGenJS;
+                    if (!PptxGenJS) { alert("PPT 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요."); return; }
+                    const pres = new PptxGenJS();
+                    pres.layout = "LAYOUT_WIDE";
+                    for (const p of editableProducts) {
+                      const slide = pres.addSlide();
+                      slide.background = { color: "FFFFFF" };
+                      // 왼쪽 이미지 영역 배경
+                      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:3.5, h:5.625, fill:{ color:"F8FAFC" } });
+                      // 이미지
+                      if (p.small_image) {
+                        try {
+                          slide.addImage({ path: p.small_image, x:0, y:0, w:3.5, h:5.625, sizing:{ type:"cover", w:3.5, h:5.625 } });
+                        } catch(e) {}
+                      }
+                      // 브랜드
+                      slide.addText(p.brand_name||catalogBrand?.name||"", { x:3.7, y:0.3, w:6, h:0.3, fontSize:10, color:"94A3B8", bold:true });
+                      // 상품명
+                      slide.addText(p.product_name||"", { x:3.7, y:0.7, w:6, h:0.7, fontSize:18, color:"1E293B", bold:true, wrap:true });
+                      // 설명
+                      slide.addText(p.summary_description||"", { x:3.7, y:1.5, w:6, h:0.8, fontSize:11, color:"475569", wrap:true });
+                      // 판매가 박스
+                      slide.addShape(pres.ShapeType.rect, { x:3.7, y:2.5, w:2.8, h:0.8, fill:{ color:"EFF6FF" }, line:{ color:"EFF6FF" } });
+                      slide.addText("판매가", { x:3.7, y:2.55, w:2.8, h:0.2, fontSize:9, color:"3B82F6", bold:true, align:"center" });
+                      slide.addText(String(p.price||""), { x:3.7, y:2.75, w:2.8, h:0.35, fontSize:15, color:"3B82F6", bold:true, align:"center" });
+                      // 공급가 박스
+                      slide.addShape(pres.ShapeType.rect, { x:6.7, y:2.5, w:2.8, h:0.8, fill:{ color:"F0FDF4" }, line:{ color:"F0FDF4" } });
+                      slide.addText("공급가", { x:6.7, y:2.55, w:2.8, h:0.2, fontSize:9, color:"10B981", bold:true, align:"center" });
+                      slide.addText(String(p.supply_price||""), { x:6.7, y:2.75, w:2.8, h:0.35, fontSize:15, color:"10B981", bold:true, align:"center" });
+                      // 제조사/규격
+                      slide.addText(`제조사: ${p.manufacturer||"-"}   무게/규격: ${p.weight||"-"}`, { x:3.7, y:3.5, w:6, h:0.3, fontSize:10, color:"64748B" });
+                    }
+                    pres.writeFile({ fileName: `${catalogBrand?.name||"상품"}_소개서.pptx` });
+                  }} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>📊 PPT 다운로드</button>
+                </>}
                 <button onClick={()=>setShowCatalogModal(false)} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#94A3B8" }}>✕</button>
               </div>
             </div>
@@ -1874,7 +1912,7 @@ export default function App() {
                     return (
                       <div style={{ background:"white", borderRadius:16, overflow:"hidden", boxShadow:"0 4px 24px rgba(0,0,0,0.12)", aspectRatio:"16/9", display:"flex", minHeight:400 }}>
                         {/* 왼쪽: 이미지 */}
-                        <div style={{ width:"45%", flexShrink:0, background:"#F8FAFC", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                        <div style={{ width:"35%", flexShrink:0, background:"#F8FAFC", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
                           {p.small_image
                             ? <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                             : <div style={{ color:"#CBD5E1", fontSize:40 }}>📦</div>
