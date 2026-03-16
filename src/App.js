@@ -275,7 +275,6 @@ export default function App() {
   const [editingNotice, setEditingNotice] = useState(null);
   const [expandedNotice, setExpandedNotice] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const initialLoadDone = useRef(false);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -363,19 +362,17 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+        loadAll(session);
       }
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED" || event === "INITIAL_SESSION") return;
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
-        }
-      } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
+        if (event === "SIGNED_IN") loadAll(session);
+      } else { setUserRole("manager"); setUserBrandIds([]); }
       setAuthChecked(true);
     });
     const timeout = setTimeout(() => setAuthChecked(true), 5000);
@@ -473,7 +470,6 @@ export default function App() {
     finally { setLoaded(true); setRefreshing(false); }
   }
 
-  // loadAll은 onAuthStateChange SIGNED_IN 이벤트에서 호출됨
 
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
 
@@ -917,7 +913,6 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
-    initialLoadDone.current = false;
     Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
     supabase.auth.signOut();
     window.location.href = window.location.href;
@@ -1854,7 +1849,6 @@ export default function App() {
 function NoticeComments({ noticeId, userName, isAdmin, supabase }) {
   const [comments, setComments] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const initialLoadDone = useRef(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
 
