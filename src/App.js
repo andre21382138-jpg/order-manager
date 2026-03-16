@@ -3,8 +3,6 @@ import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
 
-let _loadAllRunning = false;
-
 if (window.location.pathname === "/auth/cafe24") {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
@@ -365,19 +363,17 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+        loadAll(session);
       }
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED" || event === "INITIAL_SESSION") return;
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
-        }
-      } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
+        if (event === "SIGNED_IN") loadAll(session);
+      } else { setUserRole("manager"); setUserBrandIds([]); }
       setAuthChecked(true);
     });
     const timeout = setTimeout(() => setAuthChecked(true), 5000);
@@ -440,8 +436,6 @@ export default function App() {
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
-    if (_loadAllRunning) return;
-    _loadAllRunning = true;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -474,7 +468,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { _loadAllRunning = false; setLoaded(true); setRefreshing(false); }
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
   // loadAll은 onAuthStateChange SIGNED_IN 이벤트에서 호출됨
@@ -921,9 +915,10 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
-    _loadAllRunning = false;
-    initialLoadDone.current = false;
-    supabase.auth.signOut().then(() => window.location.reload());
+    supabase.auth.signOut().then(() => {
+      Object.keys(localStorage).forEach(k => localStorage.removeItem(k));
+      window.location.reload();
+    });
   }
 
   function toggleBrandExpand(brandId) {
