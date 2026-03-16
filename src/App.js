@@ -445,16 +445,13 @@ export default function App() {
         orderOffset += 1000;
       }
       const allItems = [];
-      if (allOrdersData.length > 0) {
-        const orderIds = allOrdersData.map(o => o.id);
-        let itemOffset = 0;
-        while (true) {
-          const { data: p } = await supabase.from("order_items").select("*").in("order_id", orderIds).range(itemOffset, itemOffset+999);
-          if (!p || p.length === 0) break;
-          allItems.push(...p);
-          if (p.length < 1000) break;
-          itemOffset += 1000;
-        }
+      let itemOffset = 0;
+      while (true) {
+        const { data: p } = await supabase.from("order_items").select("*").range(itemOffset, itemOffset+999);
+        if (!p || p.length === 0) break;
+        allItems.push(...p);
+        if (p.length < 1000) break;
+        itemOffset += 1000;
       }
       const itemsByOrderId = {};
       allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
@@ -778,7 +775,7 @@ export default function App() {
       // orderId 기준 그룹핑
       // 새 API 응답 구조: item.content.order / item.content.productOrder
       const orderMap = new Map();
-      const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","EXCHANGE_DONE","CANCEL_NOSHIPPING","CANCELED_BY_NOPAYMENT","CANCELED"];
+      const cancelStatuses = ["CANCEL_DONE","RETURN_DONE","RETURNED","EXCHANGE_DONE","CANCEL_NOSHIPPING","CANCELED_BY_NOPAYMENT","CANCELED"];
       for (const item of allDetails) {
         const po = item.content?.productOrder || item.productOrder;
         const order = item.content?.order || item.order;
