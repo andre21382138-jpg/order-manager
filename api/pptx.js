@@ -7,53 +7,75 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
   try {
-    const { products, brandName, brandColor } = req.body;
+    const { products, brandName } = req.body;
 
     const pres = new PptxGenJS();
-    pres.layout = "LAYOUT_WIDE"; // 16:9
+    pres.layout = "LAYOUT_WIDE";
 
     for (const p of products) {
       const slide = pres.addSlide();
-      slide.background = { color: "FFFFFF" };
 
-      // 왼쪽 이미지 배경
-      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:4.2, h:5.625, fill:{ color:"F8FAFC" }, line:{ color:"F8FAFC" } });
+      // 배경: 딥 다크네이비
+      slide.background = { color: "0F1923" };
+
+      // 왼쪽 이미지 영역 (32%)
+      const imgW = 4.22;
+      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:imgW, h:5.625, fill:{ color:"1E2D3D" }, line:{ color:"1E2D3D" } });
 
       // 이미지
       if (p.small_image) {
         try {
-          slide.addImage({ path: p.small_image, x:0.1, y:0.2, w:4.0, h:5.2, sizing:{ type:"contain", w:4.0, h:5.2 } });
+          slide.addImage({ path: p.small_image, x:0, y:0, w:imgW, h:5.625, sizing:{ type:"cover", w:imgW, h:5.625 } });
         } catch(e) {}
       }
 
-      // 오른쪽 콘텐츠 영역
-      const color = (brandColor||"3B82F6").replace("#","");
+      // 이미지 우측 그라데이션 오버레이 (반투명 rect)
+      slide.addShape(pres.ShapeType.rect, { x:imgW-0.8, y:0, w:0.8, h:5.625, fill:{ type:"solid", color:"0F1923" }, transparency:30, line:{ color:"0F1923" } });
 
-      // 브랜드명
-      slide.addText(p.brand_name||brandName||"", { x:4.5, y:0.35, w:5.2, h:0.35, fontSize:11, color:"94A3B8", bold:true });
+      // 브랜드 배지
+      slide.addShape(pres.ShapeType.rect, { x:0.18, y:4.9, w:1.6, h:0.38, fill:{ color:"C9A96E" }, transparency:80, line:{ color:"C9A96E", width:0.5, transparency:60 } });
+      slide.addText(p.brand_name||brandName||"", { x:0.18, y:4.9, w:1.6, h:0.38, fontSize:9, color:"C9A96E", bold:true, align:"center", valign:"middle", charSpacing:2 });
+
+      // 콘텐츠 영역 시작
+      const cx = imgW + 0.35;
+      const cw = 9.5 - cx;
 
       // 상품명
-      slide.addText(p.product_name||"", { x:4.5, y:0.75, w:5.2, h:1.0, fontSize:20, color:"1E293B", bold:true, wrap:true });
+      slide.addText(p.product_name||"", {
+        x:cx, y:0.55, w:cw, h:1.1,
+        fontSize:22, color:"F8F4EE", bold:true,
+        fontFace:"Malgun Gothic",
+        wrap:true, valign:"top"
+      });
 
-      // 구분선
-      slide.addShape(pres.ShapeType.rect, { x:4.5, y:1.85, w:5.2, h:0.03, fill:{ color:"E2E8F0" }, line:{ color:"E2E8F0" } });
+      // 골드 구분선
+      slide.addShape(pres.ShapeType.rect, { x:cx, y:1.75, w:1.2, h:0.04, fill:{ color:"C9A96E" }, line:{ color:"C9A96E" } });
 
       // 요약설명
-      slide.addText(p.summary_description||"", { x:4.5, y:2.0, w:5.2, h:0.9, fontSize:12, color:"475569", wrap:true });
+      if (p.summary_description) {
+        slide.addText(p.summary_description, {
+          x:cx, y:1.95, w:cw, h:0.9,
+          fontSize:11, color:"9EAFC2",
+          fontFace:"Malgun Gothic",
+          wrap:true, valign:"top"
+        });
+      }
 
       // 판매가 박스
-      slide.addShape(pres.ShapeType.rect, { x:4.5, y:3.05, w:2.4, h:0.9, fill:{ color:"EFF6FF" }, line:{ color:"EFF6FF" }, rectRadius:0.1 });
-      slide.addText("판매가", { x:4.5, y:3.1, w:2.4, h:0.3, fontSize:10, color:"3B82F6", bold:true, align:"center" });
-      slide.addText(p.price ? Number(p.price).toLocaleString()+"원" : "-", { x:4.5, y:3.4, w:2.4, h:0.45, fontSize:16, color:"3B82F6", bold:true, align:"center" });
+      slide.addShape(pres.ShapeType.rect, { x:cx, y:3.05, w:(cw/2)-0.1, h:0.95, fill:{ color:"C9A96E" }, transparency:85, line:{ color:"C9A96E", width:0.75, transparency:65 } });
+      slide.addText("RETAIL PRICE", { x:cx, y:3.1, w:(cw/2)-0.1, h:0.28, fontSize:8, color:"C9A96E", bold:true, align:"center", charSpacing:1.5 });
+      slide.addText(p.price ? Number(p.price).toLocaleString()+"원" : "-", { x:cx, y:3.38, w:(cw/2)-0.1, h:0.5, fontSize:18, color:"C9A96E", bold:true, align:"center" });
 
       // 공급가 박스
-      slide.addShape(pres.ShapeType.rect, { x:7.1, y:3.05, w:2.4, h:0.9, fill:{ color:"F0FDF4" }, line:{ color:"F0FDF4" }, rectRadius:0.1 });
-      slide.addText("공급가", { x:7.1, y:3.1, w:2.4, h:0.3, fontSize:10, color:"10B981", bold:true, align:"center" });
-      slide.addText(p.supply_price ? Number(p.supply_price).toLocaleString()+"원" : "-", { x:7.1, y:3.4, w:2.4, h:0.45, fontSize:16, color:"10B981", bold:true, align:"center" });
+      const spx = cx + (cw/2) + 0.1;
+      slide.addShape(pres.ShapeType.rect, { x:spx, y:3.05, w:(cw/2)-0.1, h:0.95, fill:{ color:"FFFFFF" }, transparency:92, line:{ color:"FFFFFF", width:0.75, transparency:75 } });
+      slide.addText("SUPPLY PRICE", { x:spx, y:3.1, w:(cw/2)-0.1, h:0.28, fontSize:8, color:"9EAFC2", bold:true, align:"center", charSpacing:1.5 });
+      slide.addText(p.supply_price ? Number(p.supply_price).toLocaleString()+"원" : "-", { x:spx, y:3.38, w:(cw/2)-0.1, h:0.5, fontSize:18, color:"F8F4EE", bold:true, align:"center" });
 
-      // 제조사 / 규격
-      slide.addText(`제조사: ${p.manufacturer||"-"}`, { x:4.5, y:4.1, w:2.5, h:0.3, fontSize:11, color:"64748B" });
-      slide.addText(`규격: ${p.weight||"-"}`, { x:7.1, y:4.1, w:2.4, h:0.3, fontSize:11, color:"64748B" });
+      // 하단 정보
+      slide.addShape(pres.ShapeType.rect, { x:cx, y:4.22, w:cw, h:0.02, fill:{ color:"FFFFFF" }, transparency:88, line:{ color:"FFFFFF", transparency:88 } });
+      slide.addText(`MANUFACTURER  ${p.manufacturer||"-"}`, { x:cx, y:4.35, w:cw/2, h:0.3, fontSize:10, color:"6B7F94", fontFace:"Malgun Gothic" });
+      slide.addText(`WEIGHT / SIZE  ${p.weight||"-"}`, { x:cx+(cw/2), y:4.35, w:cw/2, h:0.3, fontSize:10, color:"6B7F94", fontFace:"Malgun Gothic" });
     }
 
     const buffer = await pres.write({ outputType:"nodebuffer" });
