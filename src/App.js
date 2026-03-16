@@ -445,13 +445,16 @@ export default function App() {
         orderOffset += 1000;
       }
       const allItems = [];
-      let itemOffset = 0;
-      while (true) {
-        const { data: p } = await supabase.from("order_items").select("*").range(itemOffset, itemOffset+999);
-        if (!p || p.length === 0) break;
-        allItems.push(...p);
-        if (p.length < 1000) break;
-        itemOffset += 1000;
+      if (allOrdersData.length > 0) {
+        const orderIds = allOrdersData.map(o => o.id);
+        let itemOffset = 0;
+        while (true) {
+          const { data: p } = await supabase.from("order_items").select("*").in("order_id", orderIds).range(itemOffset, itemOffset+999);
+          if (!p || p.length === 0) break;
+          allItems.push(...p);
+          if (p.length < 1000) break;
+          itemOffset += 1000;
+        }
       }
       const itemsByOrderId = {};
       allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
