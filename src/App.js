@@ -1870,92 +1870,97 @@ export default function App() {
                   )}
                 </>
               ) : (
-                /* 소개서 뷰 */
+                /* PPT 슬라이드 뷰 */
                 <div id="catalog-print-area">
                   <style>{`
-                    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-                    #catalog-print-area * { box-sizing: border-box; }
-                    .si { background:transparent; outline:none; border:none; width:100%; }
-                    .si:focus { outline: 1px dashed #CBD5E1; border-radius:3px; }
-                    .sthumb { transition: all 0.15s; cursor:pointer; }
-                    .sthumb:hover { transform:scale(1.04); }
+                    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+                    #catalog-print-area { font-family: 'Noto Sans KR', sans-serif; }
+                    .slide-input { background:transparent; outline:none; transition: border-color 0.2s; }
+                    .slide-input:focus { border-color: #C9A96E !important; }
+                    .slide-thumb:hover { opacity:1 !important; transform:scale(1.05); }
                     @media print {
                       body * { visibility: hidden; }
                       #catalog-print-area, #catalog-print-area * { visibility: visible; }
-                      #catalog-print-area { position: absolute; left:0; top:0; width:100%; }
-                      .no-print { display:none !important; }
+                      #catalog-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                      .no-print { display: none !important; }
                     }
                   `}</style>
 
                   {/* 네비게이션 */}
-                  <div className="no-print" style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-                    <button onClick={()=>setSlideIndex(i=>Math.max(0,i-1))} disabled={slideIndex===0} style={{ flexShrink:0, width:32, height:32, borderRadius:"50%", border:"1px solid #E2E8F0", background:"white", cursor:slideIndex===0?"not-allowed":"pointer", color:slideIndex===0?"#CBD5E1":"#475569", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>◀</button>
-                    <div style={{ display:"flex", gap:6, overflowX:"auto", flex:1 }}>
+                  <div className="no-print" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                    <div style={{ display:"flex", gap:6, overflowX:"auto", flex:1, paddingBottom:4 }}>
                       {editableProducts.map((p,i) => (
-                        <div key={p.product_no} onClick={()=>setSlideIndex(i)} className="sthumb" style={{ flexShrink:0, width:56, borderRadius:6, border:i===slideIndex?"2px solid #3B82F6":"2px solid #E2E8F0", overflow:"hidden", opacity:i===slideIndex?1:0.5 }}>
-                          {p.small_image ? <img src={p.small_image} alt="" style={{ width:"100%", height:40, objectFit:"cover", display:"block" }} /> : <div style={{ width:"100%", height:40, background:"#F1F5F9" }} />}
-                          <div style={{ fontSize:8, padding:"2px 4px", color:"#475569", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:i===slideIndex?"#EFF6FF":"white" }}>{p.product_name}</div>
+                        <div key={p.product_no} onClick={()=>setSlideIndex(i)} className="slide-thumb" style={{ flexShrink:0, width:60, cursor:"pointer", borderRadius:6, border:i===slideIndex?"2px solid #C9A96E":"2px solid transparent", overflow:"hidden", opacity:i===slideIndex?1:0.45, transition:"all 0.2s" }}>
+                          {p.small_image ? <img src={p.small_image} alt="" style={{ width:"100%", height:44, objectFit:"cover" }} /> : <div style={{ width:"100%", height:44, background:"#F1F5F9" }} />}
+                          <div style={{ fontSize:8, padding:"2px 3px", color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:"white" }}>{p.product_name}</div>
                         </div>
                       ))}
                     </div>
-                    <button onClick={()=>setSlideIndex(i=>Math.min(editableProducts.length-1,i+1))} disabled={slideIndex===editableProducts.length-1} style={{ flexShrink:0, width:32, height:32, borderRadius:"50%", border:"1px solid #E2E8F0", background:"white", cursor:slideIndex===editableProducts.length-1?"not-allowed":"pointer", color:slideIndex===editableProducts.length-1?"#CBD5E1":"#475569", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>▶</button>
-                    <span style={{ flexShrink:0, fontSize:12, color:"#94A3B8", fontWeight:600 }}>{slideIndex+1}/{editableProducts.length}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginLeft:16, flexShrink:0 }}>
+                      <button onClick={()=>setSlideIndex(i=>Math.max(0,i-1))} disabled={slideIndex===0} style={{ width:36, height:36, borderRadius:"50%", border:"1px solid #E2E8F0", background:slideIndex===0?"#F8FAFC":"white", cursor:slideIndex===0?"not-allowed":"pointer", fontSize:14, color:slideIndex===0?"#CBD5E1":"#1E293B", display:"flex", alignItems:"center", justifyContent:"center" }}>◀</button>
+                      <span style={{ fontSize:13, color:"#94A3B8", fontWeight:600, minWidth:50, textAlign:"center" }}>{slideIndex+1} / {editableProducts.length}</span>
+                      <button onClick={()=>setSlideIndex(i=>Math.min(editableProducts.length-1,i+1))} disabled={slideIndex===editableProducts.length-1} style={{ width:36, height:36, borderRadius:"50%", border:"1px solid #E2E8F0", background:slideIndex===editableProducts.length-1?"#F8FAFC":"white", cursor:slideIndex===editableProducts.length-1?"not-allowed":"pointer", fontSize:14, color:slideIndex===editableProducts.length-1?"#CBD5E1":"#1E293B", display:"flex", alignItems:"center", justifyContent:"center" }}>▶</button>
+                    </div>
                   </div>
 
-                  {/* 슬라이드 본체 */}
+                  {/* 슬라이드 - 럭셔리 제안서 스타일 */}
                   {editableProducts[slideIndex] && (()=>{
                     const p = editableProducts[slideIndex];
                     const idx = slideIndex;
-                    const upd = (k,v) => { const arr=[...editableProducts]; arr[idx]={...arr[idx],[k]:v}; setEditableProducts(arr); };
+                    const brandCol = catalogBrand?.color || "#1E293B";
                     return (
-                      <div style={{ background:"white", borderRadius:12, overflow:"hidden", boxShadow:"0 2px 20px rgba(0,0,0,0.10)", display:"flex", minHeight:460, border:"1px solid #E8EDF2" }}>
+                      <div style={{ background:"#0F1923", borderRadius:16, overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.4)", aspectRatio:"16/9", display:"flex", minHeight:420, position:"relative" }}>
+                        {/* 배경 장식 */}
+                        <div style={{ position:"absolute", top:-60, right:-60, width:300, height:300, borderRadius:"50%", background:"rgba(201,169,110,0.06)", pointerEvents:"none" }} />
+                        <div style={{ position:"absolute", bottom:-40, left:300, width:200, height:200, borderRadius:"50%", background:"rgba(201,169,110,0.04)", pointerEvents:"none" }} />
 
-                        {/* 왼쪽: 이미지 패널 */}
-                        <div style={{ width:"38%", flexShrink:0, background:"#F7F8FA", display:"flex", flexDirection:"column", position:"relative" }}>
+                        {/* 왼쪽: 이미지 (30%) */}
+                        <div style={{ width:"32%", flexShrink:0, position:"relative", overflow:"hidden" }}>
                           {p.small_image
-                            ? <img src={p.small_image} alt="" style={{ width:"100%", flex:1, objectFit:"contain", padding:20 }} />
-                            : <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", fontSize:48, color:"#CBD5E1" }}>📦</div>
+                            ? <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:0.9 }} />
+                            : <div style={{ width:"100%", height:"100%", background:"#1E2D3D", display:"flex", alignItems:"center", justifyContent:"center", fontSize:48 }}>📦</div>
                           }
-                          {/* 브랜드 태그 */}
-                          <div style={{ background:"#1E293B", padding:"10px 16px" }}>
-                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>upd("brand_name",e.target.value)} className="si" style={{ fontSize:11, fontWeight:700, color:"white", letterSpacing:2, textTransform:"uppercase" }} />
+                          {/* 이미지 오버레이 그라데이션 */}
+                          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to right, transparent 60%, #0F1923 100%)" }} />
+                          {/* 좌하단 브랜드 배지 */}
+                          <div style={{ position:"absolute", bottom:20, left:16, background:"rgba(201,169,110,0.15)", border:"1px solid rgba(201,169,110,0.4)", borderRadius:6, padding:"4px 12px" }}>
+                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],brand_name:e.target.value};setEditableProducts(arr);}} className="slide-input" style={{ fontSize:11, fontWeight:700, color:"#C9A96E", border:"none", width:90, letterSpacing:1 }} />
                           </div>
                         </div>
 
                         {/* 오른쪽: 정보 */}
-                        <div style={{ flex:1, padding:"32px 36px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
-                          <div>
-                            {/* 상품명 */}
-                            <textarea value={p.product_name||""} onChange={e=>upd("product_name",e.target.value)} className="si" rows={2} style={{ fontSize:20, fontWeight:700, color:"#1E293B", lineHeight:1.4, resize:"none", marginBottom:12, padding:0 }} />
-                            {/* 구분선 */}
-                            <div style={{ height:2, background:"linear-gradient(to right, #3B82F6, transparent)", marginBottom:14, width:"60%" }} />
-                            {/* 요약설명 */}
-                            <textarea value={p.summary_description||""} onChange={e=>upd("summary_description",e.target.value)} className="si" rows={3} style={{ fontSize:13, color:"#64748B", lineHeight:1.7, resize:"none", padding:0 }} />
+                        <div style={{ flex:1, padding:"32px 36px", display:"flex", flexDirection:"column", justifyContent:"center", gap:0 }}>
+                          {/* 상품명 */}
+                          <div style={{ marginBottom:12 }}>
+                            <textarea value={p.product_name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],product_name:e.target.value};setEditableProducts(arr);}} className="slide-input" rows={2} style={{ fontSize:22, fontWeight:700, color:"#F8F4EE", border:"none", borderBottom:"1px solid rgba(201,169,110,0.3)", width:"100%", resize:"none", lineHeight:1.35, paddingBottom:8, fontFamily:"'Noto Serif KR', serif" }} />
                           </div>
 
-                          <div>
-                            {/* 가격 */}
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
-                              <div style={{ background:"#1E293B", borderRadius:10, padding:"14px 18px" }}>
-                                <div style={{ fontSize:10, color:"#94A3B8", fontWeight:600, letterSpacing:1, marginBottom:6 }}>판매가</div>
-                                <input value={p.price ? Number(String(p.price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("price",e.target.value.replace(/[^0-9]/g,""))} className="si" style={{ fontSize:20, fontWeight:800, color:"white" }} />
-                              </div>
-                              <div style={{ background:"#F0F9FF", border:"1px solid #BAE6FD", borderRadius:10, padding:"14px 18px" }}>
-                                <div style={{ fontSize:10, color:"#0369A1", fontWeight:600, letterSpacing:1, marginBottom:6 }}>공급가</div>
-                                <input value={p.supply_price ? Number(String(p.supply_price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("supply_price",e.target.value.replace(/[^0-9]/g,""))} className="si" style={{ fontSize:20, fontWeight:800, color:"#0369A1" }} />
-                              </div>
-                            </div>
+                          {/* 요약설명 */}
+                          <div style={{ marginBottom:20 }}>
+                            <textarea value={p.summary_description||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],summary_description:e.target.value};setEditableProducts(arr);}} className="slide-input" rows={2} style={{ fontSize:12, color:"rgba(248,244,238,0.6)", border:"none", width:"100%", resize:"none", lineHeight:1.7 }} />
+                          </div>
 
-                            {/* 스펙 */}
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, background:"#F8FAFC", borderRadius:8, padding:"12px 16px" }}>
-                              <div>
-                                <div style={{ fontSize:10, color:"#94A3B8", fontWeight:600, marginBottom:4 }}>제조사</div>
-                                <input value={p.manufacturer||""} onChange={e=>upd("manufacturer",e.target.value)} className="si" style={{ fontSize:13, color:"#334155", fontWeight:500 }} />
-                              </div>
-                              <div>
-                                <div style={{ fontSize:10, color:"#94A3B8", fontWeight:600, marginBottom:4 }}>무게 / 규격</div>
-                                <input value={p.weight||""} onChange={e=>upd("weight",e.target.value)} className="si" style={{ fontSize:13, color:"#334155", fontWeight:500 }} />
-                              </div>
+                          {/* 가격 카드 */}
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+                            <div style={{ background:"rgba(201,169,110,0.1)", border:"1px solid rgba(201,169,110,0.25)", borderRadius:10, padding:"12px 16px" }}>
+                              <div style={{ fontSize:9, color:"#C9A96E", fontWeight:700, letterSpacing:1.5, marginBottom:6 }}>RETAIL PRICE</div>
+                              <input value={p.price ? Number(p.price).toLocaleString()+"원" : ""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],price:e.target.value.replace(/[^0-9]/g,"")};setEditableProducts(arr);}} className="slide-input" style={{ fontSize:18, fontWeight:800, color:"#C9A96E", border:"none", width:"100%" }} />
+                            </div>
+                            <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, padding:"12px 16px" }}>
+                              <div style={{ fontSize:9, color:"rgba(248,244,238,0.5)", fontWeight:700, letterSpacing:1.5, marginBottom:6 }}>SUPPLY PRICE</div>
+                              <input value={p.supply_price ? Number(p.supply_price).toLocaleString()+"원" : ""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],supply_price:e.target.value.replace(/[^0-9]/g,"")};setEditableProducts(arr);}} className="slide-input" style={{ fontSize:18, fontWeight:800, color:"#F8F4EE", border:"none", width:"100%" }} />
+                            </div>
+                          </div>
+
+                          {/* 제조사/규격 */}
+                          <div style={{ display:"flex", gap:24, borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:14 }}>
+                            <div>
+                              <div style={{ fontSize:9, color:"rgba(248,244,238,0.35)", fontWeight:700, letterSpacing:1, marginBottom:4 }}>MANUFACTURER</div>
+                              <input value={p.manufacturer||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],manufacturer:e.target.value};setEditableProducts(arr);}} className="slide-input" style={{ fontSize:12, color:"rgba(248,244,238,0.75)", border:"none", width:120 }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:9, color:"rgba(248,244,238,0.35)", fontWeight:700, letterSpacing:1, marginBottom:4 }}>WEIGHT / SIZE</div>
+                              <input value={p.weight||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],weight:e.target.value};setEditableProducts(arr);}} className="slide-input" style={{ fontSize:12, color:"rgba(248,244,238,0.75)", border:"none", width:120 }} />
                             </div>
                           </div>
                         </div>
