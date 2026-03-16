@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import PptxGenJS from "pptxgenjs";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -1775,7 +1774,17 @@ export default function App() {
                 {catalogView && <>
                   <button onClick={()=>window.print()} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#64748B", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>🖨️ PDF</button>
                   <button onClick={async()=>{
-                    const pres = new PptxGenJS();
+                    // CDN 스크립트 로드
+                    if (!window.PptxGenJS) {
+                      await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
+                        s.onload = resolve;
+                        s.onerror = reject;
+                        document.head.appendChild(s);
+                      });
+                    }
+                    const pres = new window.PptxGenJS();
                     pres.layout = "LAYOUT_WIDE";
                     for (const p of editableProducts) {
                       const slide = pres.addSlide();
