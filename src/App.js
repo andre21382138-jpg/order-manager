@@ -363,7 +363,7 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(); }
+        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
       }
       setAuthChecked(true);
     });
@@ -373,7 +373,7 @@ export default function App() {
       if (session) {
         await loadUserRole(session.user.id);
         if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(); }
+          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
         }
       } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
       setAuthChecked(true);
@@ -435,8 +435,9 @@ export default function App() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  async function loadAll() {
-    if (!session) return;
+  async function loadAll(sessionParam) {
+    const activeSession = sessionParam || session;
+    if (!activeSession) return;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
