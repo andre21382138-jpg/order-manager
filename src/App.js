@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import PptxGenJS from "pptxgenjs";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -1079,7 +1080,6 @@ export default function App() {
   return (
     <div style={{ display:"flex", height:"100vh", background:"#F0F4F8", fontFamily:"'Apple SD Gothic Neo','Pretendard',sans-serif", overflow:"hidden" }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
       {!isMobile && <SidebarContent />}
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
@@ -1775,8 +1775,6 @@ export default function App() {
                 {catalogView && <>
                   <button onClick={()=>window.print()} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#64748B", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>🖨️ PDF</button>
                   <button onClick={async()=>{
-                    const PptxGenJS = window.PptxGenJS;
-                    if (!PptxGenJS) { alert("PPT 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요."); return; }
                     const pres = new PptxGenJS();
                     pres.layout = "LAYOUT_WIDE";
                     for (const p of editableProducts) {
