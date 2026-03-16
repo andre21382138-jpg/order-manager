@@ -363,7 +363,7 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+        if (event === "INITIAL_SESSION") {
           loadAll(session);
         }
       } else { setUserRole("manager"); setUserBrandIds([]); }
@@ -425,13 +425,10 @@ export default function App() {
   }
 
   const [refreshing, setRefreshing] = useState(false);
-  const loadCallId = useRef(0);
 
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
-    loadCallId.current += 1;
-    const myCallId = loadCallId.current;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -460,12 +457,11 @@ export default function App() {
       allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
       const ordersMap = new Map();
       allOrdersData.forEach(o => { ordersMap.set(o.id, { id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, naverAmount:o.naver_amount||0, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) }); });
-      if (myCallId !== loadCallId.current) return;
       setOrders([...ordersMap.values()]);
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { if (myCallId === loadCallId.current) { setLoaded(true); setRefreshing(false); } }
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
 
@@ -911,9 +907,8 @@ export default function App() {
   if (!session) return <LoginScreen />;
 
   function handleLogout() {
-    Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
-    supabase.auth.signOut();
-    window.location.href = window.location.href;
+    await supabase.auth.signOut();
+    window.location.reload();
   }
 
   function toggleBrandExpand(brandId) {
