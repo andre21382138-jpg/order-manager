@@ -358,20 +358,14 @@ export default function App() {
         }
       } catch(e) { console.error("role load error", e); }
     }
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        await loadUserRole(session.user.id);
-        loadAll(session);
-      }
-      setAuthChecked(true);
-    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED" || event === "INITIAL_SESSION") return;
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "SIGNED_IN") loadAll(session);
+        if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+          loadAll(session);
+        }
       } else { setUserRole("manager"); setUserBrandIds([]); }
       setAuthChecked(true);
     });
