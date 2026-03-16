@@ -1240,7 +1240,7 @@ export default function App() {
               <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
                 <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏷️ 브랜드 선택</div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  <button onClick={()=>setFilter(f=>({...f,brandId:"",mallType:"",category:""}))} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:filter.brandId===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.brandId===""?"#1E293B10":"white" }}>
+                  <button onClick={()=>{setFilter(f=>({...f,brandId:"",mallType:"",category:""}));setPendingFilter(f=>({...f,brandId:"",mallType:"",category:""}));}} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:filter.brandId===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.brandId===""?"#1E293B10":"white" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:"#64748B" }} /><span style={{ fontSize:14, fontWeight:700, color:filter.brandId===""?"#1E293B":"#64748B" }}>전체</span></div>
                     <span style={{ fontSize:11, color:"#94A3B8" }}>{orders.filter(o=>o.date>=filter.from&&o.date<=filter.to).length}건</span>
                   </button>
