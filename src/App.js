@@ -363,7 +363,7 @@ export default function App() {
       setSession(session);
       if (session) {
         await loadUserRole(session.user.id);
-        if (event === "INITIAL_SESSION") {
+        if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
           loadAll(session);
         }
       } else { setUserRole("manager"); setUserBrandIds([]); }
@@ -429,6 +429,7 @@ export default function App() {
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
     if (!activeSession) return;
+    if (refreshing) return;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
