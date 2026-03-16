@@ -459,8 +459,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    setLoaded(true);
-    setRefreshing(false);
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
   useEffect(() => {
@@ -736,10 +735,10 @@ export default function App() {
       }
       const unmappedCount = Object.keys(unmappedProds).length;
       setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""}${unmappedCount>0?` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개`:""}`);
-      loadAll();
       if (unmappedCount>0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
+    loadAll();
   }
   // ── 스마트스토어 주문 동기화 ───────────────────────────
   async function syncSmartStoreOrders(brand, startDate, endDate) {
@@ -855,10 +854,10 @@ export default function App() {
 
       const unmappedCount = Object.keys(unmappedProds).length;
       setSmartStoreSyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}${unmappedCount > 0 ? ` ⚠️ 카테고리 미지정 상품 ${unmappedCount}개` : ""}`);
-      loadAll();
       if (unmappedCount > 0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
     } catch(e) { setSmartStoreSyncResult("❌ 오류: " + e.message); }
     setSmartStoreSyncing(false);
+    loadAll();
   }
 
   async function saveCategoryMapping() {
