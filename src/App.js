@@ -275,6 +275,7 @@ export default function App() {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [catalogView, setCatalogView] = useState(false);
   const [editableProducts, setEditableProducts] = useState([]);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [notices, setNotices] = useState([]);
   const [noticeLoading, setNoticeLoading] = useState(false);
   const [showNoticeForm, setShowNoticeForm] = useState(false);
@@ -1846,56 +1847,82 @@ export default function App() {
                   )}
                 </>
               ) : (
-                /* 소개서 뷰 */
+                /* PPT 슬라이드 뷰 */
                 <div id="catalog-print-area">
                   <style>{`@media print { body * { visibility: hidden; } #catalog-print-area, #catalog-print-area * { visibility: visible; } #catalog-print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`}</style>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(380px, 1fr))", gap:20 }}>
-                    {editableProducts.map((p, idx) => (
-                      <div key={p.product_no} style={{ border:"1px solid #E2E8F0", borderRadius:14, overflow:"hidden", background:"white", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                        {/* 이미지 */}
-                        {p.small_image && <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:220, objectFit:"cover" }} />}
-                        <div style={{ padding:"16px 18px" }}>
-                          {/* 브랜드명 */}
-                          <div style={{ marginBottom:8 }}>
-                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>브랜드</div>
-                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],brand_name:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:13, fontWeight:700, color:"#1E293B", boxSizing:"border-box" }} />
-                          </div>
-                          {/* 상품명 */}
-                          <div style={{ marginBottom:8 }}>
-                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>상품명</div>
-                            <input value={p.product_name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],product_name:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:14, fontWeight:700, color:"#1E293B", boxSizing:"border-box" }} />
-                          </div>
-                          {/* 가격 */}
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-                            <div>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>판매가</div>
-                              <input value={p.price||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],price:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:13, color:"#3B82F6", fontWeight:700, boxSizing:"border-box" }} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>공급가</div>
-                              <input value={p.supply_price||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],supply_price:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:13, color:"#10B981", fontWeight:700, boxSizing:"border-box" }} />
-                            </div>
-                          </div>
-                          {/* 제조사/규격 */}
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-                            <div>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>제조사</div>
-                              <input value={p.manufacturer||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],manufacturer:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:12, boxSizing:"border-box" }} />
-                            </div>
-                            <div>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>무게/규격</div>
-                              <input value={p.weight||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],weight:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:12, boxSizing:"border-box" }} />
-                            </div>
-                          </div>
-                          {/* 요약설명 */}
-                          <div>
-                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>상품 요약설명</div>
-                            <textarea value={p.summary_description||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],summary_description:e.target.value};setEditableProducts(arr);}} rows={3} style={{ width:"100%", border:"1px solid #E2E8F0", borderRadius:6, padding:"5px 8px", fontSize:12, resize:"vertical", boxSizing:"border-box", color:"#475569" }} />
-                          </div>
-                        </div>
+                  {/* 슬라이드 네비게이션 */}
+                  <div className="no-print" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, marginBottom:16 }}>
+                    <button onClick={()=>setSlideIndex(i=>Math.max(0,i-1))} disabled={slideIndex===0} style={{ padding:"6px 16px", borderRadius:8, border:"1px solid #E2E8F0", background:slideIndex===0?"#F8FAFC":"white", cursor:slideIndex===0?"not-allowed":"pointer", fontSize:18, color:slideIndex===0?"#CBD5E1":"#1E293B" }}>◀</button>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#64748B" }}>
+                      {slideIndex+1} / {editableProducts.length}
+                    </div>
+                    <button onClick={()=>setSlideIndex(i=>Math.min(editableProducts.length-1,i+1))} disabled={slideIndex===editableProducts.length-1} style={{ padding:"6px 16px", borderRadius:8, border:"1px solid #E2E8F0", background:slideIndex===editableProducts.length-1?"#F8FAFC":"white", cursor:slideIndex===editableProducts.length-1?"not-allowed":"pointer", fontSize:18, color:slideIndex===editableProducts.length-1?"#CBD5E1":"#1E293B" }}>▶</button>
+                  </div>
+                  {/* 썸네일 */}
+                  <div className="no-print" style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto", paddingBottom:4 }}>
+                    {editableProducts.map((p,i) => (
+                      <div key={p.product_no} onClick={()=>setSlideIndex(i)} style={{ flexShrink:0, width:70, cursor:"pointer", borderRadius:8, border:i===slideIndex?"2px solid #3B82F6":"2px solid transparent", overflow:"hidden", opacity:i===slideIndex?1:0.5 }}>
+                        {p.small_image ? <img src={p.small_image} alt="" style={{ width:"100%", height:50, objectFit:"cover" }} /> : <div style={{ width:"100%", height:50, background:"#F1F5F9" }} />}
+                        <div style={{ fontSize:9, padding:"2px 4px", color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.product_name}</div>
                       </div>
                     ))}
                   </div>
+                  {/* 슬라이드 본체 - 16:9 비율 */}
+                  {editableProducts[slideIndex] && (()=>{
+                    const p = editableProducts[slideIndex];
+                    const idx = slideIndex;
+                    return (
+                      <div style={{ background:"white", borderRadius:16, overflow:"hidden", boxShadow:"0 4px 24px rgba(0,0,0,0.12)", aspectRatio:"16/9", display:"flex", minHeight:400 }}>
+                        {/* 왼쪽: 이미지 */}
+                        <div style={{ width:"45%", flexShrink:0, background:"#F8FAFC", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                          {p.small_image
+                            ? <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                            : <div style={{ color:"#CBD5E1", fontSize:40 }}>📦</div>
+                          }
+                        </div>
+                        {/* 오른쪽: 정보 */}
+                        <div style={{ flex:1, padding:"28px 28px", display:"flex", flexDirection:"column", justifyContent:"center", gap:10 }}>
+                          {/* 브랜드 */}
+                          <div>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>BRAND</div>
+                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],brand_name:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"none", borderBottom:"1px solid #E2E8F0", padding:"3px 0", fontSize:13, fontWeight:700, color:catalogBrand?.color||"#3B82F6", background:"transparent", boxSizing:"border-box" }} />
+                          </div>
+                          {/* 상품명 */}
+                          <div>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>상품명</div>
+                            <input value={p.product_name||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],product_name:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"none", borderBottom:"1px solid #E2E8F0", padding:"3px 0", fontSize:16, fontWeight:800, color:"#1E293B", background:"transparent", boxSizing:"border-box" }} />
+                          </div>
+                          {/* 요약설명 */}
+                          <div>
+                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>설명</div>
+                            <textarea value={p.summary_description||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],summary_description:e.target.value};setEditableProducts(arr);}} rows={2} style={{ width:"100%", border:"none", borderBottom:"1px solid #E2E8F0", padding:"3px 0", fontSize:12, color:"#475569", background:"transparent", resize:"none", boxSizing:"border-box" }} />
+                          </div>
+                          {/* 가격 */}
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                            <div style={{ background:"#EFF6FF", borderRadius:10, padding:"10px 14px" }}>
+                              <div style={{ fontSize:10, color:"#3B82F6", fontWeight:700, marginBottom:3 }}>판매가</div>
+                              <input value={p.price||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],price:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"none", fontSize:15, fontWeight:800, color:"#3B82F6", background:"transparent", boxSizing:"border-box" }} />
+                            </div>
+                            <div style={{ background:"#F0FDF4", borderRadius:10, padding:"10px 14px" }}>
+                              <div style={{ fontSize:10, color:"#10B981", fontWeight:700, marginBottom:3 }}>공급가</div>
+                              <input value={p.supply_price||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],supply_price:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"none", fontSize:15, fontWeight:800, color:"#10B981", background:"transparent", boxSizing:"border-box" }} />
+                            </div>
+                          </div>
+                          {/* 제조사/규격 */}
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                            <div>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>제조사</div>
+                              <input value={p.manufacturer||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],manufacturer:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"none", borderBottom:"1px solid #E2E8F0", padding:"3px 0", fontSize:12, background:"transparent", boxSizing:"border-box", color:"#475569" }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, marginBottom:3 }}>무게/규격</div>
+                              <input value={p.weight||""} onChange={e=>{const arr=[...editableProducts];arr[idx]={...arr[idx],weight:e.target.value};setEditableProducts(arr);}} style={{ width:"100%", border:"none", borderBottom:"1px solid #E2E8F0", padding:"3px 0", fontSize:12, background:"transparent", boxSizing:"border-box", color:"#475569" }} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
