@@ -458,7 +458,9 @@ export default function App() {
       }
       const itemsByOrderId = {};
       allItems.forEach(it => { if (!itemsByOrderId[it.order_id]) itemsByOrderId[it.order_id]=[]; itemsByOrderId[it.order_id].push(it); });
-      setOrders(allOrdersData.map(o => ({ id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, naverAmount:o.naver_amount||0, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) })));
+      const ordersMap = new Map();
+      allOrdersData.forEach(o => { ordersMap.set(o.id, { id:o.id, brandId:o.brand_id, mallType:o.mall_type, orderNo:o.order_no, date:o.date, totalAmount:o.total_amount, originalAmount:o.original_amount||0, isCancelled:o.is_cancelled||false, isNew:o.is_new||false, totalQty:o.total_qty, naverAmount:o.naver_amount||0, note:o.note||"", items:(itemsByOrderId[o.id]||[]).map(it=>({id:it.id,productName:it.product_name,category:it.category||"",qty:it.qty,amount:it.amount})) }); });
+      setOrders([...ordersMap.values()]);
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
