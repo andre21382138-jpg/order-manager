@@ -1774,47 +1774,25 @@ export default function App() {
                 {catalogView && <>
                   <button onClick={()=>window.print()} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#64748B", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>🖨️ PDF</button>
                   <button onClick={async()=>{
-                    // CDN 스크립트 로드
-                    if (!window.PptxGenJS) {
-                      await new Promise((resolve, reject) => {
-                        const s = document.createElement('script');
-                        s.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
-                        s.onload = resolve;
-                        s.onerror = reject;
-                        document.head.appendChild(s);
+                    try {
+                      const res = await fetch("/api/pptx", {
+                        method:"POST",
+                        headers:{"Content-Type":"application/json"},
+                        body: JSON.stringify({
+                          products: editableProducts,
+                          brandName: catalogBrand?.name||"",
+                          brandColor: catalogBrand?.color||"#3B82F6"
+                        })
                       });
-                    }
-                    const pres = new window.PptxGenJS();
-                    pres.layout = "LAYOUT_WIDE";
-                    for (const p of editableProducts) {
-                      const slide = pres.addSlide();
-                      slide.background = { color: "FFFFFF" };
-                      // 왼쪽 이미지 영역 배경
-                      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:3.5, h:5.625, fill:{ color:"F8FAFC" } });
-                      // 이미지
-                      if (p.small_image) {
-                        try {
-                          slide.addImage({ path: p.small_image, x:0, y:0, w:3.5, h:5.625, sizing:{ type:"cover", w:3.5, h:5.625 } });
-                        } catch(e) {}
-                      }
-                      // 브랜드
-                      slide.addText(p.brand_name||catalogBrand?.name||"", { x:3.7, y:0.3, w:6, h:0.3, fontSize:10, color:"94A3B8", bold:true });
-                      // 상품명
-                      slide.addText(p.product_name||"", { x:3.7, y:0.7, w:6, h:0.7, fontSize:18, color:"1E293B", bold:true, wrap:true });
-                      // 설명
-                      slide.addText(p.summary_description||"", { x:3.7, y:1.5, w:6, h:0.8, fontSize:11, color:"475569", wrap:true });
-                      // 판매가 박스
-                      slide.addShape(pres.ShapeType.rect, { x:3.7, y:2.5, w:2.8, h:0.8, fill:{ color:"EFF6FF" }, line:{ color:"EFF6FF" } });
-                      slide.addText("판매가", { x:3.7, y:2.55, w:2.8, h:0.2, fontSize:9, color:"3B82F6", bold:true, align:"center" });
-                      slide.addText(String(p.price||""), { x:3.7, y:2.75, w:2.8, h:0.35, fontSize:15, color:"3B82F6", bold:true, align:"center" });
-                      // 공급가 박스
-                      slide.addShape(pres.ShapeType.rect, { x:6.7, y:2.5, w:2.8, h:0.8, fill:{ color:"F0FDF4" }, line:{ color:"F0FDF4" } });
-                      slide.addText("공급가", { x:6.7, y:2.55, w:2.8, h:0.2, fontSize:9, color:"10B981", bold:true, align:"center" });
-                      slide.addText(String(p.supply_price||""), { x:6.7, y:2.75, w:2.8, h:0.35, fontSize:15, color:"10B981", bold:true, align:"center" });
-                      // 제조사/규격
-                      slide.addText(`제조사: ${p.manufacturer||"-"}   무게/규격: ${p.weight||"-"}`, { x:3.7, y:3.5, w:6, h:0.3, fontSize:10, color:"64748B" });
-                    }
-                    pres.writeFile({ fileName: `${catalogBrand?.name||"상품"}_소개서.pptx` });
+                      if (!res.ok) { const e=await res.json(); alert("오류: "+e.error); return; }
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${catalogBrand?.name||"상품"}_소개서.pptx`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch(e) { alert("PPT 생성 오류: "+e.message); }
                   }} style={{ padding:"7px 14px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>📊 PPT 다운로드</button>
                 </>}
                 <button onClick={()=>setShowCatalogModal(false)} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#94A3B8" }}>✕</button>
