@@ -428,7 +428,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
 
   async function loadAll() {
-    if (!session) return;
+    if (!session) { console.log("loadAll: no session"); return; }
+    console.log("loadAll: start");
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -460,8 +461,8 @@ export default function App() {
       setOrders([...ordersMap.values()]);
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
-    } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { setLoaded(true); setRefreshing(false); }
+    } catch(e) { console.log("loadAll: error", e.message); setError("데이터 로드 오류: " + e.message); }
+    finally { console.log("loadAll: done"); setLoaded(true); setRefreshing(false); }
   }
 
   useEffect(() => {
