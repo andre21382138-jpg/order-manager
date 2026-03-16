@@ -276,7 +276,6 @@ export default function App() {
   const [expandedNotice, setExpandedNotice] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const initialLoadDone = useRef(false);
-  const loadingRef = useRef(false);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -430,8 +429,6 @@ export default function App() {
 
   async function loadAll() {
     if (!session) return;
-    if (loadingRef.current) return;
-    loadingRef.current = true;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
@@ -464,7 +461,7 @@ export default function App() {
       const saved = localStorage.getItem("categories");
       if (saved) setCategories(JSON.parse(saved));
     } catch(e) { setError("데이터 로드 오류: " + e.message); }
-    finally { setLoaded(true); setRefreshing(false); loadingRef.current = false; }
+    finally { setLoaded(true); setRefreshing(false); }
   }
 
   useEffect(() => {
@@ -743,7 +740,6 @@ export default function App() {
       if (unmappedCount>0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
-    loadAll();
   }
   // ── 스마트스토어 주문 동기화 ───────────────────────────
   async function syncSmartStoreOrders(brand, startDate, endDate) {
@@ -862,7 +858,6 @@ export default function App() {
       if (unmappedCount > 0) { setUnmappedProducts(unmappedProds); setMappingBrand(brand); setShowMappingModal(true); }
     } catch(e) { setSmartStoreSyncResult("❌ 오류: " + e.message); }
     setSmartStoreSyncing(false);
-    loadAll();
   }
 
   async function saveCategoryMapping() {
@@ -1856,7 +1851,6 @@ function NoticeComments({ noticeId, userName, isAdmin, supabase }) {
   const [comments, setComments] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const initialLoadDone = useRef(false);
-  const loadingRef = useRef(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
 
