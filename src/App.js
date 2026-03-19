@@ -289,6 +289,7 @@ export default function App() {
   const [youtubePage, setYoutubePage] = useState(1);
   const [youtubeOrder, setYoutubeOrder] = useState("relevance");
   const [youtubeVideoType, setYoutubeVideoType] = useState("all");
+  const [youtubePlayingId, setYoutubePlayingId] = useState(null);
   const YOUTUBE_PAGE_SIZE = 12;
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
@@ -2484,7 +2485,7 @@ export default function App() {
       {/* ── 유튜브 협찬 모달 ── */}
       {showYoutubeModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onClick={()=>setShowYoutubeModal(false)}>
-          <div style={{ background:"white", borderRadius:20, width:720, maxWidth:"95vw", maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 80px rgba(0,0,0,0.22)", overflow:"hidden" }} onClick={e=>e.stopPropagation()}>
+          <div style={{ background:"white", borderRadius:20, width:1100, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 80px rgba(0,0,0,0.22)", overflow:"hidden" }} onClick={e=>e.stopPropagation()}>
 
             {/* 헤더 */}
             <div style={{ background:"linear-gradient(135deg,#FF0000,#cc0000)", padding:"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
@@ -2722,18 +2723,35 @@ export default function App() {
                         {youtubeResults.slice((youtubePage-1)*YOUTUBE_PAGE_SIZE, youtubePage*YOUTUBE_PAGE_SIZE).map(v=>(
                         <div key={v.videoId} style={{ borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden", background:"white", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
                           {/* 썸네일 */}
-                          <div style={{ position:"relative", cursor:"pointer" }} onClick={()=>window.open(`https://www.youtube.com/watch?v=${v.videoId}`,"_blank")}>
-                            <img src={v.thumbnail} alt={v.title} style={{ width:"100%", display:"block", aspectRatio:"16/9", objectFit:"cover" }} />
-                            {v.isShorts && (
-                              <div style={{ position:"absolute", top:6, left:6, background:"#FF0000", color:"white", fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:6 }}>⚡ Shorts</div>
+                          <div style={{ position:"relative" }}>
+                            {youtubePlayingId===v.videoId ? (
+                              <div style={{ position:"relative", aspectRatio:"16/9" }}>
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${v.videoId}?autoplay=1`}
+                                  title={v.title}
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  style={{ width:"100%", height:"100%", position:"absolute", inset:0, border:"none", borderRadius:"0" }}
+                                />
+                              </div>
+                            ) : (
+                              <div style={{ position:"relative", cursor:"pointer" }} onClick={()=>setYoutubePlayingId(v.videoId)}>
+                                <img src={v.thumbnail} alt={v.title} style={{ width:"100%", display:"block", aspectRatio:"16/9", objectFit:"cover" }} />
+                                {v.isShorts && (
+                                  <div style={{ position:"absolute", top:6, left:6, background:"#FF0000", color:"white", fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:6 }}>⚡ Shorts</div>
+                                )}
+                                <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.15)", display:"flex", alignItems:"center", justifyContent:"center" }}
+                                  onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.4)"}
+                                  onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0.15)"}>
+                                  <div style={{ width:44, height:44, borderRadius:"50%", background:"rgba(255,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                    <span style={{ fontSize:18, marginLeft:3 }}>▶</span>
+                                  </div>
+                                </div>
+                                <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.75)", color:"white", fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:4 }}>
+                                  {v.viewCount ? Number(v.viewCount).toLocaleString()+"회" : ""}
+                                </div>
+                              </div>
                             )}
-                            <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.2s" }}
-                              onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.35)"}
-                              onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
-                            </div>
-                            <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.75)", color:"white", fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:4 }}>
-                              {v.viewCount ? Number(v.viewCount).toLocaleString()+"회" : ""}
-                            </div>
                           </div>
                           {/* 정보 */}
                           <div style={{ padding:"10px 10px 8px" }}>
@@ -2792,25 +2810,25 @@ export default function App() {
                       {/* 페이지네이션 */}
                       {Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE) > 1 && (
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24 }}>
-                          <button onClick={()=>{setYoutubePage(1);}} disabled={youtubePage===1}
+                          <button onClick={()=>{setYoutubePage(1);setYoutubePlayingId(null);}} disabled={youtubePage===1}
                             style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===1?"#F1F5F9":"white", color:youtubePage===1?"#CBD5E1":"#475569", cursor:youtubePage===1?"default":"pointer", fontWeight:700, fontSize:12 }}>
                             처음
                           </button>
-                          <button onClick={()=>setYoutubePage(p=>Math.max(1,p-1))} disabled={youtubePage===1}
+                          <button onClick={()=>{setYoutubePage(p=>Math.max(1,p-1));setYoutubePlayingId(null);}} disabled={youtubePage===1}
                             style={{ padding:"7px 14px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===1?"#F1F5F9":"white", color:youtubePage===1?"#CBD5E1":"#475569", cursor:youtubePage===1?"default":"pointer", fontWeight:700, fontSize:13 }}>
                             ◀
                           </button>
                           {Array.from({length:Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)},(_,i)=>i+1).map(p=>(
-                            <button key={p} onClick={()=>setYoutubePage(p)}
+                            <button key={p} onClick={()=>{setYoutubePage(p);setYoutubePlayingId(null);}}
                               style={{ padding:"7px 13px", borderRadius:8, border:p===youtubePage?"2px solid #FF0000":"1px solid #E2E8F0", background:p===youtubePage?"#FF0000":"white", color:p===youtubePage?"white":"#475569", cursor:"pointer", fontWeight:700, fontSize:12 }}>
                               {p}
                             </button>
                           ))}
-                          <button onClick={()=>setYoutubePage(p=>Math.min(Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE),p+1))} disabled={youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)}
+                          <button onClick={()=>{setYoutubePage(p=>Math.min(Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE),p+1));setYoutubePlayingId(null);}} disabled={youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)}
                             style={{ padding:"7px 14px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#F1F5F9":"white", color:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#CBD5E1":"#475569", cursor:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"default":"pointer", fontWeight:700, fontSize:13 }}>
                             ▶
                           </button>
-                          <button onClick={()=>setYoutubePage(Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE))} disabled={youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)}
+                          <button onClick={()=>{setYoutubePage(Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE));setYoutubePlayingId(null);}} disabled={youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)}
                             style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#F1F5F9":"white", color:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#CBD5E1":"#475569", cursor:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"default":"pointer", fontWeight:700, fontSize:12 }}>
                             마지막
                           </button>
