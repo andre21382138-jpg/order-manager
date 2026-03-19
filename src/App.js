@@ -2289,7 +2289,7 @@ export default function App() {
 
       {/* 로그인 팝업 */}
       {showLoginPopup && activePopup && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:300, display:"flex", alignItems:"flex-start", justifyContent:"flex-end", padding:"24px 24px 0 0" }}>
           <div style={{ background:"white", borderRadius:20, width:"100%", maxWidth:480, boxShadow:"0 24px 80px rgba(0,0,0,0.35)", overflow:"hidden" }}>
             {/* 헤더 */}
             <div style={{ background:"linear-gradient(135deg,#1E293B,#334155)", padding:"18px 22px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
