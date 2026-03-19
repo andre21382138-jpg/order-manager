@@ -268,6 +268,7 @@ export default function App() {
   const [tab, setTab] = useState("결산");
   const [subTab, setSubTab] = useState("결산조회");
   const [showNoticeTab, setShowNoticeTab] = useState(false);
+  const [showSecurityTab, setShowSecurityTab] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
   const [catalogProducts, setCatalogProducts] = useState([]);
@@ -971,6 +972,14 @@ export default function App() {
         <button onClick={()=>{setShowCatalogModal(true);setCatalogBrand(null);setCatalogProducts([]);setSelectedProducts([]);setCatalogView(false);}} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
           <span style={{ fontSize:14, flexShrink:0 }}>📋</span>
           {sidebarOpen && "상품소개서"}
+        </button>
+      </div>
+
+      {/* 보안 바로가기 */}
+      <div style={{ padding:"4px 6px", borderBottom:"1px solid #334155", flexShrink:0 }}>
+        <button onClick={()=>setShowSecurityTab(true)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+          <span style={{ fontSize:14, flexShrink:0 }}>🔒</span>
+          {sidebarOpen && "보안"}
         </button>
       </div>
 
@@ -2026,6 +2035,147 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 보안 모달 */}
+      {showSecurityTab && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={()=>setShowSecurityTab(false)}>
+          <div style={{ background:"white", borderRadius:20, width:"100%", maxWidth:680, maxHeight:"90vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }} onClick={e=>e.stopPropagation()}>
+            {/* 헤더 */}
+            <div style={{ padding:"18px 22px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:22 }}>🔒</span>
+                <div>
+                  <div style={{ fontSize:16, fontWeight:800, color:"#1E293B" }}>보안 현황</div>
+                  <div style={{ fontSize:12, color:"#10B981", fontWeight:600, marginTop:1 }}>✅ 이 사이트는 외부 접근으로부터 안전하게 보호되고 있습니다.</div>
+                </div>
+              </div>
+              <button onClick={()=>setShowSecurityTab(false)} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#94A3B8", lineHeight:1 }}>✕</button>
+            </div>
+
+            {/* 본문 */}
+            <div style={{ flex:1, overflowY:"auto", padding:"20px 22px" }}>
+
+              {/* 보호 상태 배너 */}
+              <div style={{ background:"linear-gradient(135deg,#ECFDF5,#D1FAE5)", border:"1px solid #6EE7B7", borderRadius:14, padding:"16px 20px", marginBottom:20, display:"flex", alignItems:"center", gap:14 }}>
+                <div style={{ fontSize:32 }}>🛡️</div>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#065F46" }}>데이터베이스 보안 활성화 완료</div>
+                  <div style={{ fontSize:12, color:"#047857", marginTop:3, lineHeight:1.5 }}>Supabase Row Level Security(RLS)가 모든 테이블에 적용되어 있습니다.<br/>인증된 직원만 데이터에 접근할 수 있습니다.</div>
+                </div>
+              </div>
+
+              {/* 섹션 1: RLS 미설정 시 */}
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#64748B", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ background:"#FEE2E2", color:"#DC2626", borderRadius:6, padding:"2px 8px", fontSize:11 }}>❌ RLS 미설정 시 (과거)</span>
+                  <span style={{ fontSize:11, color:"#94A3B8" }}>누구나 DB에 직접 접근 가능</span>
+                </div>
+                <div style={{ background:"#FFF5F5", borderRadius:12, border:"1px solid #FCA5A5", padding:16 }}>
+                  {/* 공격자 흐름 */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                    <div style={{ background:"#FEE2E2", border:"1px solid #FCA5A5", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#DC2626", textAlign:"center", minWidth:90 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>외부 공격자</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#B91C1C" }}>브라우저 DevTools</div>
+                    </div>
+                    <div style={{ fontSize:11, color:"#DC2626", display:"flex", flexDirection:"column", alignItems:"center" }}>
+                      <span>key 추출</span>
+                      <span>→</span>
+                    </div>
+                    <div style={{ background:"#FEF3C7", border:"1px solid #FCD34D", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#92400E", textAlign:"center", minWidth:90 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>ANON KEY</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#78350F" }}>JS 번들에 노출됨</div>
+                    </div>
+                    <div style={{ fontSize:11, color:"#DC2626", display:"flex", flexDirection:"column", alignItems:"center" }}>
+                      <span>무인증 요청</span>
+                      <span>→</span>
+                    </div>
+                    <div style={{ background:"#FEE2E2", border:"1px solid #FCA5A5", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#DC2626", textAlign:"center", minWidth:100 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>Supabase API</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#B91C1C" }}>RLS 없음 → 전부 허용</div>
+                    </div>
+                  </div>
+                  {/* 노출 테이블 */}
+                  <div style={{ fontSize:11, color:"#B91C1C", fontWeight:600, marginBottom:6 }}>노출되는 테이블</div>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {[["cafe24_tokens","⚠ API 토큰 전부","#FEE2E2","#B91C1C"],["orders","매출 전체 데이터","#FEE2E2","#B91C1C"],["profiles","직원 정보 전체","#FEE2E2","#B91C1C"],["notices","공지 읽기/쓰기","#FEF3C7","#92400E"],["brands...","기타 전체","#FEF3C7","#92400E"]].map(([name,desc,bg,color])=>(
+                      <div key={name} style={{ background:bg, border:`1px solid ${color}40`, borderRadius:8, padding:"6px 10px", fontSize:11 }}>
+                        <div style={{ fontWeight:700, color:color }}>{name}</div>
+                        <div style={{ color:color, fontSize:10, marginTop:1 }}>{desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 섹션 2: RLS 활성화 후 */}
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#64748B", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ background:"#D1FAE5", color:"#065F46", borderRadius:6, padding:"2px 8px", fontSize:11 }}>✅ RLS 활성화 후 (현재)</span>
+                  <span style={{ fontSize:11, color:"#94A3B8" }}>로그인한 직원만 접근 가능</span>
+                </div>
+                <div style={{ background:"#F0FDF4", borderRadius:12, border:"1px solid #6EE7B7", padding:16 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                    <div style={{ background:"#D1FAE5", border:"1px solid #6EE7B7", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#065F46", textAlign:"center", minWidth:90 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>직원 (로그인)</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#047857" }}>Supabase Auth</div>
+                    </div>
+                    <span style={{ fontSize:11, color:"#059669" }}>→</span>
+                    <div style={{ background:"#D1FAE5", border:"1px solid #6EE7B7", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#065F46", textAlign:"center", minWidth:90 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>JWT 토큰</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#047857" }}>로그인 후 발급</div>
+                    </div>
+                    <span style={{ fontSize:11, color:"#059669" }}>→</span>
+                    <div style={{ background:"#D1FAE5", border:"1px solid #6EE7B7", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#065F46", textAlign:"center", minWidth:110 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>RLS 정책 검사</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#047857" }}>auth.uid() 확인</div>
+                    </div>
+                    <span style={{ fontSize:11, color:"#059669" }}>→</span>
+                    <div style={{ background:"#D1FAE5", border:"1px solid #6EE7B7", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#065F46", textAlign:"center", minWidth:110 }}>
+                      <div style={{ fontSize:11, marginBottom:3 }}>허용된 데이터만</div>
+                      <div style={{ fontSize:10, fontWeight:400, color:"#047857" }}>반환</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:10 }}>
+                    <div style={{ flex:1, background:"#FEE2E2", border:"1px solid #FCA5A5", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#DC2626", textAlign:"center" }}>
+                      외부 공격자 → 0건 반환
+                    </div>
+                    <div style={{ flex:1, background:"#D1FAE5", border:"1px solid #6EE7B7", borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:700, color:"#065F46", textAlign:"center" }}>
+                      인증된 직원 → 허용된 데이터만 반환
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 적용된 테이블 목록 */}
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>🔐 RLS 적용 테이블 (9개)</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                  {[
+                    ["profiles","직원 계정 정보"],
+                    ["brands","브랜드 정보"],
+                    ["brand_managers","브랜드-담당자 매핑"],
+                    ["orders","주문 헤더"],
+                    ["order_items","주문 상품"],
+                    ["cafe24_tokens","카페24 OAuth 토큰 🔑"],
+                    ["product_category_map","상품-카테고리 매핑"],
+                    ["notices","공지사항"],
+                    ["notice_comments","공지 댓글"],
+                  ].map(([name,desc])=>(
+                    <div key={name} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:8, background:"#F8FAFC", border:"1px solid #E2E8F0" }}>
+                      <span style={{ color:"#10B981", fontWeight:700, fontSize:12, flexShrink:0 }}>✓</span>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#1E293B" }}>{name}</div>
+                        <div style={{ fontSize:11, color:"#64748B" }}>{desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
