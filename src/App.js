@@ -975,14 +975,6 @@ export default function App() {
         </button>
       </div>
 
-      {/* 보안 바로가기 */}
-      <div style={{ padding:"4px 6px", borderBottom:"1px solid #334155", flexShrink:0 }}>
-        <button onClick={()=>setShowSecurityTab(true)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
-          <span style={{ fontSize:14, flexShrink:0 }}>🔒</span>
-          {sidebarOpen && "보안"}
-        </button>
-      </div>
-
       {/* 브랜드 목록 */}
       <div style={{ flex:1, overflowY:"auto", padding:"8px 6px" }}>
         {sidebarOpen && <div style={{ fontSize:10, fontWeight:700, color:"#475569", marginBottom:6, paddingLeft:4, letterSpacing:1 }}>BRANDS</div>}
@@ -1049,6 +1041,14 @@ export default function App() {
             + 브랜드 추가
           </button>
         )}
+      </div>
+
+      {/* 보안 바로가기 */}
+      <div style={{ padding:"4px 6px", borderTop:"1px solid #334155", flexShrink:0 }}>
+        <button onClick={()=>setShowSecurityTab(true)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+          <span style={{ fontSize:14, flexShrink:0 }}>🔒</span>
+          {sidebarOpen && "보안"}
+        </button>
       </div>
 
       {/* 하단 유저 정보 */}
