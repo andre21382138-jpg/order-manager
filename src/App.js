@@ -286,6 +286,8 @@ export default function App() {
   const [youtubeStep, setYoutubeStep] = useState("brand"); // brand | product | keyword | results
   const [youtubeChannelInfo, setYoutubeChannelInfo] = useState({});
   const [youtubeChannelLoading, setYoutubeChannelLoading] = useState({});
+  const [youtubePage, setYoutubePage] = useState(1);
+  const YOUTUBE_PAGE_SIZE = 12;
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
   const [catalogProducts, setCatalogProducts] = useState([]);
@@ -2602,11 +2604,12 @@ export default function App() {
                       if(!keywords.length){alert("키워드를 입력해주세요");return;}
                       setYoutubeLoading(true);
                       setYoutubeResults([]);
+                      setYoutubePage(1);
                       setYoutubeStep("results");
                       const q=keywords.join(" ");
                       const apiKey=process.env.REACT_APP_YOUTUBE_API_KEY;
                       try{
-                        const res=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&maxResults=12&relevanceLanguage=ko&key=${apiKey}`);
+                        const res=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&maxResults=50&relevanceLanguage=ko&key=${apiKey}`);
                         const data=await res.json();
                         if(data.error){setYoutubeResults([{error:data.error.message}]);setYoutubeLoading(false);return;}
                         const items=(data.items||[]);
@@ -2653,8 +2656,21 @@ export default function App() {
                     </div>
                   )}
                   {!youtubeLoading && youtubeResults.length>0 && !youtubeResults[0]?.error && (
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:14 }}>
-                      {youtubeResults.map(v=>(
+                    <div>
+                      {/* 결과 수 / 페이지 정보 */}
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                        <div style={{ fontSize:12, color:"#64748B" }}>
+                          전체 <strong style={{ color:"#FF0000" }}>{youtubeResults.length}개</strong> 중{" "}
+                          {(youtubePage-1)*YOUTUBE_PAGE_SIZE+1}~{Math.min(youtubePage*YOUTUBE_PAGE_SIZE, youtubeResults.length)}번째
+                        </div>
+                        <div style={{ fontSize:12, color:"#64748B" }}>
+                          {youtubePage} / {Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)} 페이지
+                        </div>
+                      </div>
+
+                      {/* 카드 그리드 */}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:14 }}>
+                        {youtubeResults.slice((youtubePage-1)*YOUTUBE_PAGE_SIZE, youtubePage*YOUTUBE_PAGE_SIZE).map(v=>(
                         <div key={v.videoId} style={{ borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden", background:"white", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
                           {/* 썸네일 */}
                           <div style={{ position:"relative", cursor:"pointer" }} onClick={()=>window.open(`https://www.youtube.com/watch?v=${v.videoId}`,"_blank")}>
@@ -2720,6 +2736,35 @@ export default function App() {
                           </div>
                         </div>
                       ))}
+                      </div>
+
+                      {/* 페이지네이션 */}
+                      {Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE) > 1 && (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:24 }}>
+                          <button onClick={()=>{setYoutubePage(1);}} disabled={youtubePage===1}
+                            style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===1?"#F1F5F9":"white", color:youtubePage===1?"#CBD5E1":"#475569", cursor:youtubePage===1?"default":"pointer", fontWeight:700, fontSize:12 }}>
+                            처음
+                          </button>
+                          <button onClick={()=>setYoutubePage(p=>Math.max(1,p-1))} disabled={youtubePage===1}
+                            style={{ padding:"7px 14px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===1?"#F1F5F9":"white", color:youtubePage===1?"#CBD5E1":"#475569", cursor:youtubePage===1?"default":"pointer", fontWeight:700, fontSize:13 }}>
+                            ◀
+                          </button>
+                          {Array.from({length:Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)},(_,i)=>i+1).map(p=>(
+                            <button key={p} onClick={()=>setYoutubePage(p)}
+                              style={{ padding:"7px 13px", borderRadius:8, border:p===youtubePage?"2px solid #FF0000":"1px solid #E2E8F0", background:p===youtubePage?"#FF0000":"white", color:p===youtubePage?"white":"#475569", cursor:"pointer", fontWeight:700, fontSize:12 }}>
+                              {p}
+                            </button>
+                          ))}
+                          <button onClick={()=>setYoutubePage(p=>Math.min(Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE),p+1))} disabled={youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)}
+                            style={{ padding:"7px 14px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#F1F5F9":"white", color:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#CBD5E1":"#475569", cursor:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"default":"pointer", fontWeight:700, fontSize:13 }}>
+                            ▶
+                          </button>
+                          <button onClick={()=>setYoutubePage(Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE))} disabled={youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)}
+                            style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#F1F5F9":"white", color:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"#CBD5E1":"#475569", cursor:youtubePage===Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)?"default":"pointer", fontWeight:700, fontSize:12 }}>
+                            마지막
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
