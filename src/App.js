@@ -221,8 +221,8 @@ function LoginScreen() {
       <div style={{ background:"white", borderRadius:20, padding:"40px 36px", width:380, boxShadow:"0 8px 40px rgba(0,0,0,0.12)" }}>
         <div style={{ textAlign:"center", marginBottom:24 }}>
           <div style={{ fontSize:36, marginBottom:10 }}>🛒</div>
-          <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1E293B" }}>주문관리</h1>
-          <p style={{ margin:"6px 0 0", fontSize:13, color:"#94A3B8" }}>멀티브랜드 통합 대시보드</p>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:"#1E293B" }}>온라인 쇼핑몰</h1>
+          <p style={{ margin:"6px 0 0", fontSize:13, color:"#94A3B8" }}>주문 & 결산 관리시스템</p>
         </div>
         {mode === "done" ? (
           <div style={{ textAlign:"center", padding:"20px 0" }}>
@@ -941,11 +941,11 @@ export default function App() {
   // ── 사이드바 ──────────────────────────────────────────────
   const SidebarContent = () => (
     <div style={{ width:sidebarOpen?230:52, minWidth:sidebarOpen?230:52, background:"#1E293B", display:"flex", flexDirection:"column", transition:"width 0.2s,min-width 0.2s", overflow:"hidden", flexShrink:0, height:"100vh", position:"sticky", top:0 }}>
-      {/* 로고 + 토글 */}
-      <div style={{ padding:"14px 10px 12px", borderBottom:"1px solid #334155", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-        {sidebarOpen && <span style={{ color:"white", fontWeight:800, fontSize:15, whiteSpace:"nowrap" }}>🛒 주문관리</span>}
-        <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{ background:"none", border:"none", color:"#94A3B8", cursor:"pointer", fontSize:13, padding:"4px 6px", marginLeft:sidebarOpen?0:"auto", marginRight:sidebarOpen?0:"auto", borderRadius:6, flexShrink:0 }}>
-          {sidebarOpen ? "◀" : "▶"}
+      {/* 토글 버튼 */}
+      <div style={{ padding:"14px 10px 12px", borderBottom:"1px solid #334155", display:"flex", alignItems:"center", justifyContent:sidebarOpen?"space-between":"center", flexShrink:0 }}>
+        {sidebarOpen && <span style={{ color:"#94A3B8", fontWeight:600, fontSize:12, whiteSpace:"nowrap" }}>메뉴</span>}
+        <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{ background:"none", border:"none", color:"#94A3B8", cursor:"pointer", fontSize:13, padding:"4px 6px", borderRadius:6, flexShrink:0 }}>
+          {sidebarOpen ? "◀ 접기" : "▶"}
         </button>
       </div>
 
