@@ -318,8 +318,8 @@ export default function App() {
   const [items, setItems] = useState([emptyItem()]);
   const [activeBrandId, setActiveBrandId] = useState("");
   const [activeMallType, setActiveMallType] = useState("");
-  const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "", dept: "" });
-  const [pendingFilter, setPendingFilter] = useState({ from: today().slice(0,7)+"-01", to: today(), brandId: "", mallType: "", category: "", dept: "" });
+  const [filter, setFilter] = useState({ from: today().slice(0,7)+"-01", to: yesterday(), brandId: "", mallType: "", category: "", dept: "" });
+  const [pendingFilter, setPendingFilter] = useState({ from: today().slice(0,7)+"-01", to: yesterday(), brandId: "", mallType: "", category: "", dept: "" });
 
   const [showBrandModal, setShowBrandModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
@@ -1314,7 +1314,12 @@ export default function App() {
                 <Field label="종료일"><input type="date" value={pendingFilter.to} max={yesterday()} onChange={e=>setPendingFilter(f=>({...f,to:e.target.value}))} style={{...inp,width:130}} /></Field>
                 <Field label="카테고리"><select value={pendingFilter.category} onChange={e=>setPendingFilter(f=>({...f,category:e.target.value}))} style={{...inp,width:120}}><option value="">전체</option>{filterCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></Field>
                 <div style={{ display:"flex",gap:6,alignItems:"flex-end" }}>
-                  {[["이번달",()=>{const n=new Date();setPendingFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:today()}));}],["저번달",()=>{const n=new Date();n.setMonth(n.getMonth()-1);const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate();setPendingFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${last}`}));}],["올해",()=>{setPendingFilter(f=>({...f,from:`${new Date().getFullYear()}-01-01`,to:today()}));}]].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
+                  {[
+                    ["어제", ()=>{ const y=yesterday(); setPendingFilter(f=>({...f,from:y,to:y})); }],
+                    ["지난7일", ()=>{ const d=new Date(Date.now()+9*60*60*1000-7*86400000); const s=d.toISOString().slice(0,10); setPendingFilter(f=>({...f,from:s,to:yesterday()})); }],
+                    ["이번달", ()=>{ const n=new Date(); setPendingFilter(f=>({...f,from:`${n.getFullYear()}-${pad(n.getMonth()+1)}-01`,to:yesterday()})); }],
+                    ["지난달", ()=>{ const n=new Date(); n.setMonth(n.getMonth()-1); const y=n.getFullYear(),m=n.getMonth()+1,last=new Date(y,m,0).getDate(); setPendingFilter(f=>({...f,from:`${y}-${pad(m)}-01`,to:`${y}-${pad(m)}-${pad(last)}`})); }],
+                  ].map(([l,fn])=><button key={l} onClick={fn} style={quickBtn}>{l}</button>)}
                   <button onClick={()=>setFilter({...pendingFilter})} style={{ padding:"8px 20px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontWeight:700, fontSize:14, cursor:"pointer" }}>🔍 조회</button>
                 </div>
               </div>
