@@ -275,6 +275,17 @@ export default function App() {
   const [popups, setPopups] = useState([]);
   const [popupForm, setPopupForm] = useState({ title:"", content:"", is_active:false });
   const [editingPopup, setEditingPopup] = useState(null);
+  const [showYoutubeModal, setShowYoutubeModal] = useState(false);
+  const [youtubeBrand, setYoutubeBrand] = useState(null);
+  const [youtubeProduct, setYoutubeProduct] = useState(null);
+  const [youtubeProducts, setYoutubeProducts] = useState([]);
+  const [youtubeProductsLoading, setYoutubeProductsLoading] = useState(false);
+  const [youtubeKeywords, setYoutubeKeywords] = useState("");
+  const [youtubeResults, setYoutubeResults] = useState([]);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [youtubeStep, setYoutubeStep] = useState("brand"); // brand | product | keyword | results
+  const [youtubeChannelInfo, setYoutubeChannelInfo] = useState({});
+  const [youtubeChannelLoading, setYoutubeChannelLoading] = useState({});
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
   const [catalogProducts, setCatalogProducts] = useState([]);
@@ -1028,6 +1039,10 @@ export default function App() {
         <button onClick={()=>{setShowCatalogModal(true);setCatalogBrand(null);setCatalogProducts([]);setSelectedProducts([]);setCatalogView(false);}} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
           <span style={{ fontSize:14, flexShrink:0 }}>📋</span>
           {sidebarOpen && "상품소개서"}
+        </button>
+        <button onClick={()=>{setShowYoutubeModal(true);setYoutubeStep("brand");setYoutubeBrand(null);setYoutubeProduct(null);setYoutubeKeywords("");setYoutubeResults([]);setYoutubeChannelInfo({});}} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+          <span style={{ fontSize:14, flexShrink:0 }}>🎬</span>
+          {sidebarOpen && "유튜브협찬"}
         </button>
       </div>
 
@@ -2457,6 +2472,258 @@ export default function App() {
                   <div style={{ fontSize:12, color:"#64748B", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{p.content}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 유튜브 협찬 모달 ── */}
+      {showYoutubeModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onClick={()=>setShowYoutubeModal(false)}>
+          <div style={{ background:"white", borderRadius:20, width:720, maxWidth:"95vw", maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 80px rgba(0,0,0,0.22)", overflow:"hidden" }} onClick={e=>e.stopPropagation()}>
+
+            {/* 헤더 */}
+            <div style={{ background:"linear-gradient(135deg,#FF0000,#cc0000)", padding:"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <span style={{ fontSize:22 }}>🎬</span>
+                <div>
+                  <div style={{ fontSize:16, fontWeight:800, color:"white" }}>유튜브 협찬</div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:2 }}>
+                    {youtubeStep==="brand" && "브랜드를 선택하세요"}
+                    {youtubeStep==="product" && youtubeBrand?.name+" · 상품을 선택하세요"}
+                    {youtubeStep==="keyword" && youtubeProduct?.name+" · 키워드를 입력하세요"}
+                    {youtubeStep==="results" && `검색 결과 ${youtubeResults.length}개`}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {youtubeStep!=="brand" && (
+                  <button onClick={()=>{
+                    if(youtubeStep==="results"||youtubeStep==="keyword") setYoutubeStep("product");
+                    else if(youtubeStep==="product") setYoutubeStep("brand");
+                  }} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"white", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:700 }}>← 이전</button>
+                )}
+                <button onClick={()=>setShowYoutubeModal(false)} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"white", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕</button>
+              </div>
+            </div>
+
+            {/* 단계 인디케이터 */}
+            <div style={{ padding:"12px 24px", background:"#FFF5F5", borderBottom:"1px solid #FEE2E2", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+              {[["brand","브랜드"],["product","상품"],["keyword","키워드"],["results","결과"]].map(([step,label],i)=>{
+                const steps=["brand","product","keyword","results"];
+                const cur=steps.indexOf(youtubeStep);
+                const idx=steps.indexOf(step);
+                return (
+                  <React.Fragment key={step}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <div style={{ width:22, height:22, borderRadius:"50%", background:idx<=cur?"#FF0000":"#E2E8F0", color:idx<=cur?"white":"#94A3B8", fontSize:11, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center" }}>{i+1}</div>
+                      <span style={{ fontSize:12, fontWeight:700, color:idx<=cur?"#CC0000":"#94A3B8" }}>{label}</span>
+                    </div>
+                    {i<3 && <div style={{ flex:1, height:2, background:idx<cur?"#FF0000":"#E2E8F0", borderRadius:2 }} />}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* 본문 */}
+            <div style={{ flex:1, overflowY:"auto", padding:24 }}>
+
+              {/* STEP 1: 브랜드 선택 */}
+              {youtubeStep==="brand" && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
+                  {visibleBrands.map(b=>(
+                    <button key={b.id} onClick={async()=>{
+                      setYoutubeBrand(b);
+                      setYoutubeStep("product");
+                      setYoutubeProductsLoading(true);
+                      const {data}=await supabase.from("products").select("*").eq("brand_id",b.id).order("name");
+                      setYoutubeProducts(data||[]);
+                      setYoutubeProductsLoading(false);
+                    }} style={{ padding:"14px 12px", borderRadius:12, border:`2px solid ${b.color}40`, background:b.color+"10", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
+                      onMouseEnter={e=>{e.currentTarget.style.border=`2px solid ${b.color}`;e.currentTarget.style.background=b.color+"20";}}
+                      onMouseLeave={e=>{e.currentTarget.style.border=`2px solid ${b.color}40`;e.currentTarget.style.background=b.color+"10";}}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", background:b.color, marginBottom:8 }} />
+                      <div style={{ fontSize:13, fontWeight:700, color:"#1E293B" }}>{b.name}</div>
+                      {b.department && <div style={{ fontSize:11, color:"#94A3B8", marginTop:2 }}>{b.department}</div>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* STEP 2: 상품 선택 */}
+              {youtubeStep==="product" && (
+                youtubeProductsLoading ? (
+                  <div style={{ textAlign:"center", padding:40, color:"#94A3B8" }}>상품 불러오는 중...</div>
+                ) : youtubeProducts.length===0 ? (
+                  <div style={{ textAlign:"center", padding:40, color:"#94A3B8" }}>
+                    <div style={{ fontSize:32, marginBottom:12 }}>📦</div>
+                    <div style={{ fontSize:14, fontWeight:600 }}>등록된 상품이 없습니다</div>
+                    <div style={{ fontSize:12, marginTop:6 }}>카페24 연동 후 주문 동기화를 진행해 주세요</div>
+                  </div>
+                ) : (
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
+                    {youtubeProducts.map(p=>(
+                      <button key={p.id} onClick={()=>{setYoutubeProduct(p);setYoutubeStep("keyword");}} style={{ padding:"14px 12px", borderRadius:12, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
+                        onMouseEnter={e=>{e.currentTarget.style.border="1px solid #FF0000";e.currentTarget.style.background="#FFF5F5";}}
+                        onMouseLeave={e=>{e.currentTarget.style.border="1px solid #E2E8F0";e.currentTarget.style.background="#F8FAFC";}}>
+                        {p.image_url && <img src={p.image_url} alt={p.name} style={{ width:"100%", height:90, objectFit:"cover", borderRadius:8, marginBottom:8 }} />}
+                        <div style={{ fontSize:12, fontWeight:700, color:"#1E293B", lineHeight:1.4 }}>{p.name}</div>
+                        {p.price && <div style={{ fontSize:11, color:"#EF4444", fontWeight:700, marginTop:4 }}>{Number(p.price).toLocaleString()}원</div>}
+                      </button>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* STEP 3: 키워드 입력 */}
+              {youtubeStep==="keyword" && (
+                <div style={{ maxWidth:480, margin:"0 auto" }}>
+                  <div style={{ background:"#FFF5F5", border:"1px solid #FEE2E2", borderRadius:12, padding:16, marginBottom:20 }}>
+                    <div style={{ fontSize:11, color:"#94A3B8", marginBottom:4 }}>선택된 상품</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:"#1E293B" }}>{youtubeProduct?.name}</div>
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:8 }}>검색 키워드 입력</div>
+                  <div style={{ fontSize:11, color:"#94A3B8", marginBottom:12 }}>쉼표(,)로 구분하여 여러 키워드를 입력하세요<br/>예: 다이어트, 건강, 추천, 후기</div>
+                  <textarea
+                    value={youtubeKeywords}
+                    onChange={e=>setYoutubeKeywords(e.target.value)}
+                    placeholder="키워드1, 키워드2, 키워드3..."
+                    rows={3}
+                    style={{ width:"100%", padding:"12px 14px", borderRadius:10, border:"1px solid #E2E8F0", fontSize:13, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", color:"#1E293B" }}
+                  />
+                  <div style={{ fontSize:11, color:"#94A3B8", marginTop:6, marginBottom:20 }}>
+                    입력된 키워드: {youtubeKeywords ? youtubeKeywords.split(",").map(k=>k.trim()).filter(Boolean).map((k,i)=>(
+                      <span key={i} style={{ display:"inline-block", background:"#FF000015", border:"1px solid #FF000030", color:"#CC0000", borderRadius:12, padding:"2px 8px", fontSize:11, fontWeight:700, margin:"2px 3px" }}>{k}</span>
+                    )) : <span style={{ color:"#CBD5E1" }}>없음</span>}
+                  </div>
+                  <button
+                    onClick={async()=>{
+                      const keywords=youtubeKeywords.split(",").map(k=>k.trim()).filter(Boolean);
+                      if(!keywords.length){alert("키워드를 입력해주세요");return;}
+                      setYoutubeLoading(true);
+                      setYoutubeResults([]);
+                      setYoutubeStep("results");
+                      const q=keywords.join(" ");
+                      const apiKey=process.env.REACT_APP_YOUTUBE_API_KEY;
+                      try{
+                        const res=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&maxResults=12&relevanceLanguage=ko&key=${apiKey}`);
+                        const data=await res.json();
+                        if(data.error){setYoutubeResults([{error:data.error.message}]);setYoutubeLoading(false);return;}
+                        const items=(data.items||[]);
+                        const videoIds=items.map(i=>i.id.videoId).join(",");
+                        const statsRes=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`);
+                        const statsData=await statsRes.json();
+                        const statsMap={};
+                        (statsData.items||[]).forEach(v=>{statsMap[v.id]=v.statistics;});
+                        setYoutubeResults(items.map(item=>({
+                          videoId:item.id.videoId,
+                          title:item.snippet.title,
+                          channelTitle:item.snippet.channelTitle,
+                          channelId:item.snippet.channelId,
+                          thumbnail:item.snippet.thumbnails?.medium?.url,
+                          publishedAt:item.snippet.publishedAt?.slice(0,10),
+                          viewCount:statsMap[item.id.videoId]?.viewCount,
+                          likeCount:statsMap[item.id.videoId]?.likeCount,
+                        })));
+                      }catch(e){setYoutubeResults([{error:"검색 중 오류가 발생했습니다: "+e.message}]);}
+                      setYoutubeLoading(false);
+                    }}
+                    disabled={!youtubeKeywords.trim()}
+                    style={{ width:"100%", padding:"13px", background:youtubeKeywords.trim()?"#FF0000":"#E2E8F0", color:youtubeKeywords.trim()?"white":"#94A3B8", border:"none", borderRadius:10, fontWeight:800, fontSize:14, cursor:youtubeKeywords.trim()?"pointer":"default", transition:"all 0.15s" }}>
+                    🔍 유튜브에서 찾기
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 4: 검색 결과 */}
+              {youtubeStep==="results" && (
+                <div>
+                  {youtubeLoading && (
+                    <div style={{ textAlign:"center", padding:40 }}>
+                      <div style={{ fontSize:32, marginBottom:12 }}>🔍</div>
+                      <div style={{ fontSize:14, color:"#64748B", fontWeight:600 }}>유튜브에서 검색 중...</div>
+                      <div style={{ fontSize:12, color:"#94A3B8", marginTop:6 }}>키워드: {youtubeKeywords}</div>
+                    </div>
+                  )}
+                  {!youtubeLoading && youtubeResults.length>0 && youtubeResults[0]?.error && (
+                    <div style={{ textAlign:"center", padding:40, color:"#EF4444" }}>
+                      <div style={{ fontSize:32, marginBottom:12 }}>⚠️</div>
+                      <div style={{ fontSize:14, fontWeight:700 }}>오류 발생</div>
+                      <div style={{ fontSize:12, marginTop:6 }}>{youtubeResults[0].error}</div>
+                    </div>
+                  )}
+                  {!youtubeLoading && youtubeResults.length>0 && !youtubeResults[0]?.error && (
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:14 }}>
+                      {youtubeResults.map(v=>(
+                        <div key={v.videoId} style={{ borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden", background:"white", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                          {/* 썸네일 */}
+                          <div style={{ position:"relative", cursor:"pointer" }} onClick={()=>window.open(`https://www.youtube.com/watch?v=${v.videoId}`,"_blank")}>
+                            <img src={v.thumbnail} alt={v.title} style={{ width:"100%", display:"block", aspectRatio:"16/9", objectFit:"cover" }} />
+                            <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.2s" }}
+                              onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.35)"}
+                              onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
+                              <span style={{ fontSize:28, opacity:0 }} className="play-icon">▶️</span>
+                            </div>
+                            <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.75)", color:"white", fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:4 }}>
+                              {v.viewCount ? Number(v.viewCount).toLocaleString()+"회" : ""}
+                            </div>
+                          </div>
+                          {/* 정보 */}
+                          <div style={{ padding:"10px 10px 8px" }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#1E293B", lineHeight:1.4, marginBottom:6, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{v.title}</div>
+                            <div style={{ fontSize:11, color:"#64748B", marginBottom:8 }}>{v.channelTitle} · {v.publishedAt}</div>
+                            {/* 채널 정보 버튼 */}
+                            <button onClick={async()=>{
+                              if(youtubeChannelInfo[v.channelId]) return;
+                              setYoutubeChannelLoading(p=>({...p,[v.channelId]:true}));
+                              try{
+                                const apiKey=process.env.REACT_APP_YOUTUBE_API_KEY;
+                                const res=await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${v.channelId}&key=${apiKey}`);
+                                const data=await res.json();
+                                const ch=data.items?.[0];
+                                if(ch){
+                                  const desc=ch.snippet?.description||"";
+                                  const emailMatch=desc.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+                                  setYoutubeChannelInfo(p=>({...p,[v.channelId]:{
+                                    subscribers:ch.statistics?.subscriberCount,
+                                    totalViews:ch.statistics?.viewCount,
+                                    email:emailMatch?emailMatch[0]:null,
+                                    description:desc.slice(0,200),
+                                  }}));
+                                }
+                              }catch(e){}
+                              setYoutubeChannelLoading(p=>({...p,[v.channelId]:false}));
+                            }} style={{ width:"100%", padding:"5px 8px", borderRadius:7, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", fontSize:11, fontWeight:600, color:"#64748B" }}>
+                              {youtubeChannelLoading[v.channelId] ? "로딩 중..." : youtubeChannelInfo[v.channelId] ? "📊 채널 정보 보기 ▼" : "📊 채널 정보 조회"}
+                            </button>
+                            {/* 채널 정보 펼치기 */}
+                            {youtubeChannelInfo[v.channelId] && (
+                              <div style={{ marginTop:8, padding:"8px 10px", background:"#F8FAFC", borderRadius:8, border:"1px solid #E2E8F0" }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                                  <span style={{ fontSize:11, color:"#64748B" }}>구독자</span>
+                                  <span style={{ fontSize:11, fontWeight:700, color:"#1E293B" }}>{youtubeChannelInfo[v.channelId].subscribers?Number(youtubeChannelInfo[v.channelId].subscribers).toLocaleString()+"명":"비공개"}</span>
+                                </div>
+                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                                  <span style={{ fontSize:11, color:"#64748B" }}>총 조회수</span>
+                                  <span style={{ fontSize:11, fontWeight:700, color:"#1E293B" }}>{youtubeChannelInfo[v.channelId].totalViews?Number(youtubeChannelInfo[v.channelId].totalViews).toLocaleString()+"회":"비공개"}</span>
+                                </div>
+                                {youtubeChannelInfo[v.channelId].email ? (
+                                  <div style={{ background:"#ECFDF5", border:"1px solid #6EE7B7", borderRadius:6, padding:"6px 8px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                    <span style={{ fontSize:11, fontWeight:700, color:"#065F46" }}>✉️ {youtubeChannelInfo[v.channelId].email}</span>
+                                    <button onClick={()=>navigator.clipboard.writeText(youtubeChannelInfo[v.channelId].email)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:10, color:"#10B981", fontWeight:700 }}>복사</button>
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize:11, color:"#94A3B8", textAlign:"center", padding:"4px 0" }}>등록된 비즈니스 이메일 없음</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
