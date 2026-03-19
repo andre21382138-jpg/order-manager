@@ -283,6 +283,7 @@ export default function App() {
   const [catalogView, setCatalogView] = useState(false);
   const [editableProducts, setEditableProducts] = useState([]);
   const [slideIndex, setSlideIndex] = useState(0);
+  const [catalogSearch, setCatalogSearch] = useState("");
   const [notices, setNotices] = useState([]);
   const [noticeLoading, setNoticeLoading] = useState(false);
   const [showNoticeForm, setShowNoticeForm] = useState(false);
@@ -1878,6 +1879,7 @@ export default function App() {
                           <button key={b.id} onClick={async()=>{
                             setCatalogBrand(b);
                             setCatalogLoading(true);
+                            setCatalogSearch("");
                             // Supabase에서 먼저 로드
                             const { data: cached } = await supabase.from("catalog_products").select("*").eq("brand_id", b.id).order("product_name");
                             if (cached && cached.length > 0) {
@@ -1906,13 +1908,23 @@ export default function App() {
                   ) : (
                     <>
                       {/* 상품 목록 */}
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                      {/* 1행: 뒤로가기 + 브랜드명 + 카운트 */}
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                        <button onClick={()=>{ setCatalogBrand(null); setCatalogProducts([]); setSelectedProducts([]); setCatalogSearch(""); }} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", fontSize:12, cursor:"pointer", color:"#64748B", fontWeight:600 }}>← 브랜드 선택</button>
                         <div style={{ fontSize:13, fontWeight:700, color:"#64748B" }}>
                           {catalogBrand.name} 상품 목록 {catalogLoading ? "로딩중..." : `(${catalogProducts.length}개)`}
                           <span style={{ marginLeft:8, fontSize:12, color:"#94A3B8" }}>선택: {selectedProducts.length}개</span>
                         </div>
-                        <div style={{ display:"flex", gap:8 }}>
-                          <button onClick={async()=>{
+                      </div>
+                      {/* 2행: 검색 + 버튼들 */}
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                        <input
+                          value={catalogSearch}
+                          onChange={e=>setCatalogSearch(e.target.value)}
+                          placeholder="🔍 상품명 검색..."
+                          style={{ flex:1, minWidth:160, padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, outline:"none", background:"#F8FAFC", boxSizing:"border-box" }}
+                        />
+                        <button onClick={async()=>{
                             if (!catalogBrand) return;
                             setCatalogLoading(true);
                             try {
@@ -1928,22 +1940,21 @@ export default function App() {
                               alert(`✅ ${products.length}개 상품이 업데이트됐습니다.`);
                             } catch(e) { alert("새로고침 오류: " + e.message); }
                             setCatalogLoading(false);
-                          }} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", fontSize:12, cursor:"pointer", color:"#3B82F6", fontWeight:600 }}>🔄 카페24 새로고침</button>
-                          <button onClick={()=>setSelectedProducts(catalogProducts.map(p=>p.product_no))} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B" }}>전체선택</button>
-                          <button onClick={()=>setSelectedProducts([])} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B" }}>선택해제</button>
-                          <button onClick={()=>{
+                          }} style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", fontSize:12, cursor:"pointer", color:"#3B82F6", fontWeight:600, whiteSpace:"nowrap" }}>🔄 카페24 새로고침</button>
+                        <button onClick={()=>setSelectedProducts(catalogProducts.map(p=>p.product_no))} style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B", whiteSpace:"nowrap" }}>전체선택</button>
+                        <button onClick={()=>setSelectedProducts([])} style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B", whiteSpace:"nowrap" }}>선택해제</button>
+                        <button onClick={()=>{
                             if (selectedProducts.length===0) return alert("상품을 선택해주세요.");
                             const selected = catalogProducts.filter(p=>selectedProducts.includes(p.product_no));
                             setEditableProducts(selected.map(p=>({...p})));
                             setCatalogView(true);
-                          }} style={{ padding:"6px 16px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:12, fontWeight:700, cursor:"pointer" }}>소개서 만들기 →</button>
-                        </div>
+                          }} style={{ padding:"7px 16px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>소개서 만들기 →</button>
                       </div>
                       {catalogLoading ? (
                         <div style={{ textAlign:"center", padding:40, color:"#94A3B8" }}>⏳ 상품 불러오는 중...</div>
                       ) : (
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:10 }}>
-                          {catalogProducts.map(p => {
+                          {catalogProducts.filter(p => !catalogSearch.trim() || (p.product_name||"").toLowerCase().includes(catalogSearch.trim().toLowerCase())).map(p => {
                             const isSelected = selectedProducts.includes(p.product_no);
                             return (
                               <div key={p.product_no} onClick={()=>setSelectedProducts(prev=>isSelected?prev.filter(x=>x!==p.product_no):[...prev,p.product_no])} style={{ borderRadius:10, border:isSelected?"2px solid #3B82F6":"2px solid #E2E8F0", background:isSelected?"#EFF6FF":"white", cursor:"pointer", overflow:"hidden", transition:"all 0.15s" }}>
