@@ -1838,7 +1838,7 @@ export default function App() {
                   📋 상품소개서
                   {catalogView && <button onClick={()=>setCatalogView(false)} style={{ marginLeft:12, fontSize:12, padding:"4px 10px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:"pointer", color:"#64748B", fontWeight:600 }}>← 상품 선택으로</button>}
                 </div>
-                {!catalogView && <div style={{ fontSize:11, color:"#94A3B8", marginTop:5, lineHeight:1.5 }}>💡 상품 DB 수집을 위해서는 원하는 브랜드의 <strong style={{ color:"#3B82F6" }}>'카페24 로그인 후 연동'</strong>을 해야 DB를 불러올 수 있습니다.</div>}
+                {!catalogView && <div style={{ fontSize:11, color:"#94A3B8", marginTop:5, lineHeight:1.5 }}>💡 카페24 연동 후 주문 동기화를 진행하면 상품 DB가 자동으로 저장됩니다. 신제품 등록 시에도 주문동기화만 하면 반영됩니다.</div>}
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 {catalogView && <>
