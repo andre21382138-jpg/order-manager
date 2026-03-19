@@ -287,6 +287,7 @@ export default function App() {
   const [youtubeChannelInfo, setYoutubeChannelInfo] = useState({});
   const [youtubeChannelLoading, setYoutubeChannelLoading] = useState({});
   const [youtubePage, setYoutubePage] = useState(1);
+  const [youtubeOrder, setYoutubeOrder] = useState("relevance");
   const YOUTUBE_PAGE_SIZE = 12;
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
@@ -2598,6 +2599,17 @@ export default function App() {
                       <span key={i} style={{ display:"inline-block", background:"#FF000015", border:"1px solid #FF000030", color:"#CC0000", borderRadius:12, padding:"2px 8px", fontSize:11, fontWeight:700, margin:"2px 3px" }}>{k}</span>
                     )) : <span style={{ color:"#CBD5E1" }}>없음</span>}
                   </div>
+
+                  {/* 정렬 기준 선택 */}
+                  <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:8 }}>검색 정렬 기준</div>
+                  <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+                    {[["relevance","🎯 관련성순"],["date","🆕 최신순"],["viewCount","🔥 조회수순"]].map(([val,label])=>(
+                      <button key={val} onClick={()=>setYoutubeOrder(val)}
+                        style={{ flex:1, padding:"10px 6px", borderRadius:10, border:youtubeOrder===val?"2px solid #FF0000":"1px solid #E2E8F0", background:youtubeOrder===val?"#FFF0F0":"#F8FAFC", color:youtubeOrder===val?"#CC0000":"#64748B", cursor:"pointer", fontSize:12, fontWeight:youtubeOrder===val?800:600, transition:"all 0.15s" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     onClick={async()=>{
                       const keywords=youtubeKeywords.split(",").map(k=>k.trim()).filter(Boolean);
@@ -2609,7 +2621,7 @@ export default function App() {
                       const q=keywords.join(" ");
                       const apiKey=process.env.REACT_APP_YOUTUBE_API_KEY;
                       try{
-                        const res=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&maxResults=50&relevanceLanguage=ko&key=${apiKey}`);
+                        const res=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&maxResults=50&relevanceLanguage=ko&order=${youtubeOrder}&key=${apiKey}`);
                         const data=await res.json();
                         if(data.error){setYoutubeResults([{error:data.error.message}]);setYoutubeLoading(false);return;}
                         const items=(data.items||[]);
@@ -2663,8 +2675,11 @@ export default function App() {
                           전체 <strong style={{ color:"#FF0000" }}>{youtubeResults.length}개</strong> 중{" "}
                           {(youtubePage-1)*YOUTUBE_PAGE_SIZE+1}~{Math.min(youtubePage*YOUTUBE_PAGE_SIZE, youtubeResults.length)}번째
                         </div>
-                        <div style={{ fontSize:12, color:"#64748B" }}>
-                          {youtubePage} / {Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)} 페이지
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:11, background:"#FFF0F0", border:"1px solid #FF000030", color:"#CC0000", borderRadius:20, padding:"3px 10px", fontWeight:700 }}>
+                            {youtubeOrder==="relevance"?"🎯 관련성순":youtubeOrder==="date"?"🆕 최신순":"🔥 조회수순"}
+                          </span>
+                          <span style={{ fontSize:12, color:"#64748B" }}>{youtubePage} / {Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)} 페이지</span>
                         </div>
                       </div>
 
