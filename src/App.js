@@ -288,6 +288,7 @@ export default function App() {
   const [youtubeChannelLoading, setYoutubeChannelLoading] = useState({});
   const [youtubePage, setYoutubePage] = useState(1);
   const [youtubeOrder, setYoutubeOrder] = useState("relevance");
+  const [youtubeVideoType, setYoutubeVideoType] = useState("all");
   const YOUTUBE_PAGE_SIZE = 12;
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
@@ -2610,6 +2611,17 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+
+                  {/* 영상 형태 선택 */}
+                  <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:8 }}>영상 형태</div>
+                  <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+                    {[["all","📺 전체"],["normal","🎬 일반영상"],["shorts","⚡ 쇼츠"]].map(([val,label])=>(
+                      <button key={val} onClick={()=>setYoutubeVideoType(val)}
+                        style={{ flex:1, padding:"10px 6px", borderRadius:10, border:youtubeVideoType===val?"2px solid #FF0000":"1px solid #E2E8F0", background:youtubeVideoType===val?"#FFF0F0":"#F8FAFC", color:youtubeVideoType===val?"#CC0000":"#64748B", cursor:"pointer", fontSize:12, fontWeight:youtubeVideoType===val?800:600, transition:"all 0.15s" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     onClick={async()=>{
                       const keywords=youtubeKeywords.split(",").map(k=>k.trim()).filter(Boolean);
@@ -2626,20 +2638,39 @@ export default function App() {
                         if(data.error){setYoutubeResults([{error:data.error.message}]);setYoutubeLoading(false);return;}
                         const items=(data.items||[]);
                         const videoIds=items.map(i=>i.id.videoId).join(",");
-                        const statsRes=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`);
+                        const statsRes=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${videoIds}&key=${apiKey}`);
                         const statsData=await statsRes.json();
                         const statsMap={};
-                        (statsData.items||[]).forEach(v=>{statsMap[v.id]=v.statistics;});
-                        setYoutubeResults(items.map(item=>({
-                          videoId:item.id.videoId,
-                          title:item.snippet.title,
-                          channelTitle:item.snippet.channelTitle,
-                          channelId:item.snippet.channelId,
-                          thumbnail:item.snippet.thumbnails?.medium?.url,
-                          publishedAt:item.snippet.publishedAt?.slice(0,10),
-                          viewCount:statsMap[item.id.videoId]?.viewCount,
-                          likeCount:statsMap[item.id.videoId]?.likeCount,
-                        })));
+                        const durationMap={};
+                        (statsData.items||[]).forEach(v=>{
+                          statsMap[v.id]=v.statistics;
+                          const dur=v.contentDetails?.duration||"";
+                          const m=dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                          if(m){ durationMap[v.id]=(parseInt(m[1]||0)*3600)+(parseInt(m[2]||0)*60)+parseInt(m[3]||0); }
+                        });
+                        const allItems=items.map(item=>{
+                          const dur=durationMap[item.id.videoId]||999;
+                          const title=(item.snippet.title||"").toLowerCase();
+                          const desc=(item.snippet.description||"").toLowerCase();
+                          const isShorts=dur<=60;
+                          return {
+                            videoId:item.id.videoId,
+                            title:item.snippet.title,
+                            channelTitle:item.snippet.channelTitle,
+                            channelId:item.snippet.channelId,
+                            thumbnail:item.snippet.thumbnails?.medium?.url,
+                            publishedAt:item.snippet.publishedAt?.slice(0,10),
+                            viewCount:statsMap[item.id.videoId]?.viewCount,
+                            likeCount:statsMap[item.id.videoId]?.likeCount,
+                            duration:dur,
+                            isShorts,
+                          };
+                        });
+                        // 영상 형태 필터링
+                        const filtered = youtubeVideoType==="shorts" ? allItems.filter(v=>v.isShorts)
+                          : youtubeVideoType==="normal" ? allItems.filter(v=>!v.isShorts)
+                          : allItems;
+                        setYoutubeResults(filtered);
                       }catch(e){setYoutubeResults([{error:"검색 중 오류가 발생했습니다: "+e.message}]);}
                       setYoutubeLoading(false);
                     }}
@@ -2679,6 +2710,9 @@ export default function App() {
                           <span style={{ fontSize:11, background:"#FFF0F0", border:"1px solid #FF000030", color:"#CC0000", borderRadius:20, padding:"3px 10px", fontWeight:700 }}>
                             {youtubeOrder==="relevance"?"🎯 관련성순":youtubeOrder==="date"?"🆕 최신순":"🔥 조회수순"}
                           </span>
+                          <span style={{ fontSize:11, background:"#F0F0FF", border:"1px solid #8B5CF640", color:"#6D28D9", borderRadius:20, padding:"3px 10px", fontWeight:700 }}>
+                            {youtubeVideoType==="all"?"📺 전체":youtubeVideoType==="normal"?"🎬 일반영상":"⚡ 쇼츠"}
+                          </span>
                           <span style={{ fontSize:12, color:"#64748B" }}>{youtubePage} / {Math.ceil(youtubeResults.length/YOUTUBE_PAGE_SIZE)} 페이지</span>
                         </div>
                       </div>
@@ -2690,10 +2724,12 @@ export default function App() {
                           {/* 썸네일 */}
                           <div style={{ position:"relative", cursor:"pointer" }} onClick={()=>window.open(`https://www.youtube.com/watch?v=${v.videoId}`,"_blank")}>
                             <img src={v.thumbnail} alt={v.title} style={{ width:"100%", display:"block", aspectRatio:"16/9", objectFit:"cover" }} />
+                            {v.isShorts && (
+                              <div style={{ position:"absolute", top:6, left:6, background:"#FF0000", color:"white", fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:6 }}>⚡ Shorts</div>
+                            )}
                             <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.2s" }}
                               onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.35)"}
                               onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
-                              <span style={{ fontSize:28, opacity:0 }} className="play-icon">▶️</span>
                             </div>
                             <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.75)", color:"white", fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:4 }}>
                               {v.viewCount ? Number(v.viewCount).toLocaleString()+"회" : ""}
