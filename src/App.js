@@ -697,6 +697,27 @@ export default function App() {
     }
   }
 
+  // 카페24 상품 목록 → Supabase 저장 헬퍼
+  async function saveCatalogProducts(brandId, products) {
+    if (!products || products.length === 0) return;
+    const rows = products.map(p => ({
+      brand_id: brandId,
+      product_no: String(p.product_no),
+      product_name: p.product_name || "",
+      price: Number(p.price || 0),
+      supply_price: Number(p.supply_price || 0),
+      small_image: p.small_image || "",
+      summary_description: p.summary_description || "",
+      manufacturer: p.manufacturer || "",
+      weight: p.weight || "",
+      updated_at: new Date().toISOString(),
+    }));
+    const BATCH = 50;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      await supabase.from("catalog_products").upsert(rows.slice(i, i+BATCH), { onConflict:"brand_id,product_no" });
+    }
+  }
+
   async function syncCafe24Orders(brand, startDate, endDate) {
     let token = cafe24Tokens[brand.id];
     if (!token) { alert("먼저 카페24 연동을 해주세요."); return; }
@@ -770,7 +791,18 @@ export default function App() {
         if (allItems.length>0) await supabase.from("order_items").insert(allItems);
       }
       const unmappedCount = Object.keys(unmappedProds).length;
-      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""}`);
+      setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""} · 상품 목록 업데이트 중...`);
+      // 상품 목록도 함께 저장
+      try {
+        const prodRes = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${token.access_token}`);
+        const prodData = await prodRes.json();
+        if (prodData.products) {
+          await saveCatalogProducts(brand.id, prodData.products);
+          setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""} · 상품 ${prodData.products.length}개 업데이트 완료`);
+        }
+      } catch(e) {
+        setCafe24SyncResult(`✅ ${successCount}건 수집 완료${skipped>0?` (중복 ${skipped}건 건너뜀)`:""}`)
+      }
     } catch(e) { setCafe24SyncResult("❌ 오류: " + e.message); }
     setCafe24Syncing(false);
   }
@@ -1846,17 +1878,25 @@ export default function App() {
                           <button key={b.id} onClick={async()=>{
                             setCatalogBrand(b);
                             setCatalogLoading(true);
-                            const token = cafe24Tokens[b.id];
-                            let accessToken = token.access_token;
-                            try {
-                              const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
-                              const rData = await rRes.json();
-                              if (rData.access_token) accessToken = rData.access_token;
-                            } catch(e) {}
-                            const res = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${accessToken}`);
-                            const data = await res.json();
-                            setCatalogProducts(data.products || []);
-                            setCatalogLoading(false);
+                            // Supabase에서 먼저 로드
+                            const { data: cached } = await supabase.from("catalog_products").select("*").eq("brand_id", b.id).order("product_name");
+                            if (cached && cached.length > 0) {
+                              setCatalogProducts(cached.map(p => ({ product_no: p.product_no, product_name: p.product_name, price: p.price, supply_price: p.supply_price, small_image: p.small_image, summary_description: p.summary_description, manufacturer: p.manufacturer, weight: p.weight })));
+                              setCatalogLoading(false);
+                            } else {
+                              // 캐시 없으면 카페24 API 호출 후 저장
+                              try {
+                                const token = cafe24Tokens[b.id];
+                                let accessToken = token.access_token;
+                                try { const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`); const rData = await rRes.json(); if (rData.access_token) accessToken = rData.access_token; } catch(e) {}
+                                const res = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${accessToken}`);
+                                const data = await res.json();
+                                const products = data.products || [];
+                                setCatalogProducts(products);
+                                await saveCatalogProducts(b.id, products);
+                              } catch(e) { alert("상품 로드 오류: " + e.message); }
+                              setCatalogLoading(false);
+                            }
                           }} style={{ padding:"12px 20px", borderRadius:12, border:`2px solid ${b.color}`, background:b.color+"12", cursor:"pointer", fontSize:14, fontWeight:700, color:b.color }}>
                             {b.name}
                           </button>
@@ -1872,6 +1912,23 @@ export default function App() {
                           <span style={{ marginLeft:8, fontSize:12, color:"#94A3B8" }}>선택: {selectedProducts.length}개</span>
                         </div>
                         <div style={{ display:"flex", gap:8 }}>
+                          <button onClick={async()=>{
+                            if (!catalogBrand) return;
+                            setCatalogLoading(true);
+                            try {
+                              const token = cafe24Tokens[catalogBrand.id];
+                              if (!token) { alert("카페24 연동이 필요합니다."); setCatalogLoading(false); return; }
+                              let accessToken = token.access_token;
+                              try { const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`); const rData = await rRes.json(); if (rData.access_token) accessToken = rData.access_token; } catch(e) {}
+                              const res = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${accessToken}`);
+                              const data = await res.json();
+                              const products = data.products || [];
+                              setCatalogProducts(products);
+                              await saveCatalogProducts(catalogBrand.id, products);
+                              alert(`✅ ${products.length}개 상품이 업데이트됐습니다.`);
+                            } catch(e) { alert("새로고침 오류: " + e.message); }
+                            setCatalogLoading(false);
+                          }} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", fontSize:12, cursor:"pointer", color:"#3B82F6", fontWeight:600 }}>🔄 카페24 새로고침</button>
                           <button onClick={()=>setSelectedProducts(catalogProducts.map(p=>p.product_no))} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B" }}>전체선택</button>
                           <button onClick={()=>setSelectedProducts([])} style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:12, cursor:"pointer", color:"#64748B" }}>선택해제</button>
                           <button onClick={()=>{
