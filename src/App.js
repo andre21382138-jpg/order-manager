@@ -1869,32 +1869,57 @@ export default function App() {
                 /* 소개서 뷰 */
                 <div id="catalog-print-area">
                   <style>{`
-                    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-                    #catalog-print-area * { box-sizing: border-box; }
-                    .si { background:transparent; outline:none; border:none; width:100%; }
-                    .si:focus { outline: 1px dashed #CBD5E1; border-radius:3px; }
-                    .sthumb { transition: all 0.15s; cursor:pointer; }
+                    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap');
+                    #catalog-print-area *, #catalog-print-area *::before, #catalog-print-area *::after { box-sizing:border-box; }
+                    .sthumb { transition:all 0.15s; cursor:pointer; }
                     .sthumb:hover { transform:scale(1.04); }
+                    .catalog-slide { width:100%; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,0.15); display:grid; grid-template-rows:68px 1fr 40px; }
+                    .cs-header { background:linear-gradient(120deg,#1b4332 0%,#2d6a4f 45%,#52b788 100%); display:flex; align-items:center; padding:0 24px; justify-content:space-between; position:relative; overflow:hidden; }
+                    .cs-header::before { content:''; position:absolute; right:-20px; top:-40px; width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,0.07); }
+                    .cs-header-left { display:flex; align-items:center; gap:12px; z-index:1; }
+                    .cs-eyebrow { font-size:9px; font-weight:500; color:#b7e4c7; letter-spacing:3px; text-transform:uppercase; margin-bottom:2px; }
+                    .cs-header-title { font-size:18px; font-weight:800; color:#fff; letter-spacing:-0.3px; }
+                    .cs-badge { z-index:1; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.28); border-radius:40px; padding:5px 16px; font-size:11px; font-weight:700; color:#d8f3dc; letter-spacing:1px; white-space:nowrap; }
+                    .cs-body { display:grid; grid-template-columns:256px 1fr; overflow:hidden; }
+                    .cs-left { background:linear-gradient(180deg,#f4fbf6 0%,#eaf6ee 100%); border-right:1px solid #d1ead9; display:flex; flex-direction:column; align-items:center; padding:14px 14px 12px; gap:0; overflow:hidden; }
+                    .cs-img-box { width:200px; height:200px; border-radius:14px; border:2px dashed #74c69d; background:linear-gradient(145deg,#fff,#ecf8f1); display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; }
+                    .cs-brand-section { width:100%; text-align:center; margin-top:11px; padding-bottom:10px; border-bottom:1px dashed #c9e8d4; }
+                    .cs-brand-tag { display:inline-block; background:#d8f3dc; color:#2d6a4f; font-size:8px; font-weight:700; letter-spacing:2px; padding:2px 8px; border-radius:20px; text-transform:uppercase; margin-bottom:3px; }
+                    .cs-price-card { width:100%; margin-top:10px; background:linear-gradient(135deg,#1b4332 0%,#2d6a4f 100%); border-radius:10px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 4px 14px rgba(27,67,50,0.28); flex-shrink:0; }
+                    .cs-right { padding:14px 20px 10px 18px; display:flex; flex-direction:column; gap:0; overflow:hidden; }
+                    .cs-section-label { display:flex; align-items:center; gap:5px; margin-bottom:6px; }
+                    .cs-dot { width:6px; height:6px; border-radius:50%; background:#52b788; flex-shrink:0; }
+                    .cs-stitle { font-size:10px; font-weight:700; color:#2d6a4f; letter-spacing:0.5px; text-transform:uppercase; }
+                    .cs-summary-box { background:linear-gradient(135deg,#f0faf4,#eaf6ee); border-left:3px solid #52b788; border-radius:0 8px 8px 0; padding:8px 12px; margin-bottom:10px; }
+                    .cs-divider { height:1px; background:linear-gradient(to right,#d1ead9 60%,transparent); margin:8px 0; flex-shrink:0; }
+                    .cs-info-row { display:flex; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-bottom:5px; }
+                    .cs-info-key { background:linear-gradient(135deg,#2d6a4f,#40916c); color:#d8f3dc; font-size:10px; font-weight:700; padding:7px 10px; width:108px; min-width:108px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
+                    .cs-info-val { background:#f8fdf9; border:1px solid #dff0e6; border-left:none; border-radius:0 8px 8px 0; flex:1; padding:7px 11px; font-size:11px; font-weight:500; color:#1b4332; outline:none; display:flex; align-items:center; min-height:30px; font-family:'Noto Sans KR',sans-serif; }
+                    .cs-caution-box { margin-top:7px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:7px 11px; display:flex; gap:7px; align-items:flex-start; flex-shrink:0; }
+                    .cs-footer { background:linear-gradient(90deg,#1b4332 0%,#2d6a4f 60%,#40916c 100%); display:flex; align-items:center; padding:0 24px; justify-content:space-between; }
+                    .cs-footer-icon { width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; }
+                    .cs-editable { outline:none; cursor:text; font-family:'Noto Sans KR',sans-serif; }
+                    .cs-editable:focus { background:rgba(82,183,136,0.08) !important; border-radius:4px; outline:1.5px dashed #52b788 !important; }
                     @media print {
-                      body * { visibility: hidden; }
-                      #catalog-print-area, #catalog-print-area * { visibility: visible; }
-                      #catalog-print-area { position: absolute; left:0; top:0; width:100%; }
+                      body * { visibility:hidden; }
+                      #catalog-print-area, #catalog-print-area * { visibility:visible; }
+                      #catalog-print-area { position:absolute; left:0; top:0; width:100%; }
                       .no-print { display:none !important; }
                     }
                   `}</style>
 
-                  {/* 네비게이션 */}
-                  <div className="no-print" style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-                    <button onClick={()=>setSlideIndex(i=>Math.max(0,i-1))} disabled={slideIndex===0} style={{ flexShrink:0, width:32, height:32, borderRadius:"50%", border:"1px solid #E2E8F0", background:"white", cursor:slideIndex===0?"not-allowed":"pointer", color:slideIndex===0?"#CBD5E1":"#475569", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>◀</button>
+                  {/* 썸네일 네비게이션 */}
+                  <div className="no-print" style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+                    <button onClick={()=>setSlideIndex(i=>Math.max(0,i-1))} disabled={slideIndex===0} style={{ flexShrink:0, width:30, height:30, borderRadius:"50%", border:"1px solid #E2E8F0", background:"white", cursor:slideIndex===0?"not-allowed":"pointer", color:slideIndex===0?"#CBD5E1":"#475569", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>◀</button>
                     <div style={{ display:"flex", gap:6, overflowX:"auto", flex:1 }}>
                       {editableProducts.map((p,i) => (
-                        <div key={p.product_no} onClick={()=>setSlideIndex(i)} className="sthumb" style={{ flexShrink:0, width:56, borderRadius:6, border:i===slideIndex?"2px solid #3B82F6":"2px solid #E2E8F0", overflow:"hidden", opacity:i===slideIndex?1:0.5 }}>
-                          {p.small_image ? <img src={p.small_image} alt="" style={{ width:"100%", height:40, objectFit:"cover", display:"block" }} /> : <div style={{ width:"100%", height:40, background:"#F1F5F9" }} />}
-                          <div style={{ fontSize:8, padding:"2px 4px", color:"#475569", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:i===slideIndex?"#EFF6FF":"white" }}>{p.product_name}</div>
+                        <div key={p.product_no} onClick={()=>setSlideIndex(i)} className="sthumb" style={{ flexShrink:0, width:52, borderRadius:6, border:i===slideIndex?"2px solid #2d6a4f":"2px solid #E2E8F0", overflow:"hidden", opacity:i===slideIndex?1:0.5 }}>
+                          {p.small_image ? <img src={p.small_image} alt="" style={{ width:"100%", height:38, objectFit:"cover", display:"block" }} /> : <div style={{ width:"100%", height:38, background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>📦</div>}
+                          <div style={{ fontSize:8, padding:"2px 4px", color:"#475569", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:i===slideIndex?"#d8f3dc":"white" }}>{p.product_name}</div>
                         </div>
                       ))}
                     </div>
-                    <button onClick={()=>setSlideIndex(i=>Math.min(editableProducts.length-1,i+1))} disabled={slideIndex===editableProducts.length-1} style={{ flexShrink:0, width:32, height:32, borderRadius:"50%", border:"1px solid #E2E8F0", background:"white", cursor:slideIndex===editableProducts.length-1?"not-allowed":"pointer", color:slideIndex===editableProducts.length-1?"#CBD5E1":"#475569", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>▶</button>
+                    <button onClick={()=>setSlideIndex(i=>Math.min(editableProducts.length-1,i+1))} disabled={slideIndex===editableProducts.length-1} style={{ flexShrink:0, width:30, height:30, borderRadius:"50%", border:"1px solid #E2E8F0", background:"white", cursor:slideIndex===editableProducts.length-1?"not-allowed":"pointer", color:slideIndex===editableProducts.length-1?"#CBD5E1":"#475569", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>▶</button>
                     <span style={{ flexShrink:0, fontSize:12, color:"#94A3B8", fontWeight:600 }}>{slideIndex+1}/{editableProducts.length}</span>
                   </div>
 
@@ -1903,60 +1928,107 @@ export default function App() {
                     const p = editableProducts[slideIndex];
                     const idx = slideIndex;
                     const upd = (k,v) => { const arr=[...editableProducts]; arr[idx]={...arr[idx],[k]:v}; setEditableProducts(arr); };
+                    const brandName = p.brand_name || catalogBrand?.name || "";
                     return (
-                      <div style={{ background:"white", borderRadius:16, overflow:"hidden", boxShadow:"0 4px 32px rgba(0,0,0,0.10)", display:"flex", minHeight:500, border:"1px solid #E8EDF2" }}>
+                      <div className="catalog-slide">
 
-                        {/* 왼쪽: 이미지 */}
-                        <div style={{ width:"36%", flexShrink:0, background:"#F8F9FA", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, position:"relative", borderRight:"1px solid #F0F0F0" }}>
-                          {p.small_image
-                            ? <img src={p.small_image} alt="" style={{ maxWidth:"100%", maxHeight:300, objectFit:"contain" }} />
-                            : <div style={{ fontSize:48, color:"#CBD5E1" }}>📦</div>
-                          }
-                          <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"#1E293B", padding:"10px 16px", textAlign:"center" }}>
-                            <input value={p.brand_name||catalogBrand?.name||""} onChange={e=>upd("brand_name",e.target.value)} style={{ background:"transparent", border:"none", outline:"none", fontSize:12, fontWeight:700, color:"white", letterSpacing:2, textAlign:"center", width:"100%" }} />
+                        {/* ── 헤더 ── */}
+                        <div className="cs-header">
+                          <div className="cs-header-left">
+                            <span style={{ fontSize:20 }}>🌿</span>
+                            <div>
+                              <div className="cs-eyebrow">Health Food Product Sheet</div>
+                              <div className="cs-header-title">{p.product_name || <span style={{ color:"rgba(255,255,255,0.35)", fontStyle:"italic", fontWeight:400, fontSize:14 }}>상품명을 입력하세요</span>}</div>
+                            </div>
+                          </div>
+                          <div className="cs-badge">🌱 {brandName || "브랜드명"}</div>
+                        </div>
+
+                        {/* ── 바디 ── */}
+                        <div className="cs-body">
+
+                          {/* 좌측 */}
+                          <div className="cs-left">
+                            <div className="cs-img-box">
+                              {p.small_image
+                                ? <img src={p.small_image} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                                : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+                                    <span style={{ fontSize:34, opacity:0.4 }}>🖼️</span>
+                                    <span style={{ fontSize:10, color:"#74c69d", fontWeight:600 }}>상품 이미지</span>
+                                  </div>
+                              }
+                            </div>
+
+                            <div className="cs-brand-section">
+                              <div className="cs-brand-tag">Brand</div>
+                              <div style={{ fontSize:15, fontWeight:800, color:"#1b4332", outline:"none" }}
+                                className="cs-editable" contentEditable suppressContentEditableWarning
+                                onBlur={e=>upd("brand_name",e.target.innerText.trim()||"")}
+                              >{brandName || <span style={{ color:"#b7e4c7", fontStyle:"italic", fontWeight:400 }}>브랜드명</span>}</div>
+                              <div style={{ fontSize:11, fontWeight:500, color:"#40916c", marginTop:2, outline:"none" }}
+                                className="cs-editable" contentEditable suppressContentEditableWarning
+                                onBlur={e=>upd("product_name",e.target.innerText.trim()||"")}
+                              >{p.product_name || <span style={{ color:"#b7e4c7", fontStyle:"italic" }}>상품명</span>}</div>
+                            </div>
+
+                            <div className="cs-price-card">
+                              <div>
+                                <div style={{ fontSize:8, fontWeight:700, color:"#74c69d", letterSpacing:2, textTransform:"uppercase", marginBottom:2 }}>Price · 판매가</div>
+                                <div style={{ display:"flex", alignItems:"baseline", gap:2 }}>
+                                  <input value={p.price ? Number(String(p.price).replace(/[^0-9]/g,"")).toLocaleString() : ""} onChange={e=>upd("price",e.target.value.replace(/[^0-9]/g,""))} placeholder="00,000" style={{ background:"transparent", border:"none", outline:"none", fontSize:18, fontWeight:800, color:"white", width:100, fontFamily:"'Noto Sans KR',sans-serif" }} />
+                                  <span style={{ fontSize:12, fontWeight:500, color:"#95d5b2" }}>원</span>
+                                </div>
+                              </div>
+                              <div style={{ background:"#52b788", color:"white", fontSize:9, fontWeight:700, padding:"3px 9px", borderRadius:6 }}>판매가</div>
+                            </div>
+                          </div>
+
+                          {/* 우측 */}
+                          <div className="cs-right">
+
+                            {/* 요약설명 */}
+                            <div className="cs-section-label"><div className="cs-dot"/><div className="cs-stitle">상품 요약 설명</div></div>
+                            <div className="cs-summary-box" style={{ marginBottom:8 }}>
+                              <textarea value={p.summary_description||""} onChange={e=>upd("summary_description",e.target.value)} placeholder="상품의 주요 특징, 효능, 성분 등 핵심 내용을 입력해 주세요." rows={3} style={{ width:"100%", fontSize:11, color:"#1b4332", lineHeight:1.8, resize:"none", border:"none", outline:"none", background:"transparent", fontFamily:"'Noto Sans KR',sans-serif", boxSizing:"border-box" }} />
+                            </div>
+
+                            <div className="cs-divider"/>
+
+                            {/* 섭취 & 보관 정보 */}
+                            <div className="cs-section-label"><div className="cs-dot"/><div className="cs-stitle">섭취 &amp; 보관 정보</div></div>
+
+                            {[
+                              ["📋","섭취방법","intake_method"],
+                              ["👤","섭취대상","intake_target"],
+                              ["🔢","1일섭취량","daily_intake"],
+                              ["🏠","보관방법","storage_method"],
+                              ["🧪","주요성분/함량","ingredients"],
+                            ].map(([icon,label,key])=>(
+                              <div key={key} className="cs-info-row">
+                                <div className="cs-info-key"><span>{icon}</span>{label}</div>
+                                <input value={p[key]||""} onChange={e=>upd(key,e.target.value)} placeholder="" className="cs-info-val" style={{ background:"#f8fdf9", border:"1px solid #dff0e6", borderLeft:"none", borderRadius:"0 8px 8px 0", flex:1, padding:"7px 11px", fontSize:11, fontWeight:500, color:"#1b4332", outline:"none", minHeight:30, fontFamily:"'Noto Sans KR',sans-serif", width:"100%" }} />
+                              </div>
+                            ))}
+
+                            {/* 주의사항 */}
+                            <div className="cs-caution-box">
+                              <span style={{ fontSize:12, flexShrink:0, marginTop:1 }}>⚠️</span>
+                              <input value={p.caution||""} onChange={e=>upd("caution",e.target.value)} placeholder="주의사항을 입력해 주세요." style={{ flex:1, background:"transparent", border:"none", outline:"none", fontSize:10, color:"#92400e", lineHeight:1.7, fontFamily:"'Noto Sans KR',sans-serif", width:"100%" }} />
+                            </div>
+
                           </div>
                         </div>
 
-                        {/* 오른쪽: 정보 */}
-                        <div style={{ flex:1, padding:"28px 32px", display:"flex", flexDirection:"column", gap:14 }}>
-
-                          {/* 상품명 */}
-                          <div>
-                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>상품명</div>
-                            <textarea value={p.product_name||""} onChange={e=>upd("product_name",e.target.value)} rows={2} style={{ width:"100%", fontSize:18, fontWeight:700, color:"#1E293B", lineHeight:1.45, resize:"none", border:"none", borderBottom:"2px solid #E2E8F0", outline:"none", background:"transparent", padding:"0 0 8px 0", boxSizing:"border-box" }} />
+                        {/* ── 푸터 ── */}
+                        <div className="cs-footer">
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <div className="cs-footer-icon">🌿</div>
+                            <input value={brandName} onChange={e=>upd("brand_name",e.target.value)} style={{ background:"transparent", border:"none", outline:"none", fontSize:11, fontWeight:700, color:"#74c69d", letterSpacing:1, fontFamily:"'Noto Sans KR',sans-serif", minWidth:20 }} />
+                            <span style={{ fontSize:9, color:"#52b788" }}>건강한 삶을 위한 선택</span>
                           </div>
-
-                          {/* 요약설명 */}
-                          <div>
-                            <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>상품 요약설명</div>
-                            <textarea value={p.summary_description||""} onChange={e=>upd("summary_description",e.target.value)} placeholder="요약설명을 입력하세요" rows={3} style={{ width:"100%", fontSize:13, color:"#475569", lineHeight:1.7, resize:"none", border:"1px solid #E2E8F0", borderRadius:8, outline:"none", background:"#FAFAFA", padding:"8px 12px", boxSizing:"border-box" }} />
-                          </div>
-
-                          {/* 가격 */}
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                            <div style={{ background:"#1E293B", borderRadius:10, padding:"12px 16px" }}>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>판매가</div>
-                              <input value={p.price ? Number(String(p.price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("price",e.target.value.replace(/[^0-9]/g,""))} placeholder="0원" style={{ background:"transparent", border:"none", outline:"none", fontSize:20, fontWeight:800, color:"white", width:"100%" }} />
-                            </div>
-                            <div style={{ background:"#EFF6FF", border:"1px solid #BFDBFE", borderRadius:10, padding:"12px 16px" }}>
-                              <div style={{ fontSize:10, color:"#3B82F6", fontWeight:700, letterSpacing:1, marginBottom:6 }}>공급가</div>
-                              <input value={p.supply_price ? Number(String(p.supply_price).replace(/[^0-9]/g,"")).toLocaleString()+"원" : ""} onChange={e=>upd("supply_price",e.target.value.replace(/[^0-9]/g,""))} placeholder="0원" style={{ background:"transparent", border:"none", outline:"none", fontSize:20, fontWeight:800, color:"#1D4ED8", width:"100%" }} />
-                            </div>
-                          </div>
-
-                          {/* 제조사 / 용량·무게 */}
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                            <div style={{ background:"#F8FAFC", border:"1px solid #E2E8F0", borderRadius:10, padding:"10px 14px" }}>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>제조사</div>
-                              <input value={p.manufacturer||""} onChange={e=>upd("manufacturer",e.target.value)} placeholder="제조사 입력" style={{ background:"transparent", border:"none", outline:"none", fontSize:14, color:"#334155", fontWeight:500, width:"100%" }} />
-                            </div>
-                            <div style={{ background:"#F8FAFC", border:"1px solid #E2E8F0", borderRadius:10, padding:"10px 14px" }}>
-                              <div style={{ fontSize:10, color:"#94A3B8", fontWeight:700, letterSpacing:1, marginBottom:6 }}>용량 / 무게</div>
-                              <input value={p.weight||""} onChange={e=>upd("weight",e.target.value)} placeholder="용량/무게 입력" style={{ background:"transparent", border:"none", outline:"none", fontSize:14, color:"#334155", fontWeight:500, width:"100%" }} />
-                            </div>
-                          </div>
-
+                          <input value={p.contact||""} onChange={e=>upd("contact",e.target.value)} placeholder="문의처 입력" style={{ background:"transparent", border:"none", outline:"none", fontSize:9, color:"#52b788", textAlign:"right", fontFamily:"'Noto Sans KR',sans-serif", minWidth:20 }} />
                         </div>
+
                       </div>
                     );
                   })()}
