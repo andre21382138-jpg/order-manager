@@ -2536,7 +2536,7 @@ export default function App() {
                       setYoutubeBrand(b);
                       setYoutubeStep("product");
                       setYoutubeProductsLoading(true);
-                      const {data}=await supabase.from("products").select("*").eq("brand_id",b.id).order("name");
+                      const {data}=await supabase.from("catalog_products").select("*").eq("brand_id",b.id).order("product_name");
                       setYoutubeProducts(data||[]);
                       setYoutubeProductsLoading(false);
                     }} style={{ padding:"14px 12px", borderRadius:12, border:`2px solid ${b.color}40`, background:b.color+"10", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
@@ -2563,11 +2563,11 @@ export default function App() {
                 ) : (
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
                     {youtubeProducts.map(p=>(
-                      <button key={p.id} onClick={()=>{setYoutubeProduct(p);setYoutubeStep("keyword");}} style={{ padding:"14px 12px", borderRadius:12, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
+                      <button key={p.product_no} onClick={()=>{setYoutubeProduct(p);setYoutubeStep("keyword");}} style={{ padding:"14px 12px", borderRadius:12, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
                         onMouseEnter={e=>{e.currentTarget.style.border="1px solid #FF0000";e.currentTarget.style.background="#FFF5F5";}}
                         onMouseLeave={e=>{e.currentTarget.style.border="1px solid #E2E8F0";e.currentTarget.style.background="#F8FAFC";}}>
-                        {p.image_url && <img src={p.image_url} alt={p.name} style={{ width:"100%", height:90, objectFit:"cover", borderRadius:8, marginBottom:8 }} />}
-                        <div style={{ fontSize:12, fontWeight:700, color:"#1E293B", lineHeight:1.4 }}>{p.name}</div>
+                        {p.small_image && <img src={p.small_image} alt={p.product_name} style={{ width:"100%", height:90, objectFit:"cover", borderRadius:8, marginBottom:8 }} />}
+                        <div style={{ fontSize:12, fontWeight:700, color:"#1E293B", lineHeight:1.4 }}>{p.product_name}</div>
                         {p.price && <div style={{ fontSize:11, color:"#EF4444", fontWeight:700, marginTop:4 }}>{Number(p.price).toLocaleString()}원</div>}
                       </button>
                     ))}
@@ -2580,7 +2580,7 @@ export default function App() {
                 <div style={{ maxWidth:480, margin:"0 auto" }}>
                   <div style={{ background:"#FFF5F5", border:"1px solid #FEE2E2", borderRadius:12, padding:16, marginBottom:20 }}>
                     <div style={{ fontSize:11, color:"#94A3B8", marginBottom:4 }}>선택된 상품</div>
-                    <div style={{ fontSize:14, fontWeight:700, color:"#1E293B" }}>{youtubeProduct?.name}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:"#1E293B" }}>{youtubeProduct?.product_name}</div>
                   </div>
                   <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:8 }}>검색 키워드 입력</div>
                   <div style={{ fontSize:11, color:"#94A3B8", marginBottom:12 }}>쉼표(,)로 구분하여 여러 키워드를 입력하세요<br/>예: 다이어트, 건강, 추천, 후기</div>
