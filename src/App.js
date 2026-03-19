@@ -269,6 +269,12 @@ export default function App() {
   const [subTab, setSubTab] = useState("결산조회");
   const [showNoticeTab, setShowNoticeTab] = useState(false);
   const [showSecurityTab, setShowSecurityTab] = useState(false);
+  const [activePopup, setActivePopup] = useState(null);
+  const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [showPopupAdmin, setShowPopupAdmin] = useState(false);
+  const [popups, setPopups] = useState([]);
+  const [popupForm, setPopupForm] = useState({ title:"", content:"", is_active:false });
+  const [editingPopup, setEditingPopup] = useState(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogBrand, setCatalogBrand] = useState(null);
   const [catalogProducts, setCatalogProducts] = useState([]);
@@ -485,6 +491,21 @@ export default function App() {
   // loadAll은 onAuthStateChange SIGNED_IN 이벤트에서 호출됨
 
   useEffect(() => { if (loaded) localStorage.setItem("categories", JSON.stringify(categories)); }, [categories, loaded]);
+
+  // 로그인 시 활성 팝업 로드
+  useEffect(() => {
+    if (!session) return;
+    supabase.from("popups").select("*").eq("is_active", true).order("created_at", {ascending:false}).limit(1).then(({ data }) => {
+      if (data && data.length > 0) {
+        const popup = data[0];
+        const hiddenUntil = localStorage.getItem(`popup_hidden_${popup.id}`);
+        if (!hiddenUntil || new Date(hiddenUntil) < new Date()) {
+          setActivePopup(popup);
+          setShowLoginPopup(true);
+        }
+      }
+    });
+  }, [session]);
 
   // 동기화 중 탭 전환 경고
   useEffect(() => {
@@ -1042,6 +1063,16 @@ export default function App() {
           </button>
         )}
       </div>
+
+      {/* 팝업관리 (관리자 전용) */}
+      {isAdmin && (
+        <div style={{ padding:"4px 6px", borderTop:"1px solid #334155", flexShrink:0 }}>
+          <button onClick={async()=>{ const {data}=await supabase.from("popups").select("*").order("created_at",{ascending:false}); if(data) setPopups(data); setPopupForm({title:"",content:"",is_active:false}); setEditingPopup(null); setShowPopupAdmin(true); }} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"7px 10px":"7px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:"transparent", color:"#94A3B8", fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+            <span style={{ fontSize:14, flexShrink:0 }}>📣</span>
+            {sidebarOpen && "팝업관리"}
+          </button>
+        </div>
+      )}
 
       {/* 보안 바로가기 */}
       <div style={{ padding:"4px 6px", borderTop:"1px solid #334155", flexShrink:0 }}>
@@ -2251,6 +2282,103 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 로그인 팝업 */}
+      {showLoginPopup && activePopup && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:"white", borderRadius:20, width:"100%", maxWidth:480, boxShadow:"0 24px 80px rgba(0,0,0,0.35)", overflow:"hidden" }}>
+            {/* 헤더 */}
+            <div style={{ background:"linear-gradient(135deg,#1E293B,#334155)", padding:"18px 22px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:20 }}>📣</span>
+                <span style={{ fontSize:15, fontWeight:800, color:"white" }}>{activePopup.title}</span>
+              </div>
+              <button onClick={()=>setShowLoginPopup(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+            </div>
+            {/* 본문 */}
+            <div style={{ padding:"24px 22px", minHeight:120 }}>
+              <div style={{ fontSize:14, color:"#334155", lineHeight:1.85, whiteSpace:"pre-wrap" }}>{activePopup.content}</div>
+            </div>
+            {/* 하단 */}
+            <div style={{ padding:"14px 22px 18px", borderTop:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <label style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, color:"#64748B", cursor:"pointer", userSelect:"none" }}>
+                <input type="checkbox" onChange={e=>{ if(e.target.checked){ const expire=new Date(); expire.setHours(23,59,59,999); localStorage.setItem(`popup_hidden_${activePopup.id}`, expire.toISOString()); } else { localStorage.removeItem(`popup_hidden_${activePopup.id}`); } }} style={{ width:15, height:15, cursor:"pointer" }} />
+                오늘 하루 안 보기
+              </label>
+              <button onClick={()=>setShowLoginPopup(false)} style={{ padding:"9px 24px", borderRadius:10, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 팝업 관리 (관리자) */}
+      {showPopupAdmin && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={()=>setShowPopupAdmin(false)}>
+          <div style={{ background:"white", borderRadius:18, width:"100%", maxWidth:560, maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }} onClick={e=>e.stopPropagation()}>
+            {/* 헤더 */}
+            <div style={{ padding:"18px 22px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"#1E293B" }}>📣 팝업 관리</div>
+              <button onClick={()=>setShowPopupAdmin(false)} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#94A3B8" }}>✕</button>
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", padding:"18px 22px" }}>
+
+              {/* 작성 / 수정 폼 */}
+              <div style={{ background:"#F8FAFC", borderRadius:12, border:"1px solid #E2E8F0", padding:16, marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:12 }}>{editingPopup ? "✏️ 팝업 수정" : "➕ 새 팝업 작성"}</div>
+                <div style={{ marginBottom:10 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:"#64748B", display:"block", marginBottom:4 }}>제목</label>
+                  <input value={popupForm.title} onChange={e=>setPopupForm(f=>({...f,title:e.target.value}))} placeholder="팝업 제목" style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, boxSizing:"border-box", outline:"none" }} />
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:"#64748B", display:"block", marginBottom:4 }}>내용</label>
+                  <textarea value={popupForm.content} onChange={e=>setPopupForm(f=>({...f,content:e.target.value}))} placeholder="팝업에 표시할 내용을 입력하세요" rows={5} style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, resize:"vertical", boxSizing:"border-box", outline:"none", fontFamily:"inherit" }} />
+                </div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <label style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, color:"#475569", cursor:"pointer" }}>
+                    <input type="checkbox" checked={popupForm.is_active} onChange={e=>setPopupForm(f=>({...f,is_active:e.target.checked}))} style={{ width:15, height:15 }} />
+                    <span>활성화 <span style={{ fontSize:11, color:"#94A3B8" }}>(체크 시 로그인할 때 팝업 표시)</span></span>
+                  </label>
+                  <div style={{ display:"flex", gap:8 }}>
+                    {editingPopup && <button onClick={()=>{ setEditingPopup(null); setPopupForm({title:"",content:"",is_active:false}); }} style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", fontSize:13, cursor:"pointer", color:"#64748B" }}>취소</button>}
+                    <button onClick={async()=>{
+                      if (!popupForm.title.trim()||!popupForm.content.trim()) return;
+                      if (editingPopup) {
+                        const {error}=await supabase.from("popups").update({title:popupForm.title,content:popupForm.content,is_active:popupForm.is_active}).eq("id",editingPopup.id);
+                        if (!error) { setPopups(prev=>prev.map(p=>p.id===editingPopup.id?{...p,...popupForm}:p)); setEditingPopup(null); setPopupForm({title:"",content:"",is_active:false}); }
+                      } else {
+                        const {data,error}=await supabase.from("popups").insert({title:popupForm.title,content:popupForm.content,is_active:popupForm.is_active}).select().single();
+                        if (!error&&data) { setPopups(prev=>[data,...prev]); setPopupForm({title:"",content:"",is_active:false}); }
+                      }
+                    }} style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#3B82F6", color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>저장</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 팝업 목록 */}
+              <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>등록된 팝업</div>
+              {popups.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"28px 0", color:"#CBD5E1", fontSize:13 }}>등록된 팝업이 없습니다.</div>
+              ) : popups.map(p => (
+                <div key={p.id} style={{ borderRadius:12, border:"1px solid #E2E8F0", marginBottom:8, padding:"12px 16px", background:p.is_active?"#F0FDF4":"white" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#1E293B" }}>{p.title}</span>
+                      <span style={{ fontSize:10, padding:"2px 8px", borderRadius:20, fontWeight:700, background:p.is_active?"#D1FAE5":"#F1F5F9", color:p.is_active?"#065F46":"#94A3B8" }}>{p.is_active?"● 활성":"○ 비활성"}</span>
+                    </div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button onClick={async()=>{ const newActive=!p.is_active; await supabase.from("popups").update({is_active:newActive}).eq("id",p.id); setPopups(prev=>prev.map(x=>x.id===p.id?{...x,is_active:newActive}:x)); }} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #E2E8F0", background:"white", fontSize:11, cursor:"pointer", color:"#475569", fontWeight:600 }}>{p.is_active?"비활성화":"활성화"}</button>
+                      <button onClick={()=>{ setEditingPopup(p); setPopupForm({title:p.title,content:p.content,is_active:p.is_active}); }} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #E2E8F0", background:"white", fontSize:11, cursor:"pointer", color:"#64748B" }}>수정</button>
+                      <button onClick={async()=>{ if(!window.confirm("삭제하시겠습니까?")) return; await supabase.from("popups").delete().eq("id",p.id); setPopups(prev=>prev.filter(x=>x.id!==p.id)); }} style={{ padding:"3px 10px", borderRadius:6, border:"1px solid #FCA5A5", background:"#FEF2F2", fontSize:11, cursor:"pointer", color:"#DC2626" }}>삭제</button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:12, color:"#64748B", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{p.content}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
