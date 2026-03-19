@@ -1762,9 +1762,12 @@ export default function App() {
           <div style={{ background:"white", borderRadius:16, width:"100%", maxWidth:900, maxHeight:"90vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }} onClick={e=>e.stopPropagation()}>
             {/* 헤더 */}
             <div style={{ padding:"18px 20px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-              <div style={{ fontSize:16, fontWeight:800, color:"#1E293B" }}>
-                📋 상품소개서
-                {catalogView && <button onClick={()=>setCatalogView(false)} style={{ marginLeft:12, fontSize:12, padding:"4px 10px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:"pointer", color:"#64748B", fontWeight:600 }}>← 상품 선택으로</button>}
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"#1E293B" }}>
+                  📋 상품소개서
+                  {catalogView && <button onClick={()=>setCatalogView(false)} style={{ marginLeft:12, fontSize:12, padding:"4px 10px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:"pointer", color:"#64748B", fontWeight:600 }}>← 상품 선택으로</button>}
+                </div>
+                {!catalogView && <div style={{ fontSize:11, color:"#94A3B8", marginTop:5, lineHeight:1.5 }}>💡 상품 DB 수집을 위해서는 원하는 브랜드의 <strong style={{ color:"#3B82F6" }}>'카페24 로그인 후 연동'</strong>을 해야 DB를 불러올 수 있습니다.</div>}
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 {catalogView && <>
