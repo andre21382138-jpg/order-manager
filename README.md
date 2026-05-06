@@ -40,15 +40,14 @@ order-manager/                          ← GitHub + Vercel 배포용
 │   └── index.js
 ├── api/
 │   ├── cafe24.js                       # 카페24 API (주문/상품/analytics)
-│   ├── smartstore.js                   # 스마트스토어 API (브랜드별 분기)
 │   └── pptx.js                         # 상품소개서 PPT 생성 (서버사이드)
+├── server/                             ← 카페24 가상서버 배포용
+│   ├── proxy.js                        # 네이버 커머스 프록시 (env-driven, PM2 관리)
+│   ├── sync.js                         # 스마트스토어 자동 동기화 (cron 호출)
+│   ├── ecosystem.config.js             # PM2 설정 (naver-proxy + naver-tunnel)
+│   ├── package.json                    # bcryptjs + dotenv
+│   └── .env.example                    # 환경변수 템플릿
 └── README.md
-
-C:\Users\Jangkwon\Desktop\order-manager\  ← 사무실 PC 로컬 실행용
-├── naver-proxy.js                      # 스마트스토어 로컬 프록시 (브랜드별 자격증명 분기)
-├── sync-smartstore-auto.js             # 스마트스토어 자동 동기화 스크립트 (팔레오+코코엘)
-├── 네이버프록시_실행.bat                # 프록시 수동 실행용
-└── 스마트스토어_자동동기화.bat          # 작업스케줄러 등록 (08:00, 16:00)
 ```
 
 ---
@@ -69,18 +68,31 @@ C:\Users\Jangkwon\Desktop\order-manager\  ← 사무실 PC 로컬 실행용
 
 ---
 
-## 환경변수 (Vercel)
+## 환경변수
 
+### Vercel (브라우저/빌드)
 ```
 CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET / CAFE24_REDIRECT_URI   # paleo 기본
 CAFE24_CLIENT_ID_AFRIMO / CAFE24_CLIENT_SECRET_AFRIMO
 CAFE24_CLIENT_ID_COCOEL / CAFE24_CLIENT_SECRET_COCOEL
-SMARTSTORE_APP_ID / SMARTSTORE_APP_SECRET                       # 팔레오
-SMARTSTORE_APP_ID_COCOEL / SMARTSTORE_APP_SECRET_COCOEL         # 코코엘
 REACT_APP_SUPABASE_URL / REACT_APP_SUPABASE_ANON_KEY
 REACT_APP_CAFE24_CLIENT_ID
 REACT_APP_CAFE24_CLIENT_ID_AFRIMO
 REACT_APP_CAFE24_CLIENT_ID_COCOEL
+REACT_APP_PROXY_URL                                             # Cloudflare Tunnel URL
+REACT_APP_PROXY_TOKEN                                           # 프록시 인증 토큰
+```
+
+### 카페24 서버 (`/root/naver-proxy/.env`)
+```
+PROXY_PORT=3002
+PROXY_HOST=127.0.0.1
+ALLOWED_ORIGINS=https://order-manager-kappa.vercel.app
+PROXY_TOKEN                                                     # 32자 hex 랜덤
+PALEO_APP_ID / PALEO_APP_SECRET
+COCOEL_APP_ID / COCOEL_APP_SECRET
+SUPABASE_URL / SUPABASE_KEY                                     # service_role 키 (RLS 우회)
+PROXY_BASE=http://127.0.0.1:3002
 ```
 
 ---
@@ -114,17 +126,15 @@ REACT_APP_CAFE24_CLIENT_ID_COCOEL
 ```
 
 ### 스마트스토어 연동 (팔레오, 코코엘)
-- 네이버 API 고정 IP 정책 → 사무실 로컬 프록시 경유
-- 로컬 프록시: `naver-proxy.js` (localhost:3001)
+- 네이버 API 고정 IP 정책 → **카페24 가상서버**(203.245.41.105) 프록시 경유
+- 외부 노출: **Cloudflare Tunnel** (인바운드 포트 오픈 불필요, HTTPS 자동)
+- 서버 프록시: `server/proxy.js` (PM2로 24/7 실행, 127.0.0.1:3002)
+- 인증: `X-Proxy-Token` 헤더 (`PROXY_TOKEN` 환경변수)
 - 브랜드별 자격증명 분기: URL 파라미터 `brandId`로 팔레오/코코엘 구분
 - 응답 구조: `data.data.contents[]` → `item.content.order` / `item.content.productOrder`
 - 취소/반품 상태코드: `CANCEL_DONE`, `RETURN_DONE`, `RETURNED`, `EXCHANGE_DONE` 등
 
-**프록시 토큰 테스트**
-- 팔레오: http://localhost:3001/token
-- 코코엘: http://localhost:3001/token?brandId=0a37b281-f262-4402-979c-e63a739bee53
-
-**자동 동기화**: Windows 작업스케줄러 매일 08:00, 16:00 (팔레오 + 코코엘)
+**자동 동기화**: 카페24 서버 cron 매일 08:00, 16:00 KST (`/root/naver-proxy/sync.js`)
 
 ### 상품소개서
 - 사이드바 📋 상품소개서 버튼으로 접근
@@ -189,9 +199,21 @@ Vercel 자동 배포 (GitHub 연동)
 
 ## 작업 방식
 - VSCode 미사용: 파일 다운로드 → 로컬 교체 → git push
-- 사무실 내 모든 PC/맥북 동시 접속 가능 (고정 IP 공유)
-- `naver-proxy.js` 창이 열려있어야 수동 동기화 가능
-- Windows 작업스케줄러가 bat 파일 자동 실행 (경로: 바탕화면/order-manager/)
+- 카페24 가상서버(203.245.41.105)가 24시간 프록시·동기화 담당 → **사무실 PC 의존 X**
+- 외근/재택에서도 정상 동작 (Cloudflare Tunnel)
+- 자동 동기화는 카페24 서버 crontab 관리 (`crontab -e`로 편집)
+
+### 카페24 서버 운영
+```bash
+ssh root@203.245.41.105
+cd /root/naver-proxy
+pm2 list                  # naver-proxy + naver-tunnel 상태
+pm2 logs naver-proxy      # 프록시 로그
+pm2 logs naver-tunnel     # Cloudflare Tunnel 로그
+node sync.js              # 수동 동기화 (이번달 1일 ~ 오늘)
+tail -f sync.log          # cron 실행 로그
+crontab -l                # 등록된 cron 확인
+```
 
 ---
 
@@ -199,6 +221,9 @@ Vercel 자동 배포 (GitHub 연동)
 
 | 날짜 | 내용 |
 |------|------|
+| 2026-05-06 | 스마트스토어 프록시를 카페24 가상서버로 이전 (사무실 PC 의존 제거) |
+| 2026-05-06 | Cloudflare Tunnel로 외부 HTTPS 노출 (인바운드 포트 오픈 불필요) |
+| 2026-05-06 | 만냥몰/센스바디/센스토이/리빙온라인1팀 코드/문서 정리 |
 | 2026-03-16 | 상품소개서 기능 추가 (카페24 상품 조회 + PPT 다운로드) |
 | 2026-03-16 | 스마트스토어 반품 상태코드 RETURNED 추가 |
 | 2026-03-16 | orders state 중복 제거 (Map 기반 dedup) |

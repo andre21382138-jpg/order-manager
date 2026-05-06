@@ -92,7 +92,9 @@ async function syncBrand(brand, startDate, endDate) {
         console.warn(`  ⚠️  ${day} 조회 실패:`, data.message || data.error);
         continue;
       }
-      const items = Array.isArray(data.data) ? data.data : [];
+      const items = Array.isArray(data.data?.contents) ? data.data.contents
+                  : Array.isArray(data.data) ? data.data
+                  : [];
       console.log(`  📅 ${day}: ${items.length}건`);
       allDetails.push(...items);
       await new Promise((r) => setTimeout(r, 300));
