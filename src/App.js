@@ -27,6 +27,8 @@ const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06
 const DEFAULT_CATEGORIES = ["상의","하의","아우터","신발","가방","액세서리","뷰티","식품","가전","기타"];
 const MALL_TYPES = ["자사몰","스마트스토어"];
 const MALL_TYPE_COLORS = { "자사몰":"#8B5CF6", "스마트스토어":"#10B981" };
+const PROXY_URL = process.env.REACT_APP_PROXY_URL || "http://localhost:3001";
+const PROXY_TOKEN = process.env.REACT_APP_PROXY_TOKEN || "";
 
 const fmt = (n) => new Intl.NumberFormat("ko-KR").format(n) + "원";
 const today = () => { const d = new Date(Date.now() + 9*60*60*1000); return d.toISOString().slice(0, 10); }; // KST 기준
@@ -73,52 +75,26 @@ function parseWorkbook(wb, brands) {
     if (idx >= 0) colIdx[field] = idx;
   }
   const get = (row, field) => { const i = colIdx[field]; return i !== undefined ? row[i] ?? "" : ""; };
-  const isFormatA = colIdx.date !== undefined && (() => {
-    for (let r = 2; r < Math.min(raw.length, 30); r++) {
-      if (!String(raw[r][colIdx.date] ?? "").trim() && String(raw[r][colIdx.product] ?? "").trim()) return true;
-    }
-    return false;
-  })();
-  if (isFormatA) {
-    let cur = null;
-    for (let r = 1; r < raw.length; r++) {
-      const row = raw[r];
-      const productVal = String(get(row,"product")).trim();
-      if (!productVal) continue;
-      const isNew = !!String(get(row,"date")).trim() || !!String(get(row,"orderNo")).trim();
-      if (isNew) {
-        if (cur) allOrders.push(cur);
-        const pay = num(get(row,"payment"));
-        cur = { date: parseDate(get(row,"date")), orderNo: String(get(row,"orderNo")).trim()||`R${r+1}`, brandId:"", mallType:"", note: String(get(row,"note")??"").trim(), totalAmount: pay, totalQty: num(get(row,"totalQty"))||num(get(row,"qty")), items: [{ id: Date.now()+Math.random(), category: String(get(row,"category")??"").trim(), productName: productVal, qty: num(get(row,"qty"))||1, amount: pay, _isFirst:true }] };
-      } else if (cur) {
-        if (cur.items.length===1 && cur.items[0]._isFirst) cur.items[0].amount = 0;
-        cur.items.push({ id: Date.now()+Math.random(), category: String(get(row,"category")??"").trim(), productName: productVal, qty: num(get(row,"qty"))||1, amount: 0 });
-      }
-    }
-    if (cur) allOrders.push(cur);
-  } else {
-    const map = new Map();
-    for (let r = 1; r < raw.length; r++) {
-      const row = raw[r];
-      const productVal = String(get(row,"product")).trim();
-      if (!productVal) continue;
-      const dateStr = parseDate(get(row,"date"));
-      const orderNoVal = String(get(row,"orderNo")).trim()||`R${r+1}`;
-      const key = `${dateStr}__${orderNoVal}`;
-      if (!map.has(key)) map.set(key, { date: dateStr, orderNo: orderNoVal, brandId:"", mallType:"", note: String(get(row,"note")??"").trim(), totalAmount: num(get(row,"payment")), totalQty:0, items:[] });
-      const o = map.get(key);
-      const iq = num(get(row,"qty"))||1;
-      o.items.push({ id: Date.now()+Math.random(), category: String(get(row,"category")??"").trim(), productName: productVal, qty: iq, amount: num(get(row,"payment")) });
-      o.totalQty += iq;
-    }
-    allOrders.push(...map.values());
+  const map = new Map();
+  for (let r = 1; r < raw.length; r++) {
+    const row = raw[r];
+    const productVal = String(get(row,"product")).trim();
+    if (!productVal) continue;
+    const dateStr = parseDate(get(row,"date"));
+    const orderNoVal = String(get(row,"orderNo")).trim()||`R${r+1}`;
+    const key = `${dateStr}__${orderNoVal}`;
+    if (!map.has(key)) map.set(key, { date: dateStr, orderNo: orderNoVal, brandId:"", mallType:"", note: String(get(row,"note")??"").trim(), totalAmount: num(get(row,"payment")), totalQty:0, items:[] });
+    const o = map.get(key);
+    const iq = num(get(row,"qty"))||1;
+    o.items.push({ id: Date.now()+Math.random(), category: String(get(row,"category")??"").trim(), productName: productVal, qty: iq, amount: num(get(row,"payment")) });
+    o.totalQty += iq;
   }
+  allOrders.push(...map.values());
   allOrders.forEach(o => {
-    o.items.forEach(it => { delete it._isFirst; });
     if (!o.totalQty) o.totalQty = o.items.reduce((s,it)=>s+it.qty,0);
-    if (!isFormatA) o.totalAmount = o.items.reduce((s,it)=>s+it.amount,0);
+    o.totalAmount = o.items.reduce((s,it)=>s+it.amount,0);
   });
-  warnings.push(isFormatA ? "✅ 센스바디 형식으로 파싱했습니다." : "✅ 일반 형식으로 파싱했습니다.");
+  warnings.push(`✅ ${allOrders.length}건 파싱 완료`);
   return { orders: allOrders, warnings };
 }
 
@@ -135,7 +111,7 @@ function BrandModal({ onClose, onSave }) {
     <div style={modalBg} onClick={onClose}>
       <div style={{...modalBox,width:400}} onClick={e=>e.stopPropagation()}>
         <h3 style={modalTitle}>🏷️ 브랜드 추가</h3>
-        <div style={{marginBottom:18}}><label style={smallLabel}>브랜드명 *</label><input autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&name.trim()&&onSave({name:name.trim(),department,mallTypes,categories:cats})} placeholder="예) 센스바디, MYSHOP" style={inp} /></div>
+        <div style={{marginBottom:18}}><label style={smallLabel}>브랜드명 *</label><input autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&name.trim()&&onSave({name:name.trim(),department,mallTypes,categories:cats})} placeholder="예) 팔레오, MYSHOP" style={inp} /></div>
         <div style={{marginBottom:18}}><label style={smallLabel}>부서</label><input value={department} onChange={e=>setDepartment(e.target.value)} placeholder="예) 브랜드사업팀" style={inp} /></div>
         <div style={{marginBottom:18}}>
           <label style={smallLabel}>쇼핑몰 유형 <span style={{color:"#94A3B8",fontWeight:400}}>(복수 선택 가능)</span></label>
@@ -181,7 +157,7 @@ function BrandEditModal({ brand, onClose, onSave }) {
 }
 
 const ADMIN_EMAIL = "ssakwon@kbh.kr";
-const DEPARTMENTS = ["브랜드사업팀","온라인사업팀","유통사업팀","이미용사업팀","리빙온라인1팀"];
+const DEPARTMENTS = ["브랜드사업팀","온라인사업팀","유통사업팀","이미용사업팀"];
 
 function LoginScreen() {
   const [mode, setMode] = useState("login");
@@ -845,7 +821,9 @@ export default function App() {
         setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}일) ${day}`);
         const from = encodeURIComponent(`${day}T00:00:00.000+09:00`);
         const to = encodeURIComponent(`${day}T23:59:59.999+09:00`);
-        const r = await fetch(`http://localhost:3001/orders?brandId=${brand.id}&from=${from}&to=${to}`);
+        const r = await fetch(`${PROXY_URL}/orders?brandId=${brand.id}&from=${from}&to=${to}`, {
+          headers: PROXY_TOKEN ? { "X-Proxy-Token": PROXY_TOKEN } : {},
+        });
         const data = await r.json();
         if (data.error) throw new Error("주문 조회 실패: " + JSON.stringify(data));
         const items = Array.isArray(data.data?.contents) ? data.data.contents :
@@ -1687,7 +1665,6 @@ export default function App() {
                   {xlsxLoading?<div style={{ fontSize:14, color:"#64748B" }}>⏳ 파일 읽는 중...</div>:<><div style={{ fontSize:36, marginBottom:10 }}>📂</div><div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:4 }}>파일을 드래그하거나 클릭해서 선택</div><div style={{ fontSize:13, color:"#94A3B8" }}>.xlsx, .xls 파일 지원</div></>}
                   <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]){ setLoadedWb(null); setSheetNames([]); setXlsxPreview(null); loadFile(e.target.files[0]); }}} />
                 </div>
-                <div style={{ background:"#EFF6FF", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#1E40AF", border:"1px solid #BFDBFE" }}>💡 센스바디 형식(다상품 주문 연속행) 자동 지원</div>
               </>)}
               {loadedWb&&sheetNames.length>1&&!xlsxPreview&&(<div><div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:14 }}>{sheetNames.length}개 시트 발견 · 가져올 시트 선택</div><div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>{sheetNames.map(name=><button key={name} onClick={()=>parseSheet(loadedWb,name)} style={{ padding:"14px 16px", borderRadius:12, border:`2px solid ${selectedSheet===name?"#3B82F6":"#E2E8F0"}`, background:selectedSheet===name?"#EFF6FF":"white", cursor:"pointer", textAlign:"left", fontWeight:700, fontSize:14, color:selectedSheet===name?"#1D4ED8":"#1E293B" }}>📋 {name}</button>)}</div></div>)}
               {xlsxPreview&&(<>

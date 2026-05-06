@@ -1,0 +1,15 @@
+{
+  "name": "order-manager-server-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "naver-proxy + smartstore sync (cafe24 server side)",
+  "main": "proxy.js",
+  "scripts": {
+    "proxy": "node proxy.js",
+    "sync": "node sync.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.5"
+  }
+}
