@@ -23,6 +23,11 @@ function todayKST() {
   return d.toISOString().slice(0, 10);
 }
 
+function yesterdayKST() {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000 - 86400000);
+  return d.toISOString().slice(0, 10);
+}
+
 function request(url, options = {}, body = null) {
   return new Promise((resolve, reject) => {
     const isHttps = url.startsWith("https");
@@ -207,7 +212,8 @@ async function syncBrand(brand, startDate, endDate) {
 
 (async () => {
   const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-  console.log(`\n🚀 스마트스토어 자동 동기화 시작 (${now})`);
+  const mode = process.argv[2] === "yesterday" ? "yesterday" : "today";
+  console.log(`\n🚀 스마트스토어 자동 동기화 시작 (${now}) [mode=${mode}]`);
   console.log("=".repeat(50));
 
   try {
@@ -218,9 +224,9 @@ async function syncBrand(brand, startDate, endDate) {
     process.exit(1);
   }
 
-  const today = todayKST();
-  const firstDayOfMonth = today.slice(0, 8) + "01";
-  console.log(`📅 동기화 기간: ${firstDayOfMonth} ~ ${today}`);
+  const endDate = mode === "yesterday" ? yesterdayKST() : todayKST();
+  const firstDayOfMonth = endDate.slice(0, 8) + "01";
+  console.log(`📅 동기화 기간: ${firstDayOfMonth} ~ ${endDate}`);
 
   const brands = await getBrands();
   const smartStoreBrands = brands.filter((b) => SMARTSTORE_BRAND_IDS.includes(b.id));
@@ -234,7 +240,7 @@ async function syncBrand(brand, startDate, endDate) {
 
   for (const brand of smartStoreBrands) {
     try {
-      await syncBrand(brand, firstDayOfMonth, today);
+      await syncBrand(brand, firstDayOfMonth, endDate);
     } catch (e) {
       console.error(`❌ [${brand.name}] 동기화 오류:`, e.message);
     }
