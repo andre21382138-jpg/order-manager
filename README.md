@@ -134,7 +134,10 @@ PROXY_BASE=http://127.0.0.1:3002
 - 응답 구조: `data.data.contents[]` → `item.content.order` / `item.content.productOrder`
 - 취소/반품 상태코드: `CANCEL_DONE`, `RETURN_DONE`, `RETURNED`, `EXCHANGE_DONE` 등
 
-**자동 동기화**: 카페24 서버 cron 매일 08:00, 16:00 KST (`/root/naver-proxy/sync.js`)
+**자동 동기화** (카페24 서버 cron):
+- **08:00 KST** — `node sync.js yesterday` (이번달 1일 ~ 전날) — 전일 데이터 마감
+- **17:00 KST** — `node sync.js today` (이번달 1일 ~ 당일) — 당일 진행 중 반영
+- 시작일은 endDate 기준 1일로 자동 계산 (월말 경계 자동 처리: 예 6/1 08:00 = 5/1 ~ 5/31 전체)
 
 ### 상품소개서
 - 사이드바 📋 상품소개서 버튼으로 접근
