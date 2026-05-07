@@ -372,6 +372,7 @@ export default function App() {
   const [naverCampaignSearch, setNaverCampaignSearch] = useState("");
   const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만
   const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
+  const [naverCampaignSort, setNaverCampaignSort] = useState({ key: "cost", dir: "desc" });
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
@@ -1726,7 +1727,26 @@ export default function App() {
                       const byType = typeFilterActive
                         ? naverCampaignStats.filter(c => naverCampaignTypeFilter.has(c.campaign_type || ""))
                         : naverCampaignStats;
-                      const filteredCampaigns = q ? byType.filter(c => (c.campaign_name||"").toLowerCase().includes(q)) : byType;
+                      const baseCampaigns = q ? byType.filter(c => (c.campaign_name||"").toLowerCase().includes(q)) : byType;
+                      const SORT_KEYS = { "광고비":"cost", "노출":"impressions", "클릭":"clicks", "CTR":"ctr", "CPC":"cpc", "전환수":"conversions", "전환매출":"conversion_value", "ROAS":"roas" };
+                      const getSortVal = (c, k) => {
+                        if (k === "ctr") return c.impressions>0 ? c.clicks/c.impressions : 0;
+                        if (k === "cpc") return c.clicks>0 ? c.cost/c.clicks : 0;
+                        if (k === "roas") return c.cost>0 ? c.conversion_value/c.cost : 0;
+                        return Number(c[k]) || 0;
+                      };
+                      const filteredCampaigns = [...baseCampaigns].sort((a,b) => {
+                        const va = getSortVal(a, naverCampaignSort.key);
+                        const vb = getSortVal(b, naverCampaignSort.key);
+                        return naverCampaignSort.dir === "desc" ? vb - va : va - vb;
+                      });
+                      const toggleSort = (label) => {
+                        const key = SORT_KEYS[label];
+                        if (!key) return;
+                        setNaverCampaignSort(prev => prev.key === key
+                          ? { key, dir: prev.dir === "desc" ? "asc" : "desc" }
+                          : { key, dir: "desc" });
+                      };
                       return (
                       <div style={{...card, marginTop:14}}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
@@ -1804,9 +1824,18 @@ export default function App() {
                                     </>
                                   )}
                                 </th>
-                                {["광고비","노출","클릭","CTR","CPC","전환수","전환매출","ROAS"].map(h=>(
-                                  <th key={h} style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#64748B" }}>{h}</th>
-                                ))}
+                                {["광고비","노출","클릭","CTR","CPC","전환수","전환매출","ROAS"].map(h=>{
+                                  const isActive = naverCampaignSort.key === SORT_KEYS[h];
+                                  const arrow = isActive ? (naverCampaignSort.dir === "desc" ? " ▼" : " ▲") : "";
+                                  return (
+                                    <th
+                                      key={h}
+                                      onClick={()=>toggleSort(h)}
+                                      title={`${h} 기준 정렬`}
+                                      style={{ padding:"8px", textAlign:"right", fontWeight:700, color: isActive?"#3B82F6":"#64748B", cursor:"pointer", userSelect:"none" }}
+                                    >{h}{arrow}</th>
+                                  );
+                                })}
                               </tr>
                             </thead>
                             <tbody>
