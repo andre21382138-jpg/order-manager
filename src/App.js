@@ -32,6 +32,7 @@ const MALL_TYPE_COLORS = {
   "브랜드스토어":"#10B981",
   "도깨비나라":"#F59E0B",
 };
+const NAVERAD_CONFIGURED_BRANDS = ["fd66b113-548b-44b0-8510-b7f49e302145"]; // 팔레오 (자격증명 등록된 브랜드만)
 const PROXY_URL = process.env.REACT_APP_PROXY_URL || "http://localhost:3001";
 const PROXY_TOKEN = process.env.REACT_APP_PROXY_TOKEN || "";
 
@@ -354,6 +355,13 @@ export default function App() {
   const [showSmartstoreModal, setShowSmartstoreModal] = useState(false);
   const [smartstoreBrand, setSmartStoreBrand] = useState(null);
   const [smartstoreMallType, setSmartStoreMallType] = useState("");
+  // 네이버 검색광고
+  const [naverAdStats, setNaverAdStats] = useState([]);
+  const [showNaverAdModal, setShowNaverAdModal] = useState(false);
+  const [naverAdSyncing, setNaverAdSyncing] = useState(false);
+  const [naverAdSyncResult, setNaverAdSyncResult] = useState("");
+  const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
+  const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
   const [smartstoreSyncResult, setSmartStoreSyncResult] = useState("");
   const [smartstoreCustomStart, setSmartStoreCustomStart] = useState("");
@@ -546,6 +554,22 @@ export default function App() {
   );
   const currentBrand = getBrand(currentBrandId);
   const isCurrentMallSupported = currentBrand?.mallTypes?.includes(currentMallType) ?? false;
+
+  useEffect(() => {
+    if (mainTab !== "광고") return;
+    if (!currentBrand) return;
+    if (currentMallType !== "자사몰") return;
+    if (!NAVERAD_CONFIGURED_BRANDS.includes(currentBrand.id)) return;
+    supabase.from("naver_ad_stats")
+      .select("*")
+      .eq("brand_id", currentBrand.id)
+      .eq("mall_type", "자사몰")
+      .eq("campaign_id", "")
+      .gte("date", filter.from)
+      .lte("date", filter.to)
+      .order("date")
+      .then(({ data }) => setNaverAdStats(data || []));
+  }, [currentBrand, currentMallType, mainTab, filter.from, filter.to]);
 
   useEffect(() => {
     if (visibleBrands.length === 0) {
@@ -965,6 +989,60 @@ export default function App() {
       setSmartStoreSyncResult(`✅ ${successCount}건 수집 완료${skipped > 0 ? ` (중복 ${skipped}건 건너뜀)` : ""}`);
     } catch(e) { setSmartStoreSyncResult("❌ 오류: " + e.message); }
     setSmartStoreSyncing(false);
+  }
+
+  // 네이버 검색광고 동기화
+  async function syncNaverAdStats(brand, startDate, endDate) {
+    setNaverAdSyncing(true); setNaverAdSyncResult("");
+    try {
+      setNaverAdSyncResult(`⏳ 수집 중... (${startDate} ~ ${endDate})`);
+      const r = await fetch(`/api/naver-ad?action=stats&brand=${brand.id}&from=${startDate}&to=${endDate}`);
+      const data = await r.json();
+      if (!r.ok || data.error) {
+        setNaverAdSyncResult(`❌ ${data.error||""} ${data.raw?JSON.stringify(data.raw).slice(0,200):""}`);
+        setNaverAdSyncing(false);
+        return;
+      }
+      const stats = data.stats || [];
+      if (stats.length === 0) {
+        setNaverAdSyncResult(`⚠️ 수집된 광고 데이터 없음 (캠페인 또는 통계 비어있음)`);
+        setNaverAdSyncing(false);
+        return;
+      }
+      setNaverAdSyncResult(`⏳ DB 저장 중... (${stats.length}일)`);
+      const rows = stats.map(s => ({
+        brand_id: brand.id,
+        mall_type: "자사몰",
+        date: s.date,
+        campaign_id: "",
+        campaign_name: null,
+        impressions: s.impressions || 0,
+        clicks: s.clicks || 0,
+        cost: s.cost || 0,
+        conversions: s.conversions || 0,
+        conversion_value: s.conversion_value || 0,
+      }));
+      const { error: upErr } = await supabase.from("naver_ad_stats").upsert(rows, { onConflict: "brand_id,date,campaign_id" });
+      if (upErr) {
+        setNaverAdSyncResult(`❌ DB 저장 오류: ${upErr.code||""} ${upErr.message||JSON.stringify(upErr)}`);
+        setNaverAdSyncing(false);
+        return;
+      }
+      // 동기화 후 화면 데이터 갱신
+      const { data: refreshed } = await supabase.from("naver_ad_stats")
+        .select("*")
+        .eq("brand_id", brand.id)
+        .eq("mall_type", "자사몰")
+        .eq("campaign_id", "")
+        .gte("date", filter.from)
+        .lte("date", filter.to)
+        .order("date");
+      setNaverAdStats(refreshed || []);
+      setNaverAdSyncResult(`✅ ${stats.length}일치 동기화 완료`);
+    } catch(e) {
+      setNaverAdSyncResult("❌ 오류: " + e.message);
+    }
+    setNaverAdSyncing(false);
   }
 
   async function saveCategoryMapping() {
@@ -1407,12 +1485,119 @@ export default function App() {
           )}
 
           {/* ── 광고 탭 ── */}
-          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="광고" && (
-            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고</div>
-              <div style={{ color:"#94A3B8", fontSize:13 }}>{currentBrand.name} {currentMallType} 광고 기능은 준비 중입니다.</div>
-            </div>
-          )}
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="광고" && (() => {
+            const isNaverAdBrand = NAVERAD_CONFIGURED_BRANDS.includes(currentBrand.id);
+            const isCafe24Mall = currentMallType === "자사몰";
+            if (!isCafe24Mall) {
+              return (
+                <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+                  <div style={{ fontSize:30, marginBottom:10 }}>📣</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:6 }}>네이버 검색광고는 자사몰 유입에만 적용됩니다</div>
+                  <div style={{ fontSize:12, color:"#94A3B8" }}>{currentMallType} 내부 광고는 별도 채널이라 미지원입니다.</div>
+                </div>
+              );
+            }
+            if (!isNaverAdBrand) {
+              return (
+                <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+                  <div style={{ fontSize:30, marginBottom:10 }}>📣</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:6 }}>{currentBrand.name} 네이버광고 자격증명 미설정</div>
+                  <div style={{ fontSize:12, color:"#94A3B8" }}>Vercel 환경변수에 {`<BRAND>`}_NAVERAD_* 등록 후 이용 가능합니다.</div>
+                </div>
+              );
+            }
+            // 자사몰 매출 매칭 (날짜별)
+            const salesByDate = {};
+            orders.filter(o => o.brandId === currentBrand.id && o.mallType === "자사몰" && !o.isCancelled)
+              .forEach(o => { salesByDate[o.date] = (salesByDate[o.date]||0) + (o.totalAmount||0); });
+            const totalCost = naverAdStats.reduce((s,r)=>s+(r.cost||0), 0);
+            const totalImpr = naverAdStats.reduce((s,r)=>s+(r.impressions||0), 0);
+            const totalClk = naverAdStats.reduce((s,r)=>s+(r.clicks||0), 0);
+            const totalConv = naverAdStats.reduce((s,r)=>s+(r.conversions||0), 0);
+            const totalConvVal = naverAdStats.reduce((s,r)=>s+(r.conversion_value||0), 0);
+            const totalSales = naverAdStats.reduce((s,r)=>s+(salesByDate[r.date]||0), 0);
+            const ctr = totalImpr>0 ? (totalClk/totalImpr*100).toFixed(2) : "0";
+            const appRoas = totalCost>0 ? (totalSales/totalCost*100).toFixed(0) : "0";
+            const naverRoas = totalCost>0 ? (totalConvVal/totalCost*100).toFixed(0) : "0";
+            return (
+              <>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>📣 네이버 검색광고 — {currentBrand.name}</div>
+                  <button onClick={()=>{ setShowNaverAdModal(true); setNaverAdSyncResult(""); }} style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:700 }}>🔍 동기화</button>
+                </div>
+                {naverAdStats.length === 0 ? (
+                  <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+                    <div style={{ fontSize:30, marginBottom:10 }}>📊</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:6 }}>아직 동기화된 광고 데이터가 없습니다</div>
+                    <div style={{ fontSize:12, color:"#94A3B8" }}>우측 상단 🔍 동기화 버튼으로 받아오세요.</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:14 }}>
+                      {[
+                        {label:"광고비", val:fmt(totalCost), icon:"💰", color:"#EF4444"},
+                        {label:"노출수", val:totalImpr.toLocaleString()+"회", icon:"👁", color:"#3B82F6"},
+                        {label:"클릭수", val:totalClk.toLocaleString()+"회", icon:"🖱", color:"#10B981"},
+                        {label:"CTR", val:ctr+"%", icon:"📊", color:"#8B5CF6"},
+                      ].map(k=>(
+                        <div key={k.label} style={{...card, padding:"14px 16px", borderLeft:`4px solid ${k.color}`, margin:0}}>
+                          <div style={{ fontSize:12, color:"#94A3B8", fontWeight:600, marginBottom:4 }}>{k.icon} {k.label}</div>
+                          <div style={{ fontSize:17, fontWeight:800, color:"#1E293B" }}>{k.val}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
+                      <h2 style={{...cardTitle, marginBottom:10}}>📈 ROAS</h2>
+                      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:12 }}>
+                        <div style={{ padding:"12px 14px", borderRadius:10, background:"#EFF6FF", border:"1px solid #BFDBFE" }}>
+                          <div style={{ fontSize:12, color:"#3B82F6", fontWeight:600, marginBottom:4 }}>앱 ROAS (자사몰 매출 ÷ 광고비)</div>
+                          <div style={{ fontSize:22, fontWeight:800, color:"#1E40AF" }}>{appRoas}%</div>
+                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>매출 {fmt(totalSales)} ÷ 광고비 {fmt(totalCost)} (광고 외 매출 포함, 참고용)</div>
+                        </div>
+                        <div style={{ padding:"12px 14px", borderRadius:10, background:"#F0FDF4", border:"1px solid #BBF7D0" }}>
+                          <div style={{ fontSize:12, color:"#10B981", fontWeight:600, marginBottom:4 }}>Naver attributed ROAS</div>
+                          <div style={{ fontSize:22, fontWeight:800, color:"#065F46" }}>{naverRoas}%</div>
+                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>전환매출 {fmt(totalConvVal)} ÷ 광고비 {fmt(totalCost)} ({totalConv}건 추적, underreporting 가능)</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={card}>
+                      <h2 style={{...cardTitle, marginBottom:14}}>📅 일별 광고 성과</h2>
+                      <div style={{ overflowY:"auto", maxHeight:520 }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                          <thead>
+                            <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
+                              {["날짜","광고비","노출","클릭","CTR","자사몰매출","앱 ROAS"].map(h=>(
+                                <th key={h} style={{ padding:"8px", textAlign:h==="날짜"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {naverAdStats.map(r=>{
+                              const sales = salesByDate[r.date] || 0;
+                              const dayCtr = r.impressions>0?(r.clicks/r.impressions*100).toFixed(2):"0";
+                              const dayRoas = r.cost>0?(sales/r.cost*100).toFixed(0):"0";
+                              return (
+                                <tr key={r.date} style={{ borderBottom:"1px solid #F1F5F9" }}>
+                                  <td style={{ padding:"8px", fontWeight:600, color:"#1E293B" }}>{r.date}</td>
+                                  <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(r.cost)}</td>
+                                  <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(r.impressions||0).toLocaleString()}</td>
+                                  <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(r.clicks||0).toLocaleString()}</td>
+                                  <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{dayCtr}%</td>
+                                  <td style={{ padding:"8px", textAlign:"right", color:"#1E293B" }}>{fmt(sales)}</td>
+                                  <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#3B82F6" }}>{dayRoas}%</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           {/* ── 주문입력 ── */}
           {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문입력" && (
@@ -2013,6 +2198,53 @@ export default function App() {
               )}
             </div>
             <button onClick={()=>setShowSmartstoreModal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 네이버 검색광고 동기화 모달 */}
+      {showNaverAdModal && currentBrand && (
+        <div style={modalBg} onClick={()=>setShowNaverAdModal(false)}>
+          <div style={{...modalBox,width:420}} onClick={e=>e.stopPropagation()}>
+            <h3 style={modalTitle}>🔍 네이버 검색광고 동기화 — {currentBrand.name}</h3>
+            <div style={{ marginBottom:14, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1px solid #BBF7D0", fontSize:13, color:"#065F46" }}>
+              ✅ 자격증명 등록됨 (Vercel env)
+            </div>
+            <div style={{ borderTop:"1px solid #F1F5F9", paddingTop:14 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#1E293B", marginBottom:10 }}>📊 광고 통계 동기화</div>
+              {(()=>{
+                const now = new Date(Date.now()+9*60*60*1000);
+                const yest = yesterday();
+                const thisMonthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-01`;
+                const lm = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+                const lastMonthStart = `${lm.getUTCFullYear()}-${String(lm.getUTCMonth()+1).padStart(2,'0')}-01`;
+                const lastMonthEnd = `${lm.getUTCFullYear()}-${String(lm.getUTCMonth()+1).padStart(2,'0')}-${String(lm.getUTCDate()).padStart(2,'0')}`;
+                const weekAgo = new Date(Date.now()+9*60*60*1000-7*86400000).toISOString().slice(0,10);
+                return (
+                  <div style={{ marginBottom:10 }}>
+                    <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                      {[{label:"최근 7일",start:weekAgo,end:yest},{label:"당월",start:thisMonthStart,end:yest},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=>(
+                        <button key={opt.label} onClick={()=>syncNaverAdStats(currentBrand,opt.start,opt.end)} disabled={naverAdSyncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:naverAdSyncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
+                          {naverAdSyncing?"⏳":opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <input type="date" value={naverAdCustomStart||""} max={yest} onChange={e=>setNaverAdCustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
+                      <input type="date" value={naverAdCustomEnd||""} max={yest} onChange={e=>setNaverAdCustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <button onClick={()=>naverAdCustomStart&&naverAdCustomEnd&&syncNaverAdStats(currentBrand,naverAdCustomStart,naverAdCustomEnd)} disabled={naverAdSyncing||!naverAdCustomStart||!naverAdCustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
+                    </div>
+                  </div>
+                );
+              })()}
+              {naverAdSyncResult && (
+                <div style={{ padding:"10px 14px", borderRadius:10, fontSize:13, background:naverAdSyncResult.startsWith("✅")?"#F0FDF4":"#FEF2F2", border:naverAdSyncResult.startsWith("✅")?"1px solid #BBF7D0":"1px solid #FCA5A5", color:naverAdSyncResult.startsWith("✅")?"#065F46":"#DC2626" }}>
+                  {naverAdSyncResult}
+                </div>
+              )}
+            </div>
+            <button onClick={()=>setShowNaverAdModal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
           </div>
         </div>
       )}
