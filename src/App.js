@@ -241,8 +241,10 @@ export default function App() {
   const [brands, setBrands] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [orders, setOrders] = useState([]);
-  const [tab, setTab] = useState("결산");
-  const [subTab, setSubTab] = useState("결산조회");
+  const [currentBrandId, setCurrentBrandId] = useState(null);
+  const [currentMallType, setCurrentMallType] = useState("자사몰");
+  const [mainTab, setMainTab] = useState("매출");
+  const [salesSubTab, setSalesSubTab] = useState("결산조회");
   const [showNoticeTab, setShowNoticeTab] = useState(false);
   const [showSecurityTab, setShowSecurityTab] = useState(false);
   const [activePopup, setActivePopup] = useState(null);
@@ -307,8 +309,6 @@ export default function App() {
 
   // ── 사이드바 상태 ──────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedBrandIds, setExpandedBrandIds] = useState(new Set());
-
   const [form, setForm] = useState({ date: today(), brandId: "", mallType: "", orderNo: "", note: "" });
   const [items, setItems] = useState([emptyItem()]);
   const [activeBrandId, setActiveBrandId] = useState("");
@@ -527,7 +527,32 @@ export default function App() {
 
   const isMobile = useIsMobile();
   const getBrand = id => brands.find(b => b.id === id);
-  const visibleBrands = canAccessAll ? (filter.dept ? brands.filter(b=>b.department===filter.dept) : brands) : brands.filter(b => userBrandIds.includes(b.id));
+  const visibleBrands = useMemo(
+    () => canAccessAll
+      ? (filter.dept ? brands.filter(b => b.department === filter.dept) : brands)
+      : brands.filter(b => userBrandIds.includes(b.id)),
+    [canAccessAll, filter.dept, brands, userBrandIds]
+  );
+  const currentBrand = getBrand(currentBrandId);
+  const isCurrentMallSupported = currentBrand?.mallTypes?.includes(currentMallType) ?? false;
+
+  useEffect(() => {
+    if (visibleBrands.length === 0) {
+      if (currentBrandId !== null) setCurrentBrandId(null);
+      return;
+    }
+    const inList = visibleBrands.some(b => b.id === currentBrandId);
+    if (!currentBrandId || !inList) {
+      setCurrentBrandId(visibleBrands[0].id);
+    }
+  }, [currentBrandId, visibleBrands]);
+
+  useEffect(() => {
+    if (!currentBrandId) return;
+    setFilter(f => ({ ...f, brandId: currentBrandId, mallType: currentMallType, category: "" }));
+    setPendingFilter(f => ({ ...f, brandId: currentBrandId, mallType: currentMallType, category: "" }));
+  }, [currentBrandId, currentMallType]);
+
   const currentCategories = useMemo(() => { const b=getBrand(form.brandId); return b?.categories?.length>0?b.categories:categories; }, [form.brandId, brands, categories]);
   const filterCategories = useMemo(() => { const b=getBrand(filter.brandId); return b?.categories?.length>0?b.categories:categories; }, [filter.brandId, brands, categories]);
   const activeBrand = getBrand(activeBrandId);
@@ -980,14 +1005,6 @@ export default function App() {
     window.location.href = window.location.href;
   }
 
-  function toggleBrandExpand(brandId) {
-    setExpandedBrandIds(prev => {
-      const next = new Set(prev);
-      if (next.has(brandId)) next.delete(brandId); else next.add(brandId);
-      return next;
-    });
-  }
-
   // ── 사이드바 ──────────────────────────────────────────────
   const SidebarContent = () => (
     <div style={{ width:sidebarOpen?230:52, minWidth:sidebarOpen?230:52, background:"#1E293B", display:"flex", flexDirection:"column", transition:"width 0.2s,min-width 0.2s", overflow:"hidden", flexShrink:0, height:"100vh", position:"sticky", top:0 }}>
@@ -997,16 +1014,6 @@ export default function App() {
         <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{ background:"none", border:"none", color:"#94A3B8", cursor:"pointer", fontSize:13, padding:"4px 6px", borderRadius:6, flexShrink:0 }}>
           {sidebarOpen ? "◀ 접기" : "▶"}
         </button>
-      </div>
-
-      {/* 탭 */}
-      <div style={{ padding:"8px 6px", borderBottom:"1px solid #334155", flexShrink:0 }}>
-        {[["원가","💰"],["광고","📣"],["결산","📊"]].map(([t,icon]) => (
-          <button key={t} onClick={()=>{setTab(t);setSubTab(t==="원가"?"원가조회":t==="광고"?"광고현황조회":"결산조회");}} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:sidebarOpen?"9px 10px":"9px 0", justifyContent:sidebarOpen?"flex-start":"center", borderRadius:8, border:"none", cursor:"pointer", background:tab===t?"#3B82F6":"transparent", color:tab===t?"white":"#94A3B8", fontSize:13, fontWeight:700, marginBottom:2, whiteSpace:"nowrap" }}>
-            <span style={{ fontSize:15, flexShrink:0 }}>{icon}</span>
-            {sidebarOpen && t}
-          </button>
-        ))}
       </div>
 
       {/* 공지사항 바로가기 */}
@@ -1033,18 +1040,30 @@ export default function App() {
       <div style={{ flex:1, overflowY:"auto", padding:"8px 6px" }}>
         {sidebarOpen && <div style={{ fontSize:10, fontWeight:700, color:"#475569", marginBottom:6, paddingLeft:4, letterSpacing:1 }}>BRANDS</div>}
         {visibleBrands.map(b => {
-          const isExp = expandedBrandIds.has(b.id);
-          const mallTypesToShow = b.mallTypes?.length>0 ? b.mallTypes : MALL_TYPES;
+          const isActive = currentBrandId === b.id;
           const hasToken = !!cafe24Tokens[b.id];
           return (
             <div key={b.id} style={{ marginBottom:2 }}>
-              {/* 브랜드 행 */}
-              <button onClick={()=>sidebarOpen&&toggleBrandExpand(b.id)} style={{ width:"100%", padding:sidebarOpen?"7px 8px":"8px 0", borderRadius:8, border:isExp&&sidebarOpen?`1px solid ${b.color}40`:"1px solid transparent", cursor:"pointer", background:isExp&&sidebarOpen?b.color+"15":"transparent", display:"flex", alignItems:"center", gap:6, justifyContent:sidebarOpen?"flex-start":"center" }}>
+              <button
+                onClick={() => sidebarOpen && setCurrentBrandId(b.id)}
+                style={{
+                  width:"100%",
+                  padding:sidebarOpen?"7px 8px":"8px 0",
+                  borderRadius:8,
+                  border:isActive&&sidebarOpen?`1px solid ${b.color}40`:"1px solid transparent",
+                  cursor:"pointer",
+                  background:isActive&&sidebarOpen?b.color+"15":"transparent",
+                  display:"flex",
+                  alignItems:"center",
+                  gap:6,
+                  justifyContent:sidebarOpen?"flex-start":"center",
+                }}
+              >
                 <div style={{ width:8, height:8, borderRadius:"50%", background:b.color, flexShrink:0 }} />
                 {sidebarOpen && (
                   <>
                     <div style={{ flex:1, textAlign:"left", overflow:"hidden" }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:isExp?b.color:"#CBD5E1", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:isActive?b.color:"#CBD5E1", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                         {b.name}
                         {hasToken && <span style={{ marginLeft:4, fontSize:9, background:"#D1FAE5", color:"#065F46", padding:"1px 4px", borderRadius:6 }}>✅</span>}
                       </div>
@@ -1053,40 +1072,10 @@ export default function App() {
                     <div style={{ display:"flex", gap:3, flexShrink:0, alignItems:"center" }}>
                       <button onClick={e=>{e.stopPropagation();setEditingBrand(b);}} style={{ background:"none", border:"none", cursor:"pointer", color:"#475569", fontSize:10, padding:"2px 3px", borderRadius:4 }} title="편집">✏️</button>
                       <button onClick={e=>{e.stopPropagation();deleteBrand(b.id);}} style={{ background:"none", border:"none", cursor:"pointer", color:"#475569", fontSize:10, padding:"2px 3px", borderRadius:4 }} title="삭제">🗑️</button>
-                      <span style={{ color:"#475569", fontSize:9 }}>{isExp?"▲":"▼"}</span>
                     </div>
                   </>
                 )}
               </button>
-
-              {/* 몰타입 서브메뉴 */}
-              {isExp && sidebarOpen && (
-                <div style={{ marginLeft:14, marginTop:2, display:"flex", flexDirection:"column", gap:2 }}>
-                  {mallTypesToShow.map(t => {
-                    const isActiveInput = activeBrandId===b.id && activeMallType===t;
-                    const isActiveFilter = filter.brandId===b.id && filter.mallType===t;
-                    const isActive = isActiveInput || isActiveFilter;
-                    return (
-                      <div key={t} style={{ display:"flex", alignItems:"center", gap:3 }}>
-                        <button onClick={()=>{
-                          if (tab==="결산") { setFilter(f=>({...f,brandId:b.id,mallType:t})); setPendingFilter(f=>({...f,brandId:b.id,mallType:t})); }
-                          else { setActiveBrandId(b.id); setActiveMallType(t); }
-                        }} style={{ flex:1, padding:"5px 7px", borderRadius:6, border:"none", cursor:"pointer", background:isActive?MALL_TYPE_COLORS[t]+"30":"transparent", color:isActive?MALL_TYPE_COLORS[t]:"#94A3B8", fontSize:11, fontWeight:600, textAlign:"left" }}>
-                          {t==="자사몰"?"🏪":"🛍️"} {t}
-                        </button>
-                        <button onClick={e=>{
-                          e.stopPropagation();
-                          if (t === "스마트스토어") {
-                            setSmartStoreBrand(b); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
-                          } else {
-                            setCafe24Brand(b); setCafe24MallId(cafe24Tokens[b.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
-                          }
-                        }} title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"} style={{ padding:"3px 5px", borderRadius:5, cursor:"pointer", fontSize:9, fontWeight:700, border:"1px solid #475569", background:"transparent", color:"#94A3B8", flexShrink:0 }}>🔗</button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           );
         })}
@@ -1175,48 +1164,140 @@ export default function App() {
         {/* 스크롤 영역 */}
         <div style={{ flex:1, overflowY:"auto", padding:isMobile?"12px 10px 80px":"20px 20px" }}>
 
-          {/* 서브탭 바 */}
-          {(()=>{
-            const subTabs = tab==="원가"?["원가입력","원가조회"]:tab==="광고"?["광고입력","광고현황조회"]:["주문입력","주문조회","결산조회"];
-            return (
-              <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                {subTabs.map(s=>(
-                  <button key={s} onClick={()=>setSubTab(s)} style={{ flex:1, padding:"8px 12px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:subTab===s?700:500, background:subTab===s?"#3B82F6":"transparent", color:subTab===s?"white":"#64748B" }}>{s}</button>
-                ))}
+          {/* 브랜드 헤더 + Mall 탭 + Main 탭 + 매출 서브탭 */}
+          {!currentBrand ? (
+            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center", color:"#94A3B8", fontSize:13 }}>
+              조회 권한이 있는 브랜드가 없습니다.
+            </div>
+          ) : (
+            <>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                <div style={{ width:14, height:14, borderRadius:"50%", background:currentBrand.color, flexShrink:0 }} />
+                <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>{currentBrand.name}</div>
+                {currentBrand.department && <div style={{ fontSize:12, color:"#94A3B8" }}>{currentBrand.department}</div>}
               </div>
-            );
-          })()}
 
-          {/* ── 원가 탭 ── */}
-          {tab==="원가" && subTab==="원가입력" && (
-            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>💰 원가 입력</div>
-              <div style={{ color:"#94A3B8", fontSize:13 }}>원가 입력 기능은 준비 중입니다.</div>
+              {/* Mall 탭 */}
+              <div style={{ display:"flex", gap:6, marginBottom:8, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                {MALL_TYPES.map(t => {
+                  const active = currentMallType === t;
+                  return (
+                    <div key={t} style={{ flex:1, display:"flex", gap:4, alignItems:"center" }}>
+                      <button
+                        onClick={() => setCurrentMallType(t)}
+                        style={{
+                          flex:1,
+                          padding:"9px 12px",
+                          borderRadius:8,
+                          border:"none",
+                          cursor:"pointer",
+                          fontSize:13,
+                          fontWeight:active?700:500,
+                          background:active?MALL_TYPE_COLORS[t]:"transparent",
+                          color:active?"white":"#64748B",
+                          textAlign:"center",
+                        }}
+                      >
+                        {t==="자사몰"?"🏪":"🛍️"} {t}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (t === "스마트스토어") {
+                            setSmartStoreBrand(currentBrand); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
+                          } else {
+                            setCafe24Brand(currentBrand); setCafe24MallId(cafe24Tokens[currentBrand.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
+                          }
+                        }}
+                        title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"}
+                        style={{ padding:"6px 8px", borderRadius:6, border:"1px solid #E2E8F0", background:"transparent", color:"#64748B", cursor:"pointer", fontSize:11, fontWeight:600 }}
+                      >🔗</button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Main 탭 */}
+              <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                {[["매출","💰"],["광고","📣"],["원가","📊"]].map(([t,icon]) => {
+                  const active = mainTab === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setMainTab(t)}
+                      style={{
+                        flex:1,
+                        padding:"8px 12px",
+                        borderRadius:8,
+                        border:"none",
+                        cursor:"pointer",
+                        fontSize:13,
+                        fontWeight:active?700:500,
+                        background:active?"#3B82F6":"transparent",
+                        color:active?"white":"#64748B",
+                      }}
+                    >
+                      {icon} {t}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 매출 서브탭 (매출 선택 시만) */}
+              {mainTab === "매출" && isCurrentMallSupported && (
+                <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                  {["주문입력","주문조회","결산조회"].map(s => {
+                    const active = salesSubTab === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => setSalesSubTab(s)}
+                        style={{
+                          flex:1,
+                          padding:"8px 12px",
+                          borderRadius:8,
+                          border:"none",
+                          cursor:"pointer",
+                          fontSize:13,
+                          fontWeight:active?700:500,
+                          background:active?"#3B82F6":"transparent",
+                          color:active?"white":"#64748B",
+                        }}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {currentBrand && !isCurrentMallSupported && (
+            <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+              <div style={{ fontSize:36, marginBottom:10 }}>{currentMallType==="자사몰"?"🏪":"🛍️"}</div>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:6 }}>{currentBrand.name} {currentMallType}는 아직 연동되지 않았습니다.</div>
+              <div style={{ fontSize:13, color:"#94A3B8" }}>(준비 중)</div>
             </div>
           )}
-          {tab==="원가" && subTab==="원가조회" && (
+
+          {/* ── 원가 탭 ── */}
+          {currentBrand && isCurrentMallSupported && mainTab==="원가" && (
             <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>💰 원가 조회</div>
-              <div style={{ color:"#94A3B8", fontSize:13 }}>원가 조회 기능은 준비 중입니다.</div>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📊 원가</div>
+              <div style={{ color:"#94A3B8", fontSize:13 }}>{currentBrand.name} {currentMallType} 원가 기능은 준비 중입니다.</div>
             </div>
           )}
 
           {/* ── 광고 탭 ── */}
-          {tab==="광고" && subTab==="광고입력" && (
+          {currentBrand && isCurrentMallSupported && mainTab==="광고" && (
             <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고 입력</div>
-              <div style={{ color:"#94A3B8", fontSize:13 }}>광고 입력 기능은 준비 중입니다.</div>
-            </div>
-          )}
-          {tab==="광고" && subTab==="광고현황조회" && (
-            <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고 현황 조회</div>
-              <div style={{ color:"#94A3B8", fontSize:13 }}>광고 현황 조회 기능은 준비 중입니다.</div>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고</div>
+              <div style={{ color:"#94A3B8", fontSize:13 }}>{currentBrand.name} {currentMallType} 광고 기능은 준비 중입니다.</div>
             </div>
           )}
 
           {/* ── 주문입력 ── */}
-          {tab==="결산" && subTab==="주문입력" && (
+          {currentBrand && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문입력" && (
             <div>
               <div style={{ background:"white", borderRadius:14, padding:"16px 20px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
                 <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>STEP 1 · 브랜드 선택</div>
@@ -1302,7 +1383,7 @@ export default function App() {
           )}
 
           {/* ── 조회/결산 공통 필터 ── */}
-          {tab==="결산" && (subTab==="주문조회"||subTab==="결산조회") && (
+          {currentBrand && isCurrentMallSupported && mainTab==="매출" && (salesSubTab==="주문조회"||salesSubTab==="결산조회") && (
             <>
               {canAccessAll && (() => {
                 const depts = [...new Set(brands.map(b=>b.department).filter(Boolean))];
@@ -1310,37 +1391,12 @@ export default function App() {
                   <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
                     <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏢 부서 선택</div>
                     <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                      <button onClick={()=>setFilter(f=>({...f,dept:"",brandId:""}))} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.dept===""?"#1E293B10":"white", color:filter.dept===""?"#1E293B":"#64748B" }}>전체</button>
-                      {depts.map(d=><button key={d} onClick={()=>setFilter(f=>({...f,dept:d,brandId:""}))} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===d?"2px solid #3B82F6":"2px solid #E2E8F0", background:filter.dept===d?"#EFF6FF":"white", color:filter.dept===d?"#3B82F6":"#64748B" }}>{d}</button>)}
+                      <button onClick={()=>{setFilter(f=>({...f,dept:""}));setPendingFilter(f=>({...f,dept:""}));}} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.dept===""?"#1E293B10":"white", color:filter.dept===""?"#1E293B":"#64748B" }}>전체</button>
+                      {depts.map(d=><button key={d} onClick={()=>{setFilter(f=>({...f,dept:d}));setPendingFilter(f=>({...f,dept:d}));}} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===d?"2px solid #3B82F6":"2px solid #E2E8F0", background:filter.dept===d?"#EFF6FF":"white", color:filter.dept===d?"#3B82F6":"#64748B" }}>{d}</button>)}
                     </div>
                   </div>
                 ) : null;
               })()}
-
-              <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏷️ 브랜드 선택</div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  <button onClick={()=>{setFilter(f=>({...f,brandId:"",mallType:"",category:""}));setPendingFilter(f=>({...f,brandId:"",mallType:"",category:""}));}} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:filter.brandId===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.brandId===""?"#1E293B10":"white" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:"#64748B" }} /><span style={{ fontSize:14, fontWeight:700, color:filter.brandId===""?"#1E293B":"#64748B" }}>전체</span></div>
-                    <span style={{ fontSize:11, color:"#94A3B8" }}>{orders.filter(o=>o.date>=filter.from&&o.date<=filter.to).length}건</span>
-                  </button>
-                  {visibleBrands.map(b => { const isActive=pendingFilter.brandId===b.id; const cnt=orders.filter(o=>o.brandId===b.id&&o.date>=filter.from&&o.date<=filter.to).length; return (
-                    <button key={b.id} onClick={()=>setPendingFilter(f=>({...f,brandId:isActive?"":b.id,mallType:"",category:""}))} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"10px 16px", borderRadius:12, cursor:"pointer", minWidth:80, border:isActive?`2px solid ${b.color}`:"2px solid #E2E8F0", background:isActive?b.color+"12":"white" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><div style={{ width:8, height:8, borderRadius:"50%", background:b.color }} /><span style={{ fontSize:14, fontWeight:700, color:isActive?b.color:"#1E293B" }}>{b.name}</span></div>
-                      <span style={{ fontSize:11, color:"#94A3B8" }}>{cnt}건</span>
-                    </button>
-                  ); })}
-                </div>
-                {pendingFilter.brandId && (
-                  <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #F1F5F9" }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:"#94A3B8", marginBottom:8 }}>쇼핑몰 유형</div>
-                    <div style={{ display:"flex", gap:6 }}>
-                      <button onClick={()=>setPendingFilter(f=>({...f,mallType:""}))} style={{ padding:"6px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:pendingFilter.mallType===""?"2px solid #1E293B":"2px solid #E2E8F0", background:pendingFilter.mallType===""?"#1E293B":"white", color:pendingFilter.mallType===""?"white":"#64748B" }}>전체 합산</button>
-                      {MALL_TYPES.map(t => { const isActive=pendingFilter.mallType===t; const cnt=orders.filter(o=>o.brandId===pendingFilter.brandId&&o.mallType===t&&o.date>=filter.from&&o.date<=filter.to).length; return <button key={t} onClick={()=>setPendingFilter(f=>({...f,mallType:isActive?"":t}))} style={{ padding:"6px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:isActive?`2px solid ${MALL_TYPE_COLORS[t]}`:"2px solid #E2E8F0", background:isActive?MALL_TYPE_COLORS[t]:"white", color:isActive?"white":"#64748B" }}>{t==="자사몰"?"🏪":"🛍️"} {t} ({cnt}건)</button>; })}
-                    </div>
-                  </div>
-                )}
-              </div>
 
               <div style={{...card,padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
                 <Field label="시작일"><input type="date" value={pendingFilter.from} max={yesterday()} onChange={e=>setPendingFilter(f=>({...f,from:e.target.value}))} style={{...inp,width:130}} /></Field>
@@ -1373,14 +1429,14 @@ export default function App() {
             </>
           )}
 
-          {tab==="결산" && subTab==="주문조회" && (
+          {currentBrand && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문조회" && (
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>주문 목록 ({filtered.length}건)</h2>
               {filtered.length===0 ? <Empty text="해당 기간에 주문이 없습니다" /> : <OrderList orders={[...filtered].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id))} expandedOrder={expandedOrder} setExpandedOrder={setExpandedOrder} getBrand={getBrand} deleteOrder={deleteOrder} fmt={fmt} showDate />}
             </div>
           )}
 
-          {tab==="결산" && subTab==="결산조회" && (
+          {currentBrand && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="결산조회" && (
             <>
               {filter.mallType !== "스마트스토어" && <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 {(()=>{
@@ -1589,11 +1645,11 @@ export default function App() {
       {/* 모바일 하단 탭바 */}
       {isMobile && (
         <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"white", borderTop:"1px solid #E2E8F0", display:"flex", zIndex:100, boxShadow:"0 -2px 10px rgba(0,0,0,0.08)" }}>
-          {[["원가","💰"],["광고","📣"],["결산","📊"]].map(([t,icon])=>(
-            <button key={t} onClick={()=>{setTab(t);setSubTab(t==="원가"?"원가조회":t==="광고"?"광고현황조회":"결산조회");}} style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+          {[["매출","💰"],["광고","📣"],["원가","📊"]].map(([t,icon])=>(
+            <button key={t} onClick={()=>{ setMainTab(t); if(t==="매출") setSalesSubTab("결산조회"); }} style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
               <span style={{ fontSize:20 }}>{icon}</span>
-              <span style={{ fontSize:11, fontWeight:700, color:tab===t?"#3B82F6":"#94A3B8" }}>{t}</span>
-              {tab===t && <div style={{ width:20, height:2, background:"#3B82F6", borderRadius:2 }} />}
+              <span style={{ fontSize:11, fontWeight:700, color:mainTab===t?"#3B82F6":"#94A3B8" }}>{t}</span>
+              {mainTab===t && <div style={{ width:20, height:2, background:"#3B82F6", borderRadius:2 }} />}
             </button>
           ))}
         </div>
