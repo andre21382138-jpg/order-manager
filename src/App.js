@@ -808,7 +808,12 @@ export default function App() {
         setCafe24SyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
         const batch = ordersToSave.slice(i, i+BATCH);
         const { data: savedOrders, error: bErr } = await supabase.from("orders").upsert(batch.map(o => ({ brand_id:brand.id, mall_type:"자사몰", order_no:o.orderNo, date:o.orderDate, total_amount:o.totalAmount, original_amount:o.originalAmount, is_cancelled:o.isCancelled, is_new:o.isNew, total_qty:o.totalQty||1, naver_amount: o.naverAmount||0, note: o.isNaverPay ? "카페24(네이버페이)" : "카페24 자동수집" })), { onConflict:"order_no,brand_id" }).select();
-        if (bErr) { skipped += batch.length; continue; }
+        if (bErr) {
+          console.error("[cafe24 upsert error]", bErr);
+          setCafe24SyncResult(`❌ DB 저장 오류 (배치 ${Math.floor(i/BATCH)+1}): ${bErr.code||""} ${bErr.message||JSON.stringify(bErr)}`);
+          setCafe24Syncing(false);
+          return;
+        }
         const allItems = [];
         for (const saved of savedOrders) {
           const orig = batch.find(o => o.orderNo===saved.order_no);
