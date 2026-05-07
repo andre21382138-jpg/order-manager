@@ -392,7 +392,7 @@ export default function App() {
         if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
           if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
         }
-      } else { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
+      } else if (event === "SIGNED_OUT") { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
       setAuthChecked(true);
     });
     const timeout = setTimeout(() => setAuthChecked(true), 5000);
