@@ -1682,6 +1682,58 @@ export default function App() {
                       </div>
                     </div>
                     {naverCampaignStats.length > 0 && (() => {
+                      const byType = {};
+                      naverCampaignStats.forEach(c => {
+                        const key = c.campaign_type || "_etc";
+                        if (!byType[key]) byType[key] = {
+                          type_code: c.campaign_type || null,
+                          impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
+                        };
+                        const t = byType[key];
+                        t.impressions += c.impressions || 0;
+                        t.clicks += c.clicks || 0;
+                        t.cost += c.cost || 0;
+                        t.conversions += c.conversions || 0;
+                        t.conversion_value += c.conversion_value || 0;
+                      });
+                      const typeRows = Object.values(byType).sort((a,b) => b.cost - a.cost);
+                      return (
+                        <div style={{...card, marginTop:14}}>
+                          <h2 style={{...cardTitle, marginBottom:14}}>📊 광고영역별 광고 성과</h2>
+                          <div style={{ overflowY:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                              <thead>
+                                <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
+                                  {["광고영역","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
+                                    <th key={h} style={{ padding:"8px", textAlign:h==="광고영역"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {typeRows.map(t=>{
+                                  const ctr = t.impressions>0 ? (t.clicks/t.impressions*100).toFixed(2) : "0";
+                                  const roas = t.cost>0 ? (t.conversion_value/t.cost*100).toFixed(0) : "0";
+                                  const label = t.type_code ? (CAMPAIGN_TYPE_LABEL[t.type_code] || t.type_code) : "기타";
+                                  return (
+                                    <tr key={t.type_code||"_etc"} style={{ borderBottom:"1px solid #F1F5F9" }}>
+                                      <td style={{ padding:"8px", fontWeight:700, color:"#1E293B" }}>{label}</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(t.cost)}</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(t.impressions||0).toLocaleString()}</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(t.clicks||0).toLocaleString()}</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{ctr}%</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#475569" }}>{(t.conversions||0).toLocaleString()}건</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#10B981", fontWeight:600 }}>{fmt(t.conversion_value)}</td>
+                                      <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#10B981" }}>{roas}%</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {naverCampaignStats.length > 0 && (() => {
                       const q = naverCampaignSearch.trim().toLowerCase();
                       const filteredCampaigns = q ? naverCampaignStats.filter(c => (c.campaign_name||"").toLowerCase().includes(q)) : naverCampaignStats;
                       return (
@@ -1703,8 +1755,8 @@ export default function App() {
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead>
                               <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                                {["캠페인명","타입","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
-                                  <th key={h} style={{ padding:"8px", textAlign:(h==="캠페인명"||h==="타입")?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                                {["캠페인명","광고영역","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
+                                  <th key={h} style={{ padding:"8px", textAlign:(h==="캠페인명"||h==="광고영역")?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
