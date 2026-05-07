@@ -73,7 +73,7 @@ module.exports = async (req, res) => {
       // 2. 일별 stats fetch
       const fields = JSON.stringify(["impCnt","clkCnt","salesAmt","ccnt","convAmt"]);
       const timeRange = JSON.stringify({ since: from, until: to });
-      const idsParam = JSON.stringify(ids);
+      const idsParam = ids.join(",");  // Naver Search Ad는 comma-separated 형식 요구 (JSON array 아님)
       const statsUri = `/stats?ids=${encodeURIComponent(idsParam)}&fields=${encodeURIComponent(fields)}&timeRange=${encodeURIComponent(timeRange)}&datePreset=custom&breakdown=day`;
       const statsResp = await naverAdGet(statsUri, creds);
       if (!statsResp.ok) {
