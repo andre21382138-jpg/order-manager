@@ -1550,14 +1550,14 @@ export default function App() {
                       <h2 style={{...cardTitle, marginBottom:10}}>📈 ROAS</h2>
                       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:12 }}>
                         <div style={{ padding:"12px 14px", borderRadius:10, background:"#EFF6FF", border:"1px solid #BFDBFE" }}>
-                          <div style={{ fontSize:12, color:"#3B82F6", fontWeight:600, marginBottom:4 }}>앱 ROAS (자사몰 매출 ÷ 광고비)</div>
+                          <div style={{ fontSize:12, color:"#3B82F6", fontWeight:600, marginBottom:4 }}>자사몰 전체매출 ROAS</div>
                           <div style={{ fontSize:22, fontWeight:800, color:"#1E40AF" }}>{appRoas}%</div>
-                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>매출 {fmt(totalSales)} ÷ 광고비 {fmt(totalCost)} (광고 외 매출 포함, 참고용)</div>
+                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>자사몰 매출 {fmt(totalSales)} ÷ 광고비 {fmt(totalCost)} (광고 외 매출 포함, 참고용)</div>
                         </div>
                         <div style={{ padding:"12px 14px", borderRadius:10, background:"#F0FDF4", border:"1px solid #BBF7D0" }}>
-                          <div style={{ fontSize:12, color:"#10B981", fontWeight:600, marginBottom:4 }}>Naver attributed ROAS</div>
+                          <div style={{ fontSize:12, color:"#10B981", fontWeight:600, marginBottom:4 }}>광고로 발생한 매출 ROAS</div>
                           <div style={{ fontSize:22, fontWeight:800, color:"#065F46" }}>{naverRoas}%</div>
-                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>전환매출 {fmt(totalConvVal)} ÷ 광고비 {fmt(totalCost)} ({totalConv}건 추적, underreporting 가능)</div>
+                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>광고 전환매출 {fmt(totalConvVal)} ÷ 광고비 {fmt(totalCost)} ({totalConv}건 추적, 추적 누락분 제외)</div>
                         </div>
                       </div>
                     </div>
@@ -1567,7 +1567,7 @@ export default function App() {
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                           <thead>
                             <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                              {["날짜","광고비","노출","클릭","CTR","자사몰매출","앱 ROAS"].map(h=>(
+                              {["날짜","광고비","노출","클릭","CTR","자사몰매출","ROAS"].map(h=>(
                                 <th key={h} style={{ padding:"8px", textAlign:h==="날짜"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                               ))}
                             </tr>
