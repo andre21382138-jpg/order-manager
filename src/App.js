@@ -1731,17 +1731,23 @@ export default function App() {
                       <div style={{...card, marginTop:14}}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
                           <h2 style={{...cardTitle, marginBottom:0}}>📣 캠페인별 광고 성과</h2>
-                          <input
-                            type="text"
-                            placeholder="🔍 캠페인 검색..."
-                            value={naverCampaignSearch}
-                            onChange={e=>setNaverCampaignSearch(e.target.value)}
-                            style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, width:240, maxWidth:"100%" }}
-                          />
+                          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                            {typeFilterActive && (
+                              <button
+                                type="button"
+                                onClick={()=>setNaverCampaignTypeFilter(null)}
+                                style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", fontSize:12, fontWeight:700, cursor:"pointer" }}
+                              >✕ 광고영역 필터 해제</button>
+                            )}
+                            <input
+                              type="text"
+                              placeholder="🔍 캠페인 검색..."
+                              value={naverCampaignSearch}
+                              onChange={e=>setNaverCampaignSearch(e.target.value)}
+                              style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, width:240, maxWidth:"100%" }}
+                            />
+                          </div>
                         </div>
-                        {filteredCampaigns.length === 0 ? (
-                          <div style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>🔍 조건에 일치하는 캠페인 없음</div>
-                        ) : (
                         <div style={{ overflowY:"auto", maxHeight:520 }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead>
@@ -1804,7 +1810,11 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredCampaigns.map(c=>{
+                              {filteredCampaigns.length === 0 ? (
+                                <tr>
+                                  <td colSpan={10} style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>🔍 조건에 일치하는 캠페인 없음 — 위 ▼ 필터에서 다시 선택하거나 우측 상단 "필터 해제"를 눌러주세요.</td>
+                                </tr>
+                              ) : filteredCampaigns.map(c=>{
                                 const ctr = c.impressions>0 ? (c.clicks/c.impressions*100).toFixed(2) : "0";
                                 const cpc = c.clicks>0 ? Math.round(c.cost/c.clicks) : 0;
                                 const roas = c.cost>0 ? (c.conversion_value/c.cost*100).toFixed(0) : "0";
@@ -1826,7 +1836,6 @@ export default function App() {
                             </tbody>
                           </table>
                         </div>
-                        )}
                       </div>
                       );
                     })()}
