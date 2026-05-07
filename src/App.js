@@ -1603,12 +1603,7 @@ export default function App() {
             const totalCost = naverAdStats.reduce((s,r)=>s+(r.cost||0), 0);
             const totalImpr = naverAdStats.reduce((s,r)=>s+(r.impressions||0), 0);
             const totalClk = naverAdStats.reduce((s,r)=>s+(r.clicks||0), 0);
-            const totalConv = naverAdStats.reduce((s,r)=>s+(r.conversions||0), 0);
-            const totalConvVal = naverAdStats.reduce((s,r)=>s+(r.conversion_value||0), 0);
-            const totalSales = naverAdStats.reduce((s,r)=>s+(salesByDate[r.date]||0), 0);
             const ctr = totalImpr>0 ? (totalClk/totalImpr*100).toFixed(2) : "0";
-            const appRoas = totalCost>0 ? (totalSales/totalCost*100).toFixed(0) : "0";
-            const naverRoas = totalCost>0 ? (totalConvVal/totalCost*100).toFixed(0) : "0";
             return (
               <>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
@@ -1635,21 +1630,6 @@ export default function App() {
                           <div style={{ fontSize:17, fontWeight:800, color:"#1E293B" }}>{k.val}</div>
                         </div>
                       ))}
-                    </div>
-                    <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
-                      <h2 style={{...cardTitle, marginBottom:10}}>📈 ROAS</h2>
-                      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:12 }}>
-                        <div style={{ padding:"12px 14px", borderRadius:10, background:"#EFF6FF", border:"1px solid #BFDBFE" }}>
-                          <div style={{ fontSize:12, color:"#3B82F6", fontWeight:600, marginBottom:4 }}>자사몰 전체매출 ROAS</div>
-                          <div style={{ fontSize:22, fontWeight:800, color:"#1E40AF" }}>{appRoas}%</div>
-                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>자사몰 매출 {fmt(totalSales)} ÷ 광고비 {fmt(totalCost)} (광고 외 매출 포함, 참고용)</div>
-                        </div>
-                        <div style={{ padding:"12px 14px", borderRadius:10, background:"#F0FDF4", border:"1px solid #BBF7D0" }}>
-                          <div style={{ fontSize:12, color:"#10B981", fontWeight:600, marginBottom:4 }}>광고로 발생한 매출 ROAS</div>
-                          <div style={{ fontSize:22, fontWeight:800, color:"#065F46" }}>{naverRoas}%</div>
-                          <div style={{ fontSize:11, color:"#64748B", marginTop:2 }}>광고 전환매출 {fmt(totalConvVal)} ÷ 광고비 {fmt(totalCost)} ({totalConv}건 추적, 추적 누락분 제외)</div>
-                        </div>
-                      </div>
                     </div>
                     <div style={card}>
                       <h2 style={{...cardTitle, marginBottom:14}}>📅 일별 광고 성과</h2>
