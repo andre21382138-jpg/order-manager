@@ -26,7 +26,12 @@ function useIsMobile() {
 const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 const DEFAULT_CATEGORIES = ["상의","하의","아우터","신발","가방","액세서리","뷰티","식품","가전","기타"];
 const MALL_TYPES = ["자사몰","스마트스토어"];
-const MALL_TYPE_COLORS = { "자사몰":"#8B5CF6", "스마트스토어":"#10B981" };
+const MALL_TYPE_COLORS = {
+  "자사몰":"#8B5CF6",
+  "스마트스토어":"#10B981",
+  "브랜드스토어":"#10B981",
+  "도깨비나라":"#F59E0B",
+};
 const PROXY_URL = process.env.REACT_APP_PROXY_URL || "http://localhost:3001";
 const PROXY_TOKEN = process.env.REACT_APP_PROXY_TOKEN || "";
 
@@ -348,6 +353,7 @@ export default function App() {
   // 스마트스토어 연동
   const [showSmartstoreModal, setShowSmartstoreModal] = useState(false);
   const [smartstoreBrand, setSmartStoreBrand] = useState(null);
+  const [smartstoreMallType, setSmartStoreMallType] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
   const [smartstoreSyncResult, setSmartStoreSyncResult] = useState("");
   const [smartstoreCustomStart, setSmartStoreCustomStart] = useState("");
@@ -831,7 +837,7 @@ export default function App() {
     setCafe24Syncing(false);
   }
   // ── 스마트스토어 주문 동기화 ───────────────────────────
-  async function syncSmartStoreOrders(brand, startDate, endDate) {
+  async function syncSmartStoreOrders(brand, startDate, endDate, mallType) {
     setSmartStoreSyncing(true); setSmartStoreSyncResult("");
     try {
       // 1일 단위 청크 분할
@@ -850,7 +856,7 @@ export default function App() {
         setSmartStoreSyncResult(`⏳ 수집 중... (${i+1}/${chunks.length}일) ${day}`);
         const from = encodeURIComponent(`${day}T00:00:00.000+09:00`);
         const to = encodeURIComponent(`${day}T23:59:59.999+09:00`);
-        const r = await fetch(`${PROXY_URL}/orders?brandId=${brand.id}&from=${from}&to=${to}`, {
+        const r = await fetch(`${PROXY_URL}/orders?brandId=${brand.id}&mallType=${encodeURIComponent(mallType)}&from=${from}&to=${to}`, {
           headers: PROXY_TOKEN ? { "X-Proxy-Token": PROXY_TOKEN } : {},
         });
         const data = await r.json();
@@ -929,7 +935,7 @@ export default function App() {
         setSmartStoreSyncResult(`⏳ DB 저장 중... (${Math.min(i+BATCH, ordersToSave.length)}/${ordersToSave.length})건`);
         const batch = ordersToSave.slice(i, i + BATCH);
         const { data: savedOrders, error: bErr } = await supabase.from("orders")
-          .upsert(batch.map(o => ({ brand_id: brand.id, mall_type: "스마트스토어", order_no: o.orderNo, date: o.orderDate, total_amount: o.totalAmount, original_amount: o.originalAmount, is_cancelled: o.isCancelled, is_new: o.isNew, total_qty: o.totalQty || 1, note: "스마트스토어 자동수집" })), { onConflict: "order_no,brand_id" })
+          .upsert(batch.map(o => ({ brand_id: brand.id, mall_type: mallType, order_no: o.orderNo, date: o.orderDate, total_amount: o.totalAmount, original_amount: o.originalAmount, is_cancelled: o.isCancelled, is_new: o.isNew, total_qty: o.totalQty || 1, note: `${mallType} 자동수집` })), { onConflict: "order_no,brand_id" })
           .select();
         if (bErr) { skipped += batch.length; continue; }
         const allItems = [];
@@ -980,7 +986,7 @@ export default function App() {
       if (o.isCancelled) { cancelCount++; cancelAmount+=o.totalAmount||0; return; }
       totalAmount+=o.totalAmount; totalQty+=o.totalQty;
       naverAmount += o.naverAmount||0;
-      if (o.mallType !== "스마트스토어") { if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; } }
+      if (o.mallType === "자사몰") { if (o.isNew) { newCount++; newAmount+=o.totalAmount; } else { reCount++; reAmount+=o.totalAmount; } }
       if(!byBrand[o.brandId]) byBrand[o.brandId]={count:0,qty:0,amount:0,byMallType:{}};
       byBrand[o.brandId].count++; byBrand[o.brandId].qty+=o.totalQty; byBrand[o.brandId].amount+=o.totalAmount;
       if(!byBrand[o.brandId].byMallType[o.mallType]) byBrand[o.brandId].byMallType[o.mallType]={count:0,amount:0};
@@ -1160,8 +1166,7 @@ export default function App() {
               <button onClick={() => setMallDrawerBrandId(null)} style={{ background:"none", border:"none", cursor:"pointer", color:"#94A3B8", fontSize:18, padding:"2px 6px", borderRadius:6 }} title="닫기">✕</button>
             </div>
             <div style={{ flex:1, padding:"16px 12px", display:"flex", flexDirection:"column", gap:8 }}>
-              {MALL_TYPES.map(t => {
-                const supported = drawerBrand.mallTypes?.includes(t) ?? false;
+              {(drawerBrand.mallTypes?.length ? drawerBrand.mallTypes : MALL_TYPES).map(t => {
                 return (
                   <div key={t} style={{ display:"flex", gap:6, alignItems:"center" }}>
                     <button
@@ -1187,18 +1192,17 @@ export default function App() {
                     >
                       <span style={{ fontSize:18 }}>{t==="자사몰"?"🏪":"🛍️"}</span>
                       <span style={{ flex:1 }}>{t}</span>
-                      {!supported && <span style={{ fontSize:10, padding:"2px 6px", borderRadius:6, background:"#F1F5F9", color:"#94A3B8", fontWeight:600 }}>미연동</span>}
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (t === "스마트스토어") {
-                          setSmartStoreBrand(drawerBrand); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
-                        } else {
+                        if (t === "자사몰") {
                           setCafe24Brand(drawerBrand); setCafe24MallId(cafe24Tokens[drawerBrand.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
+                        } else {
+                          setSmartStoreBrand(drawerBrand); setSmartStoreMallType(t); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
                         }
                       }}
-                      title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"}
+                      title={t==="자사몰"?"카페24 연동":`${t} 동기화`}
                       style={{ padding:"10px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:"transparent", color:"#64748B", cursor:"pointer", fontSize:13, fontWeight:600 }}
                     >🔗</button>
                   </div>
@@ -1221,8 +1225,7 @@ export default function App() {
                 <button onClick={() => setMallDrawerBrandId(null)} style={{ background:"none", border:"none", cursor:"pointer", color:"#94A3B8", fontSize:22, padding:"4px 8px", borderRadius:6 }} title="닫기">✕</button>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {MALL_TYPES.map(t => {
-                  const supported = drawerBrand.mallTypes?.includes(t) ?? false;
+                {(drawerBrand.mallTypes?.length ? drawerBrand.mallTypes : MALL_TYPES).map(t => {
                   return (
                     <div key={t} style={{ display:"flex", gap:6, alignItems:"center" }}>
                       <button
@@ -1248,18 +1251,17 @@ export default function App() {
                       >
                         <span style={{ fontSize:22 }}>{t==="자사몰"?"🏪":"🛍️"}</span>
                         <span style={{ flex:1 }}>{t}</span>
-                        {!supported && <span style={{ fontSize:11, padding:"2px 8px", borderRadius:6, background:"#F1F5F9", color:"#94A3B8", fontWeight:600 }}>미연동</span>}
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (t === "스마트스토어") {
-                            setSmartStoreBrand(drawerBrand); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
-                          } else {
+                          if (t === "자사몰") {
                             setCafe24Brand(drawerBrand); setCafe24MallId(cafe24Tokens[drawerBrand.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
+                          } else {
+                            setSmartStoreBrand(drawerBrand); setSmartStoreMallType(t); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
                           }
                         }}
-                        title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"}
+                        title={t==="자사몰"?"카페24 연동":`${t} 동기화`}
                         style={{ padding:"12px 14px", borderRadius:10, border:"1px solid #E2E8F0", background:"transparent", color:"#64748B", cursor:"pointer", fontSize:14, fontWeight:600 }}
                       >🔗</button>
                     </div>
@@ -1521,7 +1523,7 @@ export default function App() {
               <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 <h2 style={{...cardTitle, marginBottom:14}}>💹 매출 요약</h2>
                 <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:12 }}>
-                  {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (전체 ${stats.totalOrders+stats.cancelCount}건 중 취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:filter.mallType==="스마트스토어"?"스토어 결제금액":"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A",dim:filter.mallType==="스마트스토어"}].map(k=>(
+                  {[{label:"총 주문금액",val:fmt(stats.totalOriginal),icon:"🛒",color:"#64748B"},{label:`주문건수`,val:`${stats.totalOrders}건 (전체 ${stats.totalOrders+stats.cancelCount}건 중 취소 ${stats.cancelCount}건)`,icon:"📦",color:"#10B981"},{label:filter.mallType!=="자사몰"?"스토어 결제금액":"자사몰 결제금액",val:fmt(stats.totalAmount-stats.naverAmount+stats.cancelAmount),icon:"💳",color:"#3B82F6"},{label:"네이버페이 결제금액",val:fmt(stats.naverAmount),icon:"🟢",color:"#03C75A",dim:filter.mallType!=="자사몰"}].map(k=>(
                     <div key={k.label} style={{background:k.dim?"#F1F5F9":"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.dim?"#CBD5E1":k.color}`,minHeight:72,opacity:k.dim?0.45:1}}><div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div><div style={{fontSize:17,fontWeight:800,color:k.dim?"#94A3B8":"#1E293B"}}>{k.val}</div></div>
                   ))}
                 </div>
@@ -1543,7 +1545,7 @@ export default function App() {
 
           {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="결산조회" && (
             <>
-              {filter.mallType !== "스마트스토어" && <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
+              {filter.mallType === "자사몰" && <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 {(()=>{
                   const totalCount = stats.newCount + stats.reCount;
                   const newCountPct = totalCount>0?((stats.newCount/totalCount)*100).toFixed(1):0;
@@ -1574,7 +1576,7 @@ export default function App() {
                         <div key={k.label} style={{background:"#F8FAFC",borderRadius:10,padding:"14px 16px",borderLeft:`4px solid ${k.color}`,minHeight:72}}>
                           <div style={{fontSize:12,color:"#94A3B8",fontWeight:600,marginBottom:4}}>{k.icon} {k.label}</div>
                           <div style={{fontSize:17,fontWeight:800,color:"#1E293B"}}>{k.val}</div>
-                          {filter.mallType==="스마트스토어"?<div style={{fontSize:10,color:"#FCA5A5",marginTop:4}}>스마트스토어 미지원</div>:(!filter.mallType&&<div style={{fontSize:10,color:"#CBD5E1",marginTop:4}}>자사몰만 해당</div>)}
+                          {filter.mallType && filter.mallType!=="자사몰"?<div style={{fontSize:10,color:"#FCA5A5",marginTop:4}}>{filter.mallType} 미지원</div>:(!filter.mallType&&<div style={{fontSize:10,color:"#CBD5E1",marginTop:4}}>자사몰만 해당</div>)}
                         </div>
                       ))}
                     </div>
@@ -1928,20 +1930,24 @@ export default function App() {
       {showSmartstoreModal && smartstoreBrand && (
         <div style={modalBg} onClick={()=>setShowSmartstoreModal(false)}>
           <div style={{...modalBox,width:420}} onClick={e=>e.stopPropagation()}>
-            <h3 style={modalTitle}>🛍️ 스마트스토어 동기화 — {smartstoreBrand.name}</h3>
+            <h3 style={modalTitle}>🛍️ {smartstoreMallType||"스마트스토어"} 동기화 — {smartstoreBrand.name}</h3>
             {(() => {
-              const SMARTSTORE_CONNECTED_IDS = [
-                "fd66b113-548b-44b0-8510-b7f49e302145", // 팔레오
-                "0a37b281-f262-4402-979c-e63a739bee53", // 코코엘
+              const SMARTSTORE_CONNECTED = [
+                { brandId:"fd66b113-548b-44b0-8510-b7f49e302145", mallType:"브랜드스토어" },
+                { brandId:"fd66b113-548b-44b0-8510-b7f49e302145", mallType:"도깨비나라" },
+                { brandId:"0a37b281-f262-4402-979c-e63a739bee53", mallType:"스마트스토어" },
               ];
-              const isConnected = SMARTSTORE_CONNECTED_IDS.includes(smartstoreBrand?.id);
+              const isConnected = SMARTSTORE_CONNECTED.some(c => c.brandId === smartstoreBrand?.id && c.mallType === smartstoreMallType);
               return isConnected ? (
                 <div style={{ marginBottom:14, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1px solid #BBF7D0", fontSize:13, color:"#065F46" }}>
-                  ✅ API 키 등록됨 · {smartstoreBrand.name} 브랜드스토어
+                  ✅ API 매핑 등록됨 · {smartstoreBrand.name} {smartstoreMallType}
+                  <div style={{ fontSize:11, color:"#065F46", opacity:0.7, marginTop:2 }}>
+                    (실제 자격증명은 카페24 서버 .env에서 결정)
+                  </div>
                 </div>
               ) : (
                 <div style={{ marginBottom:14, padding:"10px 14px", background:"#FEF2F2", borderRadius:10, border:"1px solid #FCA5A5", fontSize:13, color:"#DC2626" }}>
-                  ❌ 스마트스토어 API 미연동 — 네이버 커머스 API 센터에서 앱 등록 후 연동해주세요
+                  ❌ 매핑 없음 — proxy STORE_CRED_ALIAS에 ({smartstoreBrand.name}, {smartstoreMallType}) 조합이 등록되지 않았습니다
                 </div>
               );
             })()}
@@ -1959,7 +1965,7 @@ export default function App() {
                   <div style={{ marginBottom:10 }}>
                     <div style={{ display:"flex", gap:8, marginBottom:8 }}>
                       {[{label:"최근 7일",start:weekAgo,end:yest},{label:"당월",start:thisMonthStart,end:yest},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=>(
-                        <button key={opt.label} onClick={()=>syncSmartStoreOrders(smartstoreBrand,opt.start,opt.end)} disabled={smartstoreSyncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:smartstoreSyncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
+                        <button key={opt.label} onClick={()=>syncSmartStoreOrders(smartstoreBrand,opt.start,opt.end,smartstoreMallType)} disabled={smartstoreSyncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:smartstoreSyncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
                           {smartstoreSyncing?"⏳":opt.label}
                         </button>
                       ))}
@@ -1968,7 +1974,7 @@ export default function App() {
                       <input type="date" value={smartstoreCustomStart||""} max={yest} onChange={e=>setSmartStoreCustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
                       <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
                       <input type="date" value={smartstoreCustomEnd||""} max={yest} onChange={e=>setSmartStoreCustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
-                      <button onClick={()=>smartstoreCustomStart&&smartstoreCustomEnd&&syncSmartStoreOrders(smartstoreBrand,smartstoreCustomStart,smartstoreCustomEnd)} disabled={smartstoreSyncing||!smartstoreCustomStart||!smartstoreCustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
+                      <button onClick={()=>smartstoreCustomStart&&smartstoreCustomEnd&&syncSmartStoreOrders(smartstoreBrand,smartstoreCustomStart,smartstoreCustomEnd,smartstoreMallType)} disabled={smartstoreSyncing||!smartstoreCustomStart||!smartstoreCustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
                     </div>
                   </div>
                 );

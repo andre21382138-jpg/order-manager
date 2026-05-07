@@ -89,8 +89,9 @@ PROXY_PORT=3002
 PROXY_HOST=127.0.0.1
 ALLOWED_ORIGINS=https://order-manager-kappa.vercel.app
 PROXY_TOKEN                                                     # 32자 hex 랜덤
-PALEO_APP_ID / PALEO_APP_SECRET
-COCOEL_APP_ID / COCOEL_APP_SECRET
+PALEO_APP_ID / PALEO_APP_SECRET                                # 팔레오 브랜드스토어
+COCOEL_APP_ID / COCOEL_APP_SECRET                              # 코코엘 스마트스토어
+DOKEBI_APP_ID / DOKEBI_APP_SECRET                              # 팔레오 도깨비나라 (자격증명 받은 후 추가)
 SUPABASE_URL / SUPABASE_KEY                                     # service_role 키 (RLS 우회)
 PROXY_BASE=http://127.0.0.1:3002
 ```
@@ -125,7 +126,10 @@ PROXY_BASE=http://127.0.0.1:3002
 환불금액 = cancelAmount (취소주문 합계)
 ```
 
-### 스마트스토어 연동 (팔레오, 코코엘)
+### 스마트스토어 연동 (팔레오 2 stores + 코코엘)
+
+- 팔레오: 브랜드스토어(PALEO_*) + 도깨비나라(DOKEBI_*) — 별도 Naver Commerce 앱 자격증명
+- 코코엘: 스마트스토어 (COCOEL_*)
 - 네이버 API 고정 IP 정책 → **카페24 가상서버**(203.245.41.105) 프록시 경유
 - 외부 노출: **Cloudflare Tunnel** (인바운드 포트 오픈 불필요, HTTPS 자동)
 - 서버 프록시: `server/proxy.js` (PM2로 24/7 실행, 127.0.0.1:3002)
@@ -137,6 +141,7 @@ PROXY_BASE=http://127.0.0.1:3002
 **자동 동기화** (카페24 서버 cron):
 - **08:00 KST** — `node sync.js yesterday` (이번달 1일 ~ 전날) — 전일 데이터 마감
 - **17:00 KST** — `node sync.js today` (이번달 1일 ~ 당일) — 당일 진행 중 반영
+- 각 cron은 SMARTSTORE_TARGETS의 모든 store(브랜드스토어/도깨비나라/코코엘)를 순회. 자격증명(.env) 미설정 store는 경고 후 스킵.
 - 시작일은 endDate 기준 1일로 자동 계산 (월말 경계 자동 처리: 예 6/1 08:00 = 5/1 ~ 5/31 전체)
 
 ### 상품소개서
@@ -224,6 +229,9 @@ crontab -l                # 등록된 cron 확인
 
 | 날짜 | 내용 |
 |------|------|
+| 2026-05-07 | 팔레오 스마트스토어 분리: 브랜드스토어 + 도깨비나라 (별도 자격증명 + DB mall_type 마이그레이션) |
+| 2026-05-07 | 사이드바 Mall Drawer (브랜드 클릭 시 옆에 mall 선택 패널) |
+| 2026-05-07 | 브랜드 우선 네비게이션 재구조 (사이드바 BRANDS, 본문 매출/광고/원가 탭) |
 | 2026-05-06 | 스마트스토어 프록시를 카페24 가상서버로 이전 (사무실 PC 의존 제거) |
 | 2026-05-06 | Cloudflare Tunnel로 외부 HTTPS 노출 (인바운드 포트 오픈 불필요) |
 | 2026-05-06 | 만냥몰/센스바디/센스토이/리빙온라인1팀 코드/문서 정리 |

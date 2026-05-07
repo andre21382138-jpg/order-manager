@@ -13,9 +13,10 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const CANCEL_STATUSES = ["CANCEL_DONE", "RETURN_DONE", "EXCHANGE_DONE", "CANCEL_NOSHIPPING", "CANCELED_BY_NOPAYMENT", "CANCELED"];
-const SMARTSTORE_BRAND_IDS = [
-  "fd66b113-548b-44b0-8510-b7f49e302145",
-  "0a37b281-f262-4402-979c-e63a739bee53",
+const SMARTSTORE_TARGETS = [
+  { brandId: "fd66b113-548b-44b0-8510-b7f49e302145", mallType: "브랜드스토어", credAlias: "PALEO" },
+  { brandId: "fd66b113-548b-44b0-8510-b7f49e302145", mallType: "도깨비나라",   credAlias: "DOKEBI" },
+  { brandId: "0a37b281-f262-4402-979c-e63a739bee53", mallType: "스마트스토어",  credAlias: "COCOEL" },
 ];
 
 function todayKST() {
@@ -74,8 +75,8 @@ async function getBrands() {
   return Array.isArray(data) ? data : [];
 }
 
-async function syncBrand(brand, startDate, endDate) {
-  console.log(`\n📦 [${brand.name}] ${startDate} ~ ${endDate} 동기화 시작`);
+async function syncTarget(target, brand, startDate, endDate) {
+  console.log(`\n📦 [${brand.name} ${target.mallType}] ${startDate} ~ ${endDate} 동기화 시작`);
 
   const chunks = [];
   let cursor = new Date(startDate);
@@ -92,7 +93,7 @@ async function syncBrand(brand, startDate, endDate) {
     const from = encodeURIComponent(`${day}T00:00:00.000+09:00`);
     const to = encodeURIComponent(`${day}T23:59:59.999+09:00`);
     try {
-      const data = await request(`${PROXY_BASE}/orders?brandId=${brand.id}&from=${from}&to=${to}`, { headers: proxyHeaders });
+      const data = await request(`${PROXY_BASE}/orders?brandId=${brand.id}&mallType=${encodeURIComponent(target.mallType)}&from=${from}&to=${to}`, { headers: proxyHeaders });
       if (data.code || data.error) {
         console.warn(`  ⚠️  ${day} 조회 실패:`, data.message || data.error);
         continue;
@@ -175,7 +176,7 @@ async function syncBrand(brand, startDate, endDate) {
       const isNew = o.first_order === "T";
       return {
         brand_id: brand.id,
-        mall_type: "스마트스토어",
+        mall_type: target.mallType,
         order_no: String(o.order_id),
         date: o.order_date,
         total_amount: isCancelled ? o.initial_amount : o.actual_amount,
@@ -183,7 +184,7 @@ async function syncBrand(brand, startDate, endDate) {
         is_cancelled: isCancelled,
         is_new: isNew,
         total_qty: o.items.reduce((s, it) => s + it.quantity, 0) || 1,
-        note: "스마트스토어 자동수집",
+        note: `${target.mallType} 자동수집`,
       };
     });
 
@@ -229,20 +230,28 @@ async function syncBrand(brand, startDate, endDate) {
   console.log(`📅 동기화 기간: ${firstDayOfMonth} ~ ${endDate}`);
 
   const brands = await getBrands();
-  const smartStoreBrands = brands.filter((b) => SMARTSTORE_BRAND_IDS.includes(b.id));
+  const brandsById = Object.fromEntries(brands.map(b => [b.id, b]));
 
-  if (smartStoreBrands.length === 0) {
-    console.log("ℹ️  등록된 브랜드가 없습니다.");
+  const validTargets = SMARTSTORE_TARGETS.filter(t => brandsById[t.brandId]);
+  if (validTargets.length === 0) {
+    console.log("ℹ️  대상 브랜드가 DB에 없습니다.");
     process.exit(0);
   }
 
-  console.log(`🏪 대상 브랜드: ${smartStoreBrands.map((b) => b.name).join(", ")}`);
+  console.log(`🏪 대상 stores: ${validTargets.map(t => `${brandsById[t.brandId].name} ${t.mallType}`).join(", ")}`);
 
-  for (const brand of smartStoreBrands) {
+  for (const target of validTargets) {
+    const brand = brandsById[target.brandId];
+    const credId = process.env[`${target.credAlias}_APP_ID`];
+    const credSecret = process.env[`${target.credAlias}_APP_SECRET`];
+    if (!credId || !credSecret) {
+      console.warn(`⚠️  [${brand.name} ${target.mallType}] ${target.credAlias}_APP_ID/${target.credAlias}_APP_SECRET 미설정 → 동기화 스킵`);
+      continue;
+    }
     try {
-      await syncBrand(brand, firstDayOfMonth, endDate);
+      await syncTarget(target, brand, firstDayOfMonth, endDate);
     } catch (e) {
-      console.error(`❌ [${brand.name}] 동기화 오류:`, e.message);
+      console.error(`❌ [${brand.name} ${target.mallType}] 동기화 오류:`, e.message);
     }
   }
 
