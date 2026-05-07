@@ -370,6 +370,8 @@ export default function App() {
   const [naverAdSyncResult, setNaverAdSyncResult] = useState("");
   const [naverCampaignStats, setNaverCampaignStats] = useState([]);
   const [naverCampaignSearch, setNaverCampaignSearch] = useState("");
+  const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만
+  const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
@@ -1719,7 +1721,12 @@ export default function App() {
                     })()}
                     {naverCampaignStats.length > 0 && (() => {
                       const q = naverCampaignSearch.trim().toLowerCase();
-                      const filteredCampaigns = q ? naverCampaignStats.filter(c => (c.campaign_name||"").toLowerCase().includes(q)) : naverCampaignStats;
+                      const availableTypes = Array.from(new Set(naverCampaignStats.map(c => c.campaign_type || ""))).sort();
+                      const typeFilterActive = naverCampaignTypeFilter !== null && naverCampaignTypeFilter.size !== availableTypes.length;
+                      const byType = typeFilterActive
+                        ? naverCampaignStats.filter(c => naverCampaignTypeFilter.has(c.campaign_type || ""))
+                        : naverCampaignStats;
+                      const filteredCampaigns = q ? byType.filter(c => (c.campaign_name||"").toLowerCase().includes(q)) : byType;
                       return (
                       <div style={{...card, marginTop:14}}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
@@ -1733,14 +1740,66 @@ export default function App() {
                           />
                         </div>
                         {filteredCampaigns.length === 0 ? (
-                          <div style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>🔍 검색어와 일치하는 캠페인 없음</div>
+                          <div style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>🔍 조건에 일치하는 캠페인 없음</div>
                         ) : (
                         <div style={{ overflowY:"auto", maxHeight:520 }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead>
                               <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                                {["캠페인명","광고영역","광고비","노출","클릭","CTR","CPC","전환수","전환매출","ROAS"].map(h=>(
-                                  <th key={h} style={{ padding:"8px", textAlign:(h==="캠페인명"||h==="광고영역")?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                                <th style={{ padding:"8px", textAlign:"left", fontWeight:700, color:"#64748B" }}>캠페인명</th>
+                                <th style={{ padding:"8px", textAlign:"left", fontWeight:700, color:"#64748B", position:"relative" }}>
+                                  <span>광고영역</span>
+                                  <button
+                                    type="button"
+                                    onClick={()=>setShowCampaignTypeFilter(v=>!v)}
+                                    title="광고영역 필터"
+                                    style={{
+                                      marginLeft:6, padding:"1px 6px", border:"none", cursor:"pointer",
+                                      background: typeFilterActive ? "#DBEAFE" : "transparent",
+                                      color: typeFilterActive ? "#3B82F6" : "#94A3B8",
+                                      fontSize:11, borderRadius:4, fontWeight:700, lineHeight:1.4
+                                    }}
+                                  >▼</button>
+                                  {showCampaignTypeFilter && (
+                                    <>
+                                      <div onClick={()=>setShowCampaignTypeFilter(false)} style={{ position:"fixed", inset:0, zIndex:50 }} />
+                                      <div style={{
+                                        position:"absolute", top:"100%", left:0, marginTop:4,
+                                        background:"white", borderRadius:8, boxShadow:"0 4px 20px rgba(0,0,0,0.15)",
+                                        border:"1px solid #E2E8F0", padding:10, minWidth:180, zIndex:51, fontWeight:400
+                                      }}>
+                                        <div style={{ display:"flex", gap:6, marginBottom:8, paddingBottom:8, borderBottom:"1px solid #F1F5F9" }}>
+                                          <button type="button" onClick={()=>setNaverCampaignTypeFilter(null)} style={{ flex:1, padding:"5px", fontSize:11, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#475569" }}>전체</button>
+                                          <button type="button" onClick={()=>setNaverCampaignTypeFilter(new Set())} style={{ flex:1, padding:"5px", fontSize:11, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#475569" }}>해제</button>
+                                        </div>
+                                        <div style={{ maxHeight:240, overflowY:"auto" }}>
+                                          {availableTypes.map(t => {
+                                            const checked = naverCampaignTypeFilter === null || naverCampaignTypeFilter.has(t);
+                                            const label = t ? (CAMPAIGN_TYPE_LABEL[t] || t) : "(미분류)";
+                                            return (
+                                              <label key={t || "_none"} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", fontSize:13, color:"#1E293B", cursor:"pointer" }}>
+                                                <input
+                                                  type="checkbox"
+                                                  checked={checked}
+                                                  onChange={()=>{
+                                                    setNaverCampaignTypeFilter(prev => {
+                                                      const base = prev === null ? new Set(availableTypes) : new Set(prev);
+                                                      if (base.has(t)) base.delete(t); else base.add(t);
+                                                      return base;
+                                                    });
+                                                  }}
+                                                />
+                                                <span>{label}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </th>
+                                {["광고비","노출","클릭","CTR","CPC","전환수","전환매출","ROAS"].map(h=>(
+                                  <th key={h} style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
