@@ -80,11 +80,11 @@ module.exports = async (req, res) => {
         return res.status(statsResp.status).json({ error: "stats fetch 실패", raw: statsResp.data });
       }
 
-      // 3. 응답 일별 합산 (응답 구조: data[].stats[] 또는 data[]에 직접 일별 row)
+      // 3. 응답 일별 합산 (응답 구조: data[].stats[] 또는 data[]에 직접 일별 row 또는 data[].dailyStats[])
       const byDate = {};
       const items = statsResp.data?.data || statsResp.data?.stats || (Array.isArray(statsResp.data) ? statsResp.data : []);
       items.forEach(item => {
-        const dailyArr = item.stats || (item.date ? [item] : []);
+        const dailyArr = item.dailyStats || item.stats || (item.date || item.statDate ? [item] : []);
         dailyArr.forEach(s => {
           const date = s.date || s.statDate;
           if (!date) return;
@@ -99,7 +99,25 @@ module.exports = async (req, res) => {
       });
       const result = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
 
-      return res.status(200).json({ stats: result, _debug: { campaignCount: ids.length, statsResponseShape: typeof statsResp.data, statsResponseTopKeys: statsResp.data ? Object.keys(statsResp.data) : null } });
+      // 진단용 — 응답 raw sample 포함 (운영 안정화 후 제거)
+      const rawSample = (() => {
+        try {
+          const s = JSON.stringify(statsResp.data);
+          return s.length > 500 ? s.slice(0, 500) + "..." : s;
+        } catch { return String(statsResp.data); }
+      })();
+
+      return res.status(200).json({
+        stats: result,
+        _debug: {
+          campaignCount: ids.length,
+          statsResponseShape: Array.isArray(statsResp.data) ? "array" : typeof statsResp.data,
+          statsResponseTopKeys: statsResp.data && !Array.isArray(statsResp.data) ? Object.keys(statsResp.data) : null,
+          itemsCount: items.length,
+          firstItemKeys: items[0] ? Object.keys(items[0]) : null,
+          rawSample
+        }
+      });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
