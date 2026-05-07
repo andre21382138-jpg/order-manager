@@ -1499,19 +1499,6 @@ export default function App() {
           {/* ── 조회/결산 공통 필터 ── */}
           {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && (salesSubTab==="주문조회"||salesSubTab==="결산조회") && (
             <>
-              {canAccessAll && (() => {
-                const depts = [...new Set(brands.map(b=>b.department).filter(Boolean))];
-                return depts.length>0 ? (
-                  <div style={{ background:"white", borderRadius:14, padding:"14px 18px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>🏢 부서 선택</div>
-                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                      <button onClick={()=>{setFilter(f=>({...f,dept:""}));setPendingFilter(f=>({...f,dept:""}));}} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===""?"2px solid #1E293B":"2px solid #E2E8F0", background:filter.dept===""?"#1E293B10":"white", color:filter.dept===""?"#1E293B":"#64748B" }}>전체</button>
-                      {depts.map(d=><button key={d} onClick={()=>{setFilter(f=>({...f,dept:d}));setPendingFilter(f=>({...f,dept:d}));}} style={{ padding:"7px 16px", borderRadius:20, cursor:"pointer", fontWeight:700, fontSize:13, border:filter.dept===d?"2px solid #3B82F6":"2px solid #E2E8F0", background:filter.dept===d?"#EFF6FF":"white", color:filter.dept===d?"#3B82F6":"#64748B" }}>{d}</button>)}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
               <div style={{...card,padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
                 <Field label="시작일"><input type="date" value={pendingFilter.from} max={yesterday()} onChange={e=>setPendingFilter(f=>({...f,from:e.target.value}))} style={{...inp,width:130}} /></Field>
                 <Field label="종료일"><input type="date" value={pendingFilter.to} max={yesterday()} onChange={e=>setPendingFilter(f=>({...f,to:e.target.value}))} style={{...inp,width:130}} /></Field>
