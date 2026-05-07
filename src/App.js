@@ -1028,14 +1028,20 @@ export default function App() {
         setNaverAdSyncing(false);
         return;
       }
-      // 동기화 후 화면 데이터 갱신
+      // 동기화 후 화면 데이터 갱신 — sync 범위로 filter도 갱신해서 stale filter.to로 인한 데이터 누락 방지
+      const newFrom = filter.from <= startDate ? filter.from : startDate;  // 기존 filter가 더 넓으면 유지
+      const newTo = filter.to >= endDate ? filter.to : endDate;
+      if (newFrom !== filter.from || newTo !== filter.to) {
+        setFilter(f => ({ ...f, from: newFrom, to: newTo }));
+        setPendingFilter(f => ({ ...f, from: newFrom, to: newTo }));
+      }
       const { data: refreshed } = await supabase.from("naver_ad_stats")
         .select("*")
         .eq("brand_id", brand.id)
         .eq("mall_type", "자사몰")
         .eq("campaign_id", "")
-        .gte("date", filter.from)
-        .lte("date", filter.to)
+        .gte("date", newFrom)
+        .lte("date", newTo)
         .order("date");
       setNaverAdStats(refreshed || []);
       setNaverAdSyncResult(`✅ ${stats.length}일치 동기화 완료`);
