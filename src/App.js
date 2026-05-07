@@ -1153,7 +1153,7 @@ export default function App() {
         const drawerBrand = getBrand(mallDrawerBrandId);
         if (!drawerBrand) return null;
         return (
-          <div style={{ width:240, minWidth:240, background:"white", borderRight:"1px solid #E2E8F0", display:"flex", flexDirection:"column", flexShrink:0, height:"100vh", position:"sticky", top:0, boxShadow:"2px 0 6px rgba(0,0,0,0.04)" }}>
+          <div style={{ width:240, background:"white", borderRight:"1px solid #E2E8F0", display:"flex", flexDirection:"column", height:"100vh", position:"fixed", left:sidebarOpen?230:52, top:0, zIndex:50, boxShadow:"4px 0 12px rgba(0,0,0,0.12)" }}>
             <div style={{ padding:"14px 16px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", gap:8 }}>
               <div style={{ width:10, height:10, borderRadius:"50%", background:drawerBrand.color, flexShrink:0 }} />
               <div style={{ flex:1, fontSize:14, fontWeight:800, color:"#1E293B", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{drawerBrand.name}</div>
