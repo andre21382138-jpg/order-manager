@@ -1645,16 +1645,45 @@ export default function App() {
 
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:16 }}>
                 <div style={card}>
-                  <h2 style={{...cardTitle,marginBottom:14}}>🏷️ 브랜드별 결산</h2>
-                  {visibleBrands.map(b => {
-                    const s=stats.byBrand[b.id]||{count:0,qty:0,amount:0,byMallType:{}}; const pct=stats.totalAmount>0?(s.amount/stats.totalAmount*100).toFixed(1):0;
-                    return (<div key={b.id} style={{ padding:"12px 14px", borderRadius:12, background:"#F8FAFC", border:"1px solid #F1F5F9", marginBottom:8 }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}><span style={{ fontWeight:700, color:b.color, fontSize:14 }}>{b.name}</span><span style={{ fontWeight:800, fontSize:15, color:"#1E293B" }}>{fmt(s.amount)}</span></div>
-                      <div style={{ height:5, background:"#E2E8F0", borderRadius:3, marginBottom:6 }}><div style={{ height:"100%", width:`${pct}%`, background:b.color, borderRadius:3 }} /></div>
-                      <div style={{ display:"flex", gap:6, marginBottom:4, flexWrap:"wrap" }}>{MALL_TYPES.map(t=>{ const ms=s.byMallType[t]; if(!ms)return null; return <span key={t} style={{ fontSize:11, padding:"2px 7px", borderRadius:10, background:MALL_TYPE_COLORS[t]+"15", color:MALL_TYPE_COLORS[t], fontWeight:600 }}>{t} {fmt(ms.amount)}</span>; })}</div>
-                      <div style={{ display:"flex", gap:10, fontSize:12, color:"#64748B" }}><span>주문 {s.count}건</span><span>수량 {s.qty}개</span><span style={{ color:b.color, fontWeight:700 }}>{pct}%</span></div>
-                    </div>);
-                  })}
+                  <h2 style={{...cardTitle,marginBottom:14}}>🛒 쇼핑몰별 결산</h2>
+                  {(()=>{
+                    const brandOrders = orders.filter(o => o.brandId === currentBrand.id && o.date >= filter.from && o.date <= filter.to);
+                    const byMall = {};
+                    brandOrders.forEach(o => {
+                      const mt = o.mallType || "기타";
+                      if (!byMall[mt]) byMall[mt] = { count:0, qty:0, amount:0, cancelCount:0 };
+                      if (o.isCancelled) byMall[mt].cancelCount++;
+                      else { byMall[mt].count++; byMall[mt].qty += o.totalQty; byMall[mt].amount += o.totalAmount; }
+                    });
+                    const totalAmount = Object.values(byMall).reduce((s,m)=>s+m.amount, 0);
+                    const mallTypes = currentBrand.mallTypes?.length ? currentBrand.mallTypes : Object.keys(byMall);
+                    return mallTypes.map(mt => {
+                      const s = byMall[mt] || { count:0, qty:0, amount:0, cancelCount:0 };
+                      const pct = totalAmount > 0 ? (s.amount/totalAmount*100).toFixed(1) : 0;
+                      const color = MALL_TYPE_COLORS[mt] || "#94A3B8";
+                      const isCurrent = mt === currentMallType;
+                      return (
+                        <div key={mt} style={{ padding:"12px 14px", borderRadius:12, background:"#F8FAFC", border: isCurrent ? `2px solid ${color}60` : "1px solid #F1F5F9", marginBottom:8 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                            <span style={{ fontWeight:700, color, fontSize:14 }}>
+                              {mt==="자사몰"?"🏪":"🛍️"} {mt}
+                              {isCurrent && <span style={{ marginLeft:6, fontSize:10, fontWeight:600, color:"#94A3B8" }}>(현재)</span>}
+                            </span>
+                            <span style={{ fontWeight:800, fontSize:15, color:"#1E293B" }}>{fmt(s.amount)}</span>
+                          </div>
+                          <div style={{ height:5, background:"#E2E8F0", borderRadius:3, marginBottom:6 }}>
+                            <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:3 }} />
+                          </div>
+                          <div style={{ display:"flex", gap:10, fontSize:12, color:"#64748B" }}>
+                            <span>주문 {s.count}건</span>
+                            <span>수량 {s.qty}개</span>
+                            {s.cancelCount > 0 && <span style={{ color:"#EF4444" }}>취소 {s.cancelCount}건</span>}
+                            <span style={{ color, fontWeight:700, marginLeft:"auto" }}>{pct}%</span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
                 {stats.hasCat && Object.keys(stats.byCategory).some(k=>k!=="미분류"&&k!=="") && (
                   <div style={card}>
