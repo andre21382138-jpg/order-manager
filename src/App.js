@@ -785,12 +785,14 @@ export default function App() {
         allOrders.push(...dataC.orders);
       }
       if (allOrders.length === 0) { setCafe24SyncResult(`⚠️ 수집된 주문 없음 (기간: ${startDate} ~ ${endDate})`); setCafe24Syncing(false); return; }
+      // canceled=F와 canceled=T 양쪽 호출에서 같은 order_id가 중복될 수 있음 (취소 전환 등). 후순위(취소) entry 우선.
+      const dedupedOrders = Array.from(new Map(allOrders.map(o => [o.order_id, o])).values());
       const { data: mapData } = await supabase.from("product_category_map").select("*").eq("brand_id", brand.id);
       const categoryMap = {};
       (mapData||[]).forEach(m => { categoryMap[m.product_no]=m.category; });
       let successCount = 0, skipped = 0;
       const unmappedProds = {};
-      const ordersToSave = allOrders.map(o => {
+      const ordersToSave = dedupedOrders.map(o => {
         const isCancelled = o.canceled === "T";
         const isNew = o.first_order === "T" || (!o.member_id);
         const amountSource = isCancelled ? o.initial_order_amount : o.actual_order_amount;
