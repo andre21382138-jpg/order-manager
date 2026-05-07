@@ -380,24 +380,28 @@ export default function App() {
         console.log("[DBG] loadUserRole done role=", role);
       } catch(e) { console.error("[DBG] role load error", e); }
     }
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       console.log("[DBG] getSession resolved session=", !!session, "uid=", session?.user?.id);
       setSession(session);
       if (session) {
-        await loadUserRole(session.user.id);
-        if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+        setTimeout(async () => {
+          await loadUserRole(session.user.id);
+          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+        }, 0);
       }
       setAuthChecked(true);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[DBG] onAuthStateChange event=", event, "session=", !!session, "uid=", session?.user?.id);
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
       if (session) {
-        await loadUserRole(session.user.id);
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-          if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
-        }
+        setTimeout(async () => {
+          await loadUserRole(session.user.id);
+          if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+            if (!initialLoadDone.current) { initialLoadDone.current = true; loadAll(session); }
+          }
+        }, 0);
       } else if (event === "SIGNED_OUT") { setUserRole("manager"); setUserBrandIds([]); initialLoadDone.current = false; }
       setAuthChecked(true);
     });
