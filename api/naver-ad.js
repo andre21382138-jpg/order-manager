@@ -70,53 +70,42 @@ module.exports = async (req, res) => {
         return res.status(200).json({ stats: [], _debug: { reason: "no_campaigns", campaignsRaw: campResp.data } });
       }
 
-      // 2. 일별 stats fetch
+      // 2. 일별 stats fetch — Naver /stats는 캠페인 합산만 반환하므로 날짜별로 한 번씩 호출
       const fields = JSON.stringify(["impCnt","clkCnt","salesAmt","ccnt","convAmt"]);
-      const timeRange = JSON.stringify({ since: from, until: to });
-      const idsParam = ids.join(",");  // Naver Search Ad는 comma-separated 형식 요구 (JSON array 아님)
-      const statsUri = `/stats?ids=${encodeURIComponent(idsParam)}&fields=${encodeURIComponent(fields)}&timeRange=${encodeURIComponent(timeRange)}&datePreset=custom&breakdown=day`;
-      const statsResp = await naverAdGet(statsUri, creds);
-      if (!statsResp.ok) {
-        return res.status(statsResp.status).json({ error: "stats fetch 실패", raw: statsResp.data });
+      const idsParam = ids.join(",");
+
+      const dates = [];
+      let cursor = new Date(`${from}T00:00:00Z`);
+      const endD = new Date(`${to}T00:00:00Z`);
+      while (cursor <= endD) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        cursor = new Date(cursor.getTime() + 86400000);
       }
 
-      // 3. 응답 일별 합산 (응답 구조: data[].stats[] 또는 data[]에 직접 일별 row 또는 data[].dailyStats[])
       const byDate = {};
-      const items = statsResp.data?.data || statsResp.data?.stats || (Array.isArray(statsResp.data) ? statsResp.data : []);
-      items.forEach(item => {
-        const dailyArr = item.dailyStats || item.stats || (item.date || item.statDate ? [item] : []);
-        dailyArr.forEach(s => {
-          const date = s.date || s.statDate;
-          if (!date) return;
-          const key = String(date).slice(0, 10);
-          if (!byDate[key]) byDate[key] = { date: key, impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0 };
-          byDate[key].impressions += Number(s.impCnt || 0);
-          byDate[key].clicks += Number(s.clkCnt || 0);
-          byDate[key].cost += Number(s.salesAmt || 0);
-          byDate[key].conversions += Number(s.ccnt || 0);
-          byDate[key].conversion_value += Number(s.convAmt || 0);
+      for (const day of dates) {
+        const timeRange = JSON.stringify({ since: day, until: day });
+        const statsUri = `/stats?ids=${encodeURIComponent(idsParam)}&fields=${encodeURIComponent(fields)}&timeRange=${encodeURIComponent(timeRange)}&datePreset=custom`;
+        const r = await naverAdGet(statsUri, creds);
+        if (!r.ok) {
+          return res.status(r.status).json({ error: `stats fetch 실패 (${day})`, raw: r.data });
+        }
+        const dayItems = r.data?.data || [];
+        let imp = 0, clk = 0, cost = 0, conv = 0, cv = 0;
+        dayItems.forEach(it => {
+          imp += Number(it.impCnt || 0);
+          clk += Number(it.clkCnt || 0);
+          cost += Number(it.salesAmt || 0);
+          conv += Number(it.ccnt || 0);
+          cv += Number(it.convAmt || 0);
         });
-      });
+        byDate[day] = { date: day, impressions: imp, clicks: clk, cost: cost, conversions: conv, conversion_value: cv };
+      }
       const result = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-
-      // 진단용 — 응답 raw sample 포함 (운영 안정화 후 제거)
-      const rawSample = (() => {
-        try {
-          const s = JSON.stringify(statsResp.data);
-          return s.length > 500 ? s.slice(0, 500) + "..." : s;
-        } catch { return String(statsResp.data); }
-      })();
 
       return res.status(200).json({
         stats: result,
-        _debug: {
-          campaignCount: ids.length,
-          statsResponseShape: Array.isArray(statsResp.data) ? "array" : typeof statsResp.data,
-          statsResponseTopKeys: statsResp.data && !Array.isArray(statsResp.data) ? Object.keys(statsResp.data) : null,
-          itemsCount: items.length,
-          firstItemKeys: items[0] ? Object.keys(items[0]) : null,
-          rawSample
-        }
+        _debug: { campaignCount: ids.length, dayCount: dates.length }
       });
     } catch (e) {
       return res.status(500).json({ error: e.message });
