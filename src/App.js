@@ -361,6 +361,7 @@ export default function App() {
   const [naverAdSyncing, setNaverAdSyncing] = useState(false);
   const [naverAdSyncResult, setNaverAdSyncResult] = useState("");
   const [naverCampaignStats, setNaverCampaignStats] = useState([]);
+  const [naverCampaignSearch, setNaverCampaignSearch] = useState("");
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
@@ -1669,9 +1670,24 @@ export default function App() {
                         </table>
                       </div>
                     </div>
-                    {naverCampaignStats.length > 0 && (
+                    {naverCampaignStats.length > 0 && (() => {
+                      const q = naverCampaignSearch.trim().toLowerCase();
+                      const filteredCampaigns = q ? naverCampaignStats.filter(c => (c.campaign_name||"").toLowerCase().includes(q)) : naverCampaignStats;
+                      return (
                       <div style={{...card, marginTop:14}}>
-                        <h2 style={{...cardTitle, marginBottom:14}}>📣 캠페인별 광고 성과</h2>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
+                          <h2 style={{...cardTitle, marginBottom:0}}>📣 캠페인별 광고 성과</h2>
+                          <input
+                            type="text"
+                            placeholder="🔍 캠페인 검색..."
+                            value={naverCampaignSearch}
+                            onChange={e=>setNaverCampaignSearch(e.target.value)}
+                            style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, width:240, maxWidth:"100%" }}
+                          />
+                        </div>
+                        {filteredCampaigns.length === 0 ? (
+                          <div style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>🔍 검색어와 일치하는 캠페인 없음</div>
+                        ) : (
                         <div style={{ overflowY:"auto", maxHeight:520 }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead>
@@ -1682,7 +1698,7 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody>
-                              {naverCampaignStats.map(c=>{
+                              {filteredCampaigns.map(c=>{
                                 const ctr = c.impressions>0 ? (c.clicks/c.impressions*100).toFixed(2) : "0";
                                 const roas = c.cost>0 ? (c.conversion_value/c.cost*100).toFixed(0) : "0";
                                 return (
@@ -1701,8 +1717,10 @@ export default function App() {
                             </tbody>
                           </table>
                         </div>
+                        )}
                       </div>
-                    )}
+                      );
+                    })()}
                   </>
                 )}
               </>
