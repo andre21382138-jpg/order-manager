@@ -1657,7 +1657,7 @@ export default function App() {
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                           <thead>
                             <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                              {["날짜","광고비","노출","클릭","CTR","자사몰매출"].map(h=>(
+                              {["날짜","광고비","노출","클릭","CTR","CPC","자사몰매출"].map(h=>(
                                 <th key={h} style={{ padding:"8px", textAlign:h==="날짜"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                               ))}
                             </tr>
@@ -1666,6 +1666,7 @@ export default function App() {
                             {naverAdStats.map(r=>{
                               const sales = salesByDate[r.date] || 0;
                               const dayCtr = r.impressions>0?(r.clicks/r.impressions*100).toFixed(2):"0";
+                              const dayCpc = r.clicks>0?Math.round(r.cost/r.clicks):0;
                               return (
                                 <tr key={r.date} style={{ borderBottom:"1px solid #F1F5F9" }}>
                                   <td style={{ padding:"8px", fontWeight:600, color:"#1E293B" }}>{r.date}</td>
@@ -1673,6 +1674,7 @@ export default function App() {
                                   <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(r.impressions||0).toLocaleString()}</td>
                                   <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(r.clicks||0).toLocaleString()}</td>
                                   <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{dayCtr}%</td>
+                                  <td style={{ padding:"8px", textAlign:"right", color:"#F59E0B" }}>{fmt(dayCpc)}</td>
                                   <td style={{ padding:"8px", textAlign:"right", color:"#1E293B" }}>{fmt(sales)}</td>
                                 </tr>
                               );
@@ -1704,7 +1706,7 @@ export default function App() {
                             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                               <thead>
                                 <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                                  {["광고영역","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
+                                  {["광고영역","광고비","노출","클릭","CTR","CPC","전환수","전환매출","ROAS"].map(h=>(
                                     <th key={h} style={{ padding:"8px", textAlign:h==="광고영역"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -1712,6 +1714,7 @@ export default function App() {
                               <tbody>
                                 {typeRows.map(t=>{
                                   const ctr = t.impressions>0 ? (t.clicks/t.impressions*100).toFixed(2) : "0";
+                                  const cpc = t.clicks>0 ? Math.round(t.cost/t.clicks) : 0;
                                   const roas = t.cost>0 ? (t.conversion_value/t.cost*100).toFixed(0) : "0";
                                   const label = t.type_code ? (CAMPAIGN_TYPE_LABEL[t.type_code] || t.type_code) : "기타";
                                   return (
@@ -1721,6 +1724,7 @@ export default function App() {
                                       <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(t.impressions||0).toLocaleString()}</td>
                                       <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(t.clicks||0).toLocaleString()}</td>
                                       <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{ctr}%</td>
+                                      <td style={{ padding:"8px", textAlign:"right", color:"#F59E0B" }}>{fmt(cpc)}</td>
                                       <td style={{ padding:"8px", textAlign:"right", color:"#475569" }}>{(t.conversions||0).toLocaleString()}건</td>
                                       <td style={{ padding:"8px", textAlign:"right", color:"#10B981", fontWeight:600 }}>{fmt(t.conversion_value)}</td>
                                       <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#10B981" }}>{roas}%</td>
@@ -1755,7 +1759,7 @@ export default function App() {
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead>
                               <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                                {["캠페인명","광고영역","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
+                                {["캠페인명","광고영역","광고비","노출","클릭","CTR","CPC","전환수","전환매출","ROAS"].map(h=>(
                                   <th key={h} style={{ padding:"8px", textAlign:(h==="캠페인명"||h==="광고영역")?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                                 ))}
                               </tr>
@@ -1763,6 +1767,7 @@ export default function App() {
                             <tbody>
                               {filteredCampaigns.map(c=>{
                                 const ctr = c.impressions>0 ? (c.clicks/c.impressions*100).toFixed(2) : "0";
+                                const cpc = c.clicks>0 ? Math.round(c.cost/c.clicks) : 0;
                                 const roas = c.cost>0 ? (c.conversion_value/c.cost*100).toFixed(0) : "0";
                                 return (
                                   <tr key={c.campaign_id} style={{ borderBottom:"1px solid #F1F5F9" }}>
@@ -1772,6 +1777,7 @@ export default function App() {
                                     <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(c.impressions||0).toLocaleString()}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(c.clicks||0).toLocaleString()}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{ctr}%</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#F59E0B" }}>{fmt(cpc)}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#475569" }}>{(c.conversions||0).toLocaleString()}건</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#10B981", fontWeight:600 }}>{fmt(c.conversion_value)}</td>
                                     <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#10B981" }}>{roas}%</td>
