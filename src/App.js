@@ -245,6 +245,7 @@ export default function App() {
   const [currentMallType, setCurrentMallType] = useState("자사몰");
   const [mainTab, setMainTab] = useState("매출");
   const [salesSubTab, setSalesSubTab] = useState("결산조회");
+  const [mallDrawerBrandId, setMallDrawerBrandId] = useState(null);
   const [showNoticeTab, setShowNoticeTab] = useState(false);
   const [showSecurityTab, setShowSecurityTab] = useState(false);
   const [activePopup, setActivePopup] = useState(null);
@@ -539,13 +540,16 @@ export default function App() {
   useEffect(() => {
     if (visibleBrands.length === 0) {
       if (currentBrandId !== null) setCurrentBrandId(null);
+      if (mallDrawerBrandId !== null) setMallDrawerBrandId(null);
       return;
     }
     const inList = visibleBrands.some(b => b.id === currentBrandId);
     if (!currentBrandId || !inList) {
-      setCurrentBrandId(visibleBrands[0].id);
+      const firstId = visibleBrands[0].id;
+      setCurrentBrandId(firstId);
+      setMallDrawerBrandId(firstId);
     }
-  }, [currentBrandId, visibleBrands]);
+  }, [currentBrandId, visibleBrands, mallDrawerBrandId]);
 
   useEffect(() => {
     if (!currentBrandId) return;
@@ -1045,7 +1049,11 @@ export default function App() {
           return (
             <div key={b.id} style={{ marginBottom:2 }}>
               <button
-                onClick={() => sidebarOpen && setCurrentBrandId(b.id)}
+                onClick={() => {
+                  if (!sidebarOpen) return;
+                  setCurrentBrandId(b.id);
+                  setMallDrawerBrandId(prev => prev === b.id ? null : b.id);
+                }}
                 style={{
                   width:"100%",
                   padding:sidebarOpen?"7px 8px":"8px 0",
@@ -1141,6 +1149,128 @@ export default function App() {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {!isMobile && <SidebarContent />}
 
+      {!isMobile && mallDrawerBrandId && (() => {
+        const drawerBrand = getBrand(mallDrawerBrandId);
+        if (!drawerBrand) return null;
+        return (
+          <div style={{ width:240, minWidth:240, background:"white", borderRight:"1px solid #E2E8F0", display:"flex", flexDirection:"column", flexShrink:0, height:"100vh", position:"sticky", top:0, boxShadow:"2px 0 6px rgba(0,0,0,0.04)" }}>
+            <div style={{ padding:"14px 16px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:10, height:10, borderRadius:"50%", background:drawerBrand.color, flexShrink:0 }} />
+              <div style={{ flex:1, fontSize:14, fontWeight:800, color:"#1E293B", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{drawerBrand.name}</div>
+              <button onClick={() => setMallDrawerBrandId(null)} style={{ background:"none", border:"none", cursor:"pointer", color:"#94A3B8", fontSize:18, padding:"2px 6px", borderRadius:6 }} title="닫기">✕</button>
+            </div>
+            <div style={{ flex:1, padding:"16px 12px", display:"flex", flexDirection:"column", gap:8 }}>
+              {MALL_TYPES.map(t => {
+                const supported = drawerBrand.mallTypes?.includes(t) ?? false;
+                return (
+                  <div key={t} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <button
+                      onClick={() => {
+                        setCurrentMallType(t);
+                        setMallDrawerBrandId(null);
+                      }}
+                      style={{
+                        flex:1,
+                        padding:"14px 16px",
+                        borderRadius:10,
+                        border:`2px solid ${MALL_TYPE_COLORS[t]}30`,
+                        background:`${MALL_TYPE_COLORS[t]}10`,
+                        color:MALL_TYPE_COLORS[t],
+                        cursor:"pointer",
+                        fontSize:14,
+                        fontWeight:700,
+                        textAlign:"left",
+                        display:"flex",
+                        alignItems:"center",
+                        gap:8,
+                      }}
+                    >
+                      <span style={{ fontSize:18 }}>{t==="자사몰"?"🏪":"🛍️"}</span>
+                      <span style={{ flex:1 }}>{t}</span>
+                      {!supported && <span style={{ fontSize:10, padding:"2px 6px", borderRadius:6, background:"#F1F5F9", color:"#94A3B8", fontWeight:600 }}>미연동</span>}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (t === "스마트스토어") {
+                          setSmartStoreBrand(drawerBrand); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
+                        } else {
+                          setCafe24Brand(drawerBrand); setCafe24MallId(cafe24Tokens[drawerBrand.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
+                        }
+                      }}
+                      title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"}
+                      style={{ padding:"10px 12px", borderRadius:8, border:"1px solid #E2E8F0", background:"transparent", color:"#64748B", cursor:"pointer", fontSize:13, fontWeight:600 }}
+                    >🔗</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {isMobile && mallDrawerBrandId && (() => {
+        const drawerBrand = getBrand(mallDrawerBrandId);
+        if (!drawerBrand) return null;
+        return (
+          <div onClick={() => setMallDrawerBrandId(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background:"white", width:"100%", maxWidth:520, borderTopLeftRadius:20, borderTopRightRadius:20, padding:"20px 18px 28px", maxHeight:"80vh", overflowY:"auto" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:18 }}>
+                <div style={{ width:12, height:12, borderRadius:"50%", background:drawerBrand.color, flexShrink:0 }} />
+                <div style={{ flex:1, fontSize:16, fontWeight:800, color:"#1E293B" }}>{drawerBrand.name}</div>
+                <button onClick={() => setMallDrawerBrandId(null)} style={{ background:"none", border:"none", cursor:"pointer", color:"#94A3B8", fontSize:22, padding:"4px 8px", borderRadius:6 }} title="닫기">✕</button>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {MALL_TYPES.map(t => {
+                  const supported = drawerBrand.mallTypes?.includes(t) ?? false;
+                  return (
+                    <div key={t} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <button
+                        onClick={() => {
+                          setCurrentMallType(t);
+                          setMallDrawerBrandId(null);
+                        }}
+                        style={{
+                          flex:1,
+                          padding:"16px 16px",
+                          borderRadius:12,
+                          border:`2px solid ${MALL_TYPE_COLORS[t]}30`,
+                          background:`${MALL_TYPE_COLORS[t]}10`,
+                          color:MALL_TYPE_COLORS[t],
+                          cursor:"pointer",
+                          fontSize:15,
+                          fontWeight:700,
+                          textAlign:"left",
+                          display:"flex",
+                          alignItems:"center",
+                          gap:10,
+                        }}
+                      >
+                        <span style={{ fontSize:22 }}>{t==="자사몰"?"🏪":"🛍️"}</span>
+                        <span style={{ flex:1 }}>{t}</span>
+                        {!supported && <span style={{ fontSize:11, padding:"2px 8px", borderRadius:6, background:"#F1F5F9", color:"#94A3B8", fontWeight:600 }}>미연동</span>}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (t === "스마트스토어") {
+                            setSmartStoreBrand(drawerBrand); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
+                          } else {
+                            setCafe24Brand(drawerBrand); setCafe24MallId(cafe24Tokens[drawerBrand.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
+                          }
+                        }}
+                        title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"}
+                        style={{ padding:"12px 14px", borderRadius:10, border:"1px solid #E2E8F0", background:"transparent", color:"#64748B", cursor:"pointer", fontSize:14, fontWeight:600 }}
+                      >🔗</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
         {/* 모바일 헤더 */}
         {isMobile && (
@@ -1164,115 +1294,90 @@ export default function App() {
         {/* 스크롤 영역 */}
         <div style={{ flex:1, overflowY:"auto", padding:isMobile?"12px 10px 80px":"20px 20px" }}>
 
-          {/* 브랜드 헤더 + Mall 탭 + Main 탭 + 매출 서브탭 */}
+          {/* 브랜드 헤더 + Main 탭 + 매출 서브탭 */}
           {!currentBrand ? (
             <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center", color:"#94A3B8", fontSize:13 }}>
               조회 권한이 있는 브랜드가 없습니다.
             </div>
           ) : (
             <>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
                 <div style={{ width:14, height:14, borderRadius:"50%", background:currentBrand.color, flexShrink:0 }} />
                 <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>{currentBrand.name}</div>
-                {currentBrand.department && <div style={{ fontSize:12, color:"#94A3B8" }}>{currentBrand.department}</div>}
-              </div>
-
-              {/* Mall 탭 */}
-              <div style={{ display:"flex", gap:6, marginBottom:8, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                {MALL_TYPES.map(t => {
-                  const active = currentMallType === t;
-                  return (
-                    <div key={t} style={{ flex:1, display:"flex", gap:4, alignItems:"center" }}>
-                      <button
-                        onClick={() => setCurrentMallType(t)}
-                        style={{
-                          flex:1,
-                          padding:"9px 12px",
-                          borderRadius:8,
-                          border:"none",
-                          cursor:"pointer",
-                          fontSize:13,
-                          fontWeight:active?700:500,
-                          background:active?MALL_TYPE_COLORS[t]:"transparent",
-                          color:active?"white":"#64748B",
-                          textAlign:"center",
-                        }}
-                      >
-                        {t==="자사몰"?"🏪":"🛍️"} {t}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (t === "스마트스토어") {
-                            setSmartStoreBrand(currentBrand); setSmartStoreSyncResult(""); setShowSmartstoreModal(true);
-                          } else {
-                            setCafe24Brand(currentBrand); setCafe24MallId(cafe24Tokens[currentBrand.id]?.mall_id||""); setCafe24SyncResult(""); setShowCafe24Modal(true);
-                          }
-                        }}
-                        title={t==="스마트스토어"?"스마트스토어 동기화":"카페24 연동"}
-                        style={{ padding:"6px 8px", borderRadius:6, border:"1px solid #E2E8F0", background:"transparent", color:"#64748B", cursor:"pointer", fontSize:11, fontWeight:600 }}
-                      >🔗</button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Main 탭 */}
-              <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                {[["매출","💰"],["광고","📣"],["원가","📊"]].map(([t,icon]) => {
-                  const active = mainTab === t;
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setMainTab(t)}
-                      style={{
-                        flex:1,
-                        padding:"8px 12px",
-                        borderRadius:8,
-                        border:"none",
-                        cursor:"pointer",
-                        fontSize:13,
-                        fontWeight:active?700:500,
-                        background:active?"#3B82F6":"transparent",
-                        color:active?"white":"#64748B",
-                      }}
-                    >
-                      {icon} {t}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 매출 서브탭 (매출 선택 시만) */}
-              {mainTab === "매출" && isCurrentMallSupported && (
-                <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                  {["주문입력","주문조회","결산조회"].map(s => {
-                    const active = salesSubTab === s;
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => setSalesSubTab(s)}
-                        style={{
-                          flex:1,
-                          padding:"8px 12px",
-                          borderRadius:8,
-                          border:"none",
-                          cursor:"pointer",
-                          fontSize:13,
-                          fontWeight:active?700:500,
-                          background:active?"#3B82F6":"transparent",
-                          color:active?"white":"#64748B",
-                        }}
-                      >
-                        {s}
-                      </button>
-                    );
-                  })}
+                <span style={{ fontSize:14, color:"#94A3B8" }}>·</span>
+                <div style={{ fontSize:14, fontWeight:700, color:MALL_TYPE_COLORS[currentMallType] }}>
+                  {currentMallType==="자사몰"?"🏪":"🛍️"} {currentMallType}
                 </div>
+                {currentBrand.department && <div style={{ fontSize:12, color:"#94A3B8", marginLeft:"auto" }}>{currentBrand.department}</div>}
+              </div>
+
+              {mallDrawerBrandId === currentBrand.id ? (
+                <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+                  <div style={{ fontSize:30, marginBottom:10 }}>👈</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:4 }}>왼쪽 drawer에서 쇼핑몰을 선택해주세요</div>
+                  <div style={{ fontSize:12, color:"#94A3B8" }}>자사몰 또는 스마트스토어를 선택하면 콘텐츠가 표시됩니다.</div>
+                </div>
+              ) : (
+                <>
+                  {/* Main 탭 */}
+                  <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                    {[["매출","💰"],["광고","📣"],["원가","📊"]].map(([t,icon]) => {
+                      const active = mainTab === t;
+                      return (
+                        <button
+                          key={t}
+                          onClick={() => setMainTab(t)}
+                          style={{
+                            flex:1,
+                            padding:"8px 12px",
+                            borderRadius:8,
+                            border:"none",
+                            cursor:"pointer",
+                            fontSize:13,
+                            fontWeight:active?700:500,
+                            background:active?"#3B82F6":"transparent",
+                            color:active?"white":"#64748B",
+                          }}
+                        >
+                          {icon} {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 매출 서브탭 (매출 선택 시만) */}
+                  {mainTab === "매출" && isCurrentMallSupported && (
+                    <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+                      {["주문입력","주문조회","결산조회"].map(s => {
+                        const active = salesSubTab === s;
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => setSalesSubTab(s)}
+                            style={{
+                              flex:1,
+                              padding:"8px 12px",
+                              borderRadius:8,
+                              border:"none",
+                              cursor:"pointer",
+                              fontSize:13,
+                              fontWeight:active?700:500,
+                              background:active?"#3B82F6":"transparent",
+                              color:active?"white":"#64748B",
+                            }}
+                          >
+                            {s}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
 
-          {currentBrand && !isCurrentMallSupported && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && !isCurrentMallSupported && (
             <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
               <div style={{ fontSize:36, marginBottom:10 }}>{currentMallType==="자사몰"?"🏪":"🛍️"}</div>
               <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:6 }}>{currentBrand.name} {currentMallType}는 아직 연동되지 않았습니다.</div>
@@ -1281,7 +1386,7 @@ export default function App() {
           )}
 
           {/* ── 원가 탭 ── */}
-          {currentBrand && isCurrentMallSupported && mainTab==="원가" && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="원가" && (
             <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
               <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📊 원가</div>
               <div style={{ color:"#94A3B8", fontSize:13 }}>{currentBrand.name} {currentMallType} 원가 기능은 준비 중입니다.</div>
@@ -1289,7 +1394,7 @@ export default function App() {
           )}
 
           {/* ── 광고 탭 ── */}
-          {currentBrand && isCurrentMallSupported && mainTab==="광고" && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="광고" && (
             <div style={{ background:"white", borderRadius:14, padding:24, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
               <div style={{ fontSize:15, fontWeight:700, color:"#1E293B", marginBottom:16 }}>📣 광고</div>
               <div style={{ color:"#94A3B8", fontSize:13 }}>{currentBrand.name} {currentMallType} 광고 기능은 준비 중입니다.</div>
@@ -1297,7 +1402,7 @@ export default function App() {
           )}
 
           {/* ── 주문입력 ── */}
-          {currentBrand && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문입력" && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문입력" && (
             <div>
               <div style={{ background:"white", borderRadius:14, padding:"16px 20px", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
                 <div style={{ fontSize:12, fontWeight:700, color:"#64748B", marginBottom:10 }}>STEP 1 · 브랜드 선택</div>
@@ -1383,7 +1488,7 @@ export default function App() {
           )}
 
           {/* ── 조회/결산 공통 필터 ── */}
-          {currentBrand && isCurrentMallSupported && mainTab==="매출" && (salesSubTab==="주문조회"||salesSubTab==="결산조회") && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && (salesSubTab==="주문조회"||salesSubTab==="결산조회") && (
             <>
               {canAccessAll && (() => {
                 const depts = [...new Set(brands.map(b=>b.department).filter(Boolean))];
@@ -1429,14 +1534,14 @@ export default function App() {
             </>
           )}
 
-          {currentBrand && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문조회" && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="주문조회" && (
             <div style={card}>
               <h2 style={{...cardTitle,marginBottom:14}}>주문 목록 ({filtered.length}건)</h2>
               {filtered.length===0 ? <Empty text="해당 기간에 주문이 없습니다" /> : <OrderList orders={[...filtered].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id))} expandedOrder={expandedOrder} setExpandedOrder={setExpandedOrder} getBrand={getBrand} deleteOrder={deleteOrder} fmt={fmt} showDate />}
             </div>
           )}
 
-          {currentBrand && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="결산조회" && (
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="매출" && salesSubTab==="결산조회" && (
             <>
               {filter.mallType !== "스마트스토어" && <div style={{...card, marginBottom:14, padding:"16px 18px"}}>
                 {(()=>{
