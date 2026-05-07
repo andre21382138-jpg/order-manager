@@ -59,15 +59,17 @@ module.exports = async (req, res) => {
   if (action === "stats") {
     if (!from || !to) return res.status(400).json({ error: "from, to 필요" });
     try {
-      // 1. 캠페인 목록 fetch
+      // 1. 캠페인 목록 fetch (id + name)
       const campResp = await naverAdGet("/ncc/campaigns", creds);
       if (!campResp.ok) {
         return res.status(campResp.status).json({ error: "campaigns fetch 실패", raw: campResp.data });
       }
-      const campaigns = Array.isArray(campResp.data) ? campResp.data : [];
-      const ids = campaigns.map(c => c.nccCampaignId).filter(Boolean);
+      const campaignList = Array.isArray(campResp.data) ? campResp.data : [];
+      const ids = campaignList.map(c => c.nccCampaignId).filter(Boolean);
+      const idToName = {};
+      campaignList.forEach(c => { if (c.nccCampaignId) idToName[c.nccCampaignId] = c.name || c.nccCampaignId; });
       if (ids.length === 0) {
-        return res.status(200).json({ stats: [], _debug: { reason: "no_campaigns", campaignsRaw: campResp.data } });
+        return res.status(200).json({ stats: [], campaigns: [], _debug: { reason: "no_campaigns", campaignsRaw: campResp.data } });
       }
 
       // 2. 일별 stats fetch — Naver /stats는 캠페인 합산만 반환하므로 날짜별로 한 번씩 호출
@@ -83,6 +85,7 @@ module.exports = async (req, res) => {
       }
 
       const byDate = {};
+      const campaignRows = [];  // 캠페인별 일자 row (광고비 0 제외)
       for (const day of dates) {
         const timeRange = JSON.stringify({ since: day, until: day });
         const statsUri = `/stats?ids=${encodeURIComponent(idsParam)}&fields=${encodeURIComponent(fields)}&timeRange=${encodeURIComponent(timeRange)}&datePreset=custom`;
@@ -93,11 +96,25 @@ module.exports = async (req, res) => {
         const dayItems = r.data?.data || [];
         let imp = 0, clk = 0, cost = 0, conv = 0, cv = 0;
         dayItems.forEach(it => {
-          imp += Number(it.impCnt || 0);
-          clk += Number(it.clkCnt || 0);
-          cost += Number(it.salesAmt || 0);
-          conv += Number(it.ccnt || 0);
-          cv += Number(it.convAmt || 0);
+          const itImp = Number(it.impCnt || 0);
+          const itClk = Number(it.clkCnt || 0);
+          const itCost = Number(it.salesAmt || 0);
+          const itConv = Number(it.ccnt || 0);
+          const itCv = Number(it.convAmt || 0);
+          imp += itImp; clk += itClk; cost += itCost; conv += itConv; cv += itCv;
+          // 캠페인별 row: 광고비 0 제외 (저장 노이즈 감소)
+          if (itCost > 0 && it.id) {
+            campaignRows.push({
+              date: day,
+              campaign_id: it.id,
+              campaign_name: idToName[it.id] || it.id,
+              impressions: itImp,
+              clicks: itClk,
+              cost: itCost,
+              conversions: itConv,
+              conversion_value: itCv,
+            });
+          }
         });
         byDate[day] = { date: day, impressions: imp, clicks: clk, cost: cost, conversions: conv, conversion_value: cv };
       }
@@ -105,7 +122,8 @@ module.exports = async (req, res) => {
 
       return res.status(200).json({
         stats: result,
-        _debug: { campaignCount: ids.length, dayCount: dates.length }
+        campaigns: campaignRows,
+        _debug: { campaignCount: ids.length, dayCount: dates.length, campaignRowCount: campaignRows.length }
       });
     } catch (e) {
       return res.status(500).json({ error: e.message });

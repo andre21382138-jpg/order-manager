@@ -360,6 +360,7 @@ export default function App() {
   const [showNaverAdModal, setShowNaverAdModal] = useState(false);
   const [naverAdSyncing, setNaverAdSyncing] = useState(false);
   const [naverAdSyncResult, setNaverAdSyncResult] = useState("");
+  const [naverCampaignStats, setNaverCampaignStats] = useState([]);
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
@@ -569,6 +570,40 @@ export default function App() {
       .lte("date", filter.to)
       .order("date")
       .then(({ data }) => setNaverAdStats(data || []));
+  }, [currentBrand, currentMallType, mainTab, filter.from, filter.to]);
+
+  useEffect(() => {
+    if (mainTab !== "광고") return;
+    if (!currentBrand) return;
+    if (currentMallType !== "자사몰") return;
+    if (!NAVERAD_CONFIGURED_BRANDS.includes(currentBrand.id)) return;
+    supabase.from("naver_ad_stats")
+      .select("*")
+      .eq("brand_id", currentBrand.id)
+      .eq("mall_type", "자사몰")
+      .neq("campaign_id", "")
+      .gte("date", filter.from)
+      .lte("date", filter.to)
+      .then(({ data }) => {
+        const byCampaign = {};
+        (data || []).forEach(r => {
+          if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = {
+            campaign_id: r.campaign_id,
+            campaign_name: r.campaign_name || r.campaign_id,
+            impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
+          };
+          const c = byCampaign[r.campaign_id];
+          c.impressions += r.impressions || 0;
+          c.clicks += r.clicks || 0;
+          c.cost += r.cost || 0;
+          c.conversions += r.conversions || 0;
+          c.conversion_value += r.conversion_value || 0;
+        });
+        const filtered = Object.values(byCampaign)
+          .filter(c => c.cost > 0)
+          .sort((a, b) => b.cost - a.cost);
+        setNaverCampaignStats(filtered);
+      });
   }, [currentBrand, currentMallType, mainTab, filter.from, filter.to]);
 
   useEffect(() => {
@@ -1004,13 +1039,14 @@ export default function App() {
         return;
       }
       const stats = data.stats || [];
+      const campaigns = data.campaigns || [];
       if (stats.length === 0) {
         setNaverAdSyncResult(`⚠️ 수집된 광고 데이터 없음 (캠페인 또는 통계 비어있음)`);
         setNaverAdSyncing(false);
         return;
       }
-      setNaverAdSyncResult(`⏳ DB 저장 중... (${stats.length}일)`);
-      const rows = stats.map(s => ({
+      setNaverAdSyncResult(`⏳ DB 저장 중... (일별 ${stats.length}건 + 캠페인별 ${campaigns.length}건)`);
+      const dailyRows = stats.map(s => ({
         brand_id: brand.id,
         mall_type: "자사몰",
         date: s.date,
@@ -1022,7 +1058,20 @@ export default function App() {
         conversions: s.conversions || 0,
         conversion_value: s.conversion_value || 0,
       }));
-      const { error: upErr } = await supabase.from("naver_ad_stats").upsert(rows, { onConflict: "brand_id,date,campaign_id" });
+      const campaignRowsForDb = campaigns.map(c => ({
+        brand_id: brand.id,
+        mall_type: "자사몰",
+        date: c.date,
+        campaign_id: c.campaign_id,
+        campaign_name: c.campaign_name || null,
+        impressions: c.impressions || 0,
+        clicks: c.clicks || 0,
+        cost: c.cost || 0,
+        conversions: c.conversions || 0,
+        conversion_value: c.conversion_value || 0,
+      }));
+      const allRows = [...dailyRows, ...campaignRowsForDb];
+      const { error: upErr } = await supabase.from("naver_ad_stats").upsert(allRows, { onConflict: "brand_id,date,campaign_id" });
       if (upErr) {
         setNaverAdSyncResult(`❌ DB 저장 오류: ${upErr.code||""} ${upErr.message||JSON.stringify(upErr)}`);
         setNaverAdSyncing(false);
@@ -1044,7 +1093,30 @@ export default function App() {
         .lte("date", newTo)
         .order("date");
       setNaverAdStats(refreshed || []);
-      setNaverAdSyncResult(`✅ ${stats.length}일치 동기화 완료`);
+      // 캠페인별 row 갱신
+      const { data: refreshedCamp } = await supabase.from("naver_ad_stats")
+        .select("*")
+        .eq("brand_id", brand.id)
+        .eq("mall_type", "자사몰")
+        .neq("campaign_id", "")
+        .gte("date", newFrom)
+        .lte("date", newTo);
+      const byCampaign = {};
+      (refreshedCamp || []).forEach(r => {
+        if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = {
+          campaign_id: r.campaign_id,
+          campaign_name: r.campaign_name || r.campaign_id,
+          impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
+        };
+        const c = byCampaign[r.campaign_id];
+        c.impressions += r.impressions || 0;
+        c.clicks += r.clicks || 0;
+        c.cost += r.cost || 0;
+        c.conversions += r.conversions || 0;
+        c.conversion_value += r.conversion_value || 0;
+      });
+      setNaverCampaignStats(Object.values(byCampaign).filter(c => c.cost > 0).sort((a, b) => b.cost - a.cost));
+      setNaverAdSyncResult(`✅ 일별 ${stats.length}건 + 캠페인 ${Object.keys(byCampaign).length}개 동기화 완료`);
     } catch(e) {
       setNaverAdSyncResult("❌ 오류: " + e.message);
     }
@@ -1573,7 +1645,7 @@ export default function App() {
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                           <thead>
                             <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                              {["날짜","광고비","노출","클릭","CTR","자사몰매출","ROAS"].map(h=>(
+                              {["날짜","광고비","노출","클릭","CTR","자사몰매출"].map(h=>(
                                 <th key={h} style={{ padding:"8px", textAlign:h==="날짜"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                               ))}
                             </tr>
@@ -1582,7 +1654,6 @@ export default function App() {
                             {naverAdStats.map(r=>{
                               const sales = salesByDate[r.date] || 0;
                               const dayCtr = r.impressions>0?(r.clicks/r.impressions*100).toFixed(2):"0";
-                              const dayRoas = r.cost>0?(sales/r.cost*100).toFixed(0):"0";
                               return (
                                 <tr key={r.date} style={{ borderBottom:"1px solid #F1F5F9" }}>
                                   <td style={{ padding:"8px", fontWeight:600, color:"#1E293B" }}>{r.date}</td>
@@ -1591,7 +1662,6 @@ export default function App() {
                                   <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(r.clicks||0).toLocaleString()}</td>
                                   <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{dayCtr}%</td>
                                   <td style={{ padding:"8px", textAlign:"right", color:"#1E293B" }}>{fmt(sales)}</td>
-                                  <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#3B82F6" }}>{dayRoas}%</td>
                                 </tr>
                               );
                             })}
@@ -1599,6 +1669,40 @@ export default function App() {
                         </table>
                       </div>
                     </div>
+                    {naverCampaignStats.length > 0 && (
+                      <div style={{...card, marginTop:14}}>
+                        <h2 style={{...cardTitle, marginBottom:14}}>📣 캠페인별 광고 성과</h2>
+                        <div style={{ overflowY:"auto", maxHeight:520 }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
+                                {["캠페인명","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
+                                  <th key={h} style={{ padding:"8px", textAlign:h==="캠페인명"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {naverCampaignStats.map(c=>{
+                                const ctr = c.impressions>0 ? (c.clicks/c.impressions*100).toFixed(2) : "0";
+                                const roas = c.cost>0 ? (c.conversion_value/c.cost*100).toFixed(0) : "0";
+                                return (
+                                  <tr key={c.campaign_id} style={{ borderBottom:"1px solid #F1F5F9" }}>
+                                    <td style={{ padding:"8px", fontWeight:600, color:"#1E293B", maxWidth:280, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={c.campaign_name}>{c.campaign_name}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(c.cost)}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(c.impressions||0).toLocaleString()}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(c.clicks||0).toLocaleString()}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{ctr}%</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#475569" }}>{(c.conversions||0).toLocaleString()}건</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#10B981", fontWeight:600 }}>{fmt(c.conversion_value)}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", fontWeight:700, color:"#10B981" }}>{roas}%</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </>
