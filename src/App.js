@@ -365,23 +365,18 @@ export default function App() {
 
   useEffect(() => {
     async function loadUserRole(uid) {
-      console.log("[DBG] loadUserRole start uid=", uid);
       try {
-        const { data: prof, error: profErr } = await supabase.from("profiles").select("role,name").eq("id", uid).single();
-        console.log("[DBG] profiles result prof=", prof, "err=", profErr);
+        const { data: prof } = await supabase.from("profiles").select("role,name").eq("id", uid).single();
         const role = prof?.role || "manager";
         setUserRole(role);
         setUserName(prof?.name || "");
         if (role === "manager") {
-          const { data: bm, error: bmErr } = await supabase.from("brand_managers").select("brand_id").eq("user_id", uid);
-          console.log("[DBG] brand_managers result bm=", bm, "err=", bmErr);
+          const { data: bm } = await supabase.from("brand_managers").select("brand_id").eq("user_id", uid);
           setUserBrandIds((bm || []).map(b => b.brand_id));
         }
-        console.log("[DBG] loadUserRole done role=", role);
-      } catch(e) { console.error("[DBG] role load error", e); }
+      } catch(e) { console.error("role load error", e); }
     }
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("[DBG] getSession resolved session=", !!session, "uid=", session?.user?.id);
       setSession(session);
       if (session) {
         setTimeout(async () => {
@@ -392,7 +387,6 @@ export default function App() {
       setAuthChecked(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[DBG] onAuthStateChange event=", event, "session=", !!session, "uid=", session?.user?.id);
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       setSession(session);
       if (session) {
@@ -464,12 +458,10 @@ export default function App() {
 
   async function loadAll(sessionParam) {
     const activeSession = sessionParam || session;
-    if (!activeSession) { console.log("[DBG] loadAll no session"); return; }
-    console.log("[DBG] loadAll start uid=", activeSession.user?.id);
+    if (!activeSession) return;
     setRefreshing(true);
     try {
       const { data: brandsData, error: bErr } = await supabase.from("brands").select("*").order("created_at");
-      console.log("[DBG] brands fetch count=", brandsData?.length, "err=", bErr);
       if (bErr) throw bErr;
       setBrands(brandsData.map(b => ({ id:b.id, name:b.name, color:b.color||COLORS[0], department:b.department||"", mallTypes:b.mall_types||[], categories:b.categories||[] })));
       const allOrdersData = [];
