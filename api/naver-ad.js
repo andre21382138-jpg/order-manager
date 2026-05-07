@@ -67,7 +67,13 @@ module.exports = async (req, res) => {
       const campaignList = Array.isArray(campResp.data) ? campResp.data : [];
       const ids = campaignList.map(c => c.nccCampaignId).filter(Boolean);
       const idToName = {};
-      campaignList.forEach(c => { if (c.nccCampaignId) idToName[c.nccCampaignId] = c.name || c.nccCampaignId; });
+      const idToType = {};
+      campaignList.forEach(c => {
+        if (c.nccCampaignId) {
+          idToName[c.nccCampaignId] = c.name || c.nccCampaignId;
+          idToType[c.nccCampaignId] = c.campaignTp || null;
+        }
+      });
       if (ids.length === 0) {
         return res.status(200).json({ stats: [], campaigns: [], _debug: { reason: "no_campaigns", campaignsRaw: campResp.data } });
       }
@@ -108,6 +114,7 @@ module.exports = async (req, res) => {
               date: day,
               campaign_id: it.id,
               campaign_name: idToName[it.id] || it.id,
+              campaign_type: idToType[it.id] || null,
               impressions: itImp,
               clicks: itClk,
               cost: itCost,

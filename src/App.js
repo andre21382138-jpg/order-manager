@@ -33,6 +33,14 @@ const MALL_TYPE_COLORS = {
   "도깨비나라":"#F59E0B",
 };
 const NAVERAD_CONFIGURED_BRANDS = ["fd66b113-548b-44b0-8510-b7f49e302145"]; // 팔레오 (자격증명 등록된 브랜드만)
+const CAMPAIGN_TYPE_LABEL = {
+  WEB_SITE: "파워링크",
+  SHOPPING: "쇼핑검색",
+  POWER_CONTENTS: "파워컨텐츠",
+  BRAND_SEARCH: "브랜드검색",
+  PLACE: "플레이스",
+  POWER_LINK_PRO: "파워링크 PRO",
+};
 const PROXY_URL = process.env.REACT_APP_PROXY_URL || "http://localhost:3001";
 const PROXY_TOKEN = process.env.REACT_APP_PROXY_TOKEN || "";
 
@@ -591,6 +599,7 @@ export default function App() {
           if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = {
             campaign_id: r.campaign_id,
             campaign_name: r.campaign_name || r.campaign_id,
+            campaign_type: r.campaign_type || null,
             impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
           };
           const c = byCampaign[r.campaign_id];
@@ -1065,6 +1074,7 @@ export default function App() {
         date: c.date,
         campaign_id: c.campaign_id,
         campaign_name: c.campaign_name || null,
+        campaign_type: c.campaign_type || null,
         impressions: c.impressions || 0,
         clicks: c.clicks || 0,
         cost: c.cost || 0,
@@ -1107,6 +1117,7 @@ export default function App() {
         if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = {
           campaign_id: r.campaign_id,
           campaign_name: r.campaign_name || r.campaign_id,
+          campaign_type: r.campaign_type || null,
           impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
         };
         const c = byCampaign[r.campaign_id];
@@ -1692,8 +1703,8 @@ export default function App() {
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead>
                               <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                                {["캠페인명","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
-                                  <th key={h} style={{ padding:"8px", textAlign:h==="캠페인명"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                                {["캠페인명","타입","광고비","노출","클릭","CTR","전환수","전환매출","ROAS"].map(h=>(
+                                  <th key={h} style={{ padding:"8px", textAlign:(h==="캠페인명"||h==="타입")?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -1703,7 +1714,8 @@ export default function App() {
                                 const roas = c.cost>0 ? (c.conversion_value/c.cost*100).toFixed(0) : "0";
                                 return (
                                   <tr key={c.campaign_id} style={{ borderBottom:"1px solid #F1F5F9" }}>
-                                    <td style={{ padding:"8px", fontWeight:600, color:"#1E293B", maxWidth:280, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={c.campaign_name}>{c.campaign_name}</td>
+                                    <td style={{ padding:"8px", fontWeight:600, color:"#1E293B", maxWidth:240, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={c.campaign_name}>{c.campaign_name}</td>
+                                    <td style={{ padding:"8px", color:"#64748B" }}>{c.campaign_type ? (CAMPAIGN_TYPE_LABEL[c.campaign_type] || c.campaign_type) : "-"}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(c.cost)}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(c.impressions||0).toLocaleString()}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(c.clicks||0).toLocaleString()}</td>
