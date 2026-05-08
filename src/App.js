@@ -395,6 +395,7 @@ export default function App() {
   const [syncKeywordsToo, setSyncKeywordsToo] = useState(false);
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
+  const [naverAdSelectedRange, setNaverAdSelectedRange] = useState(null); // { start, end, label } — 동기화 모달에서 선택한 기간
   const [trendChartTarget, setTrendChartTarget] = useState(null);
   // null = 닫힘, { type: "keyword"|"campaign", id, title, subtitle } = 열림
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
@@ -2826,21 +2827,51 @@ export default function App() {
                 const lastMonthStart = `${lm.getUTCFullYear()}-${String(lm.getUTCMonth()+1).padStart(2,'0')}-01`;
                 const lastMonthEnd = `${lm.getUTCFullYear()}-${String(lm.getUTCMonth()+1).padStart(2,'0')}-${String(lm.getUTCDate()).padStart(2,'0')}`;
                 const weekAgo = new Date(Date.now()+9*60*60*1000-7*86400000).toISOString().slice(0,10);
+                const presets = [
+                  {label:"최근 7일",start:weekAgo,end:yest},
+                  {label:"당월",start:thisMonthStart,end:yest},
+                  {label:"전월",start:lastMonthStart,end:lastMonthEnd},
+                ];
                 return (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                      {[{label:"최근 7일",start:weekAgo,end:yest},{label:"당월",start:thisMonthStart,end:yest},{label:"전월",start:lastMonthStart,end:lastMonthEnd}].map(opt=>(
-                        <button key={opt.label} onClick={()=>syncNaverAdStats(currentBrand,opt.start,opt.end)} disabled={naverAdSyncing} style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"white", cursor:naverAdSyncing?"not-allowed":"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>
-                          {naverAdSyncing?"⏳":opt.label}
-                        </button>
-                      ))}
+                      {presets.map(opt => {
+                        const isSelected = naverAdSelectedRange?.start === opt.start && naverAdSelectedRange?.end === opt.end;
+                        return (
+                          <button
+                            key={opt.label}
+                            onClick={() => { setNaverAdSelectedRange({ start: opt.start, end: opt.end, label: opt.label }); setNaverAdCustomStart(""); setNaverAdCustomEnd(""); }}
+                            disabled={naverAdSyncing}
+                            style={{
+                              flex:1, padding:"8px", borderRadius:8,
+                              border: isSelected ? "1px solid #3B82F6" : "1px solid #E2E8F0",
+                              background: isSelected ? "#EFF6FF" : "white",
+                              cursor: naverAdSyncing ? "not-allowed" : "pointer",
+                              fontSize:13, fontWeight:isSelected?700:600,
+                              color: isSelected ? "#3B82F6" : "#475569",
+                            }}
+                          >{opt.label}</button>
+                        );
+                      })}
                     </div>
                     <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <input type="date" value={naverAdCustomStart||""} max={yest} onChange={e=>setNaverAdCustomStart(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
+                      <input type="date" value={naverAdCustomStart||""} max={yest} disabled={naverAdSyncing} onChange={e=>{
+                        const v = e.target.value;
+                        setNaverAdCustomStart(v);
+                        if (v && naverAdCustomEnd) setNaverAdSelectedRange({ start: v, end: naverAdCustomEnd, label: "직접 선택" });
+                      }} style={{...inp,flex:1,fontSize:12}} />
                       <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
-                      <input type="date" value={naverAdCustomEnd||""} max={yest} onChange={e=>setNaverAdCustomEnd(e.target.value)} style={{...inp,flex:1,fontSize:12}} />
-                      <button onClick={()=>naverAdCustomStart&&naverAdCustomEnd&&syncNaverAdStats(currentBrand,naverAdCustomStart,naverAdCustomEnd)} disabled={naverAdSyncing||!naverAdCustomStart||!naverAdCustomEnd} style={{ padding:"8px 12px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:600, whiteSpace:"nowrap" }}>동기화</button>
+                      <input type="date" value={naverAdCustomEnd||""} max={yest} disabled={naverAdSyncing} onChange={e=>{
+                        const v = e.target.value;
+                        setNaverAdCustomEnd(v);
+                        if (naverAdCustomStart && v) setNaverAdSelectedRange({ start: naverAdCustomStart, end: v, label: "직접 선택" });
+                      }} style={{...inp,flex:1,fontSize:12}} />
                     </div>
+                    {naverAdSelectedRange && (
+                      <div style={{ marginTop:8, padding:"8px 12px", background:"#EFF6FF", borderRadius:8, border:"1px solid #BFDBFE", fontSize:12, color:"#1D4ED8", fontWeight:600 }}>
+                        📅 선택: {naverAdSelectedRange.label} ({naverAdSelectedRange.start} ~ {naverAdSelectedRange.end})
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -2862,7 +2893,18 @@ export default function App() {
               />
               <span>🔑 키워드까지 동기화 (시간 +15~60초)</span>
             </label>
-            <button onClick={()=>setShowNaverAdModal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
+            <button
+              onClick={()=>naverAdSelectedRange && syncNaverAdStats(currentBrand, naverAdSelectedRange.start, naverAdSelectedRange.end)}
+              disabled={naverAdSyncing || !naverAdSelectedRange}
+              style={{
+                width:"100%", marginTop:14, padding:"12px", borderRadius:10,
+                border:"none",
+                background: (naverAdSyncing || !naverAdSelectedRange) ? "#CBD5E1" : "#3B82F6",
+                color:"white", fontSize:14, fontWeight:700,
+                cursor: (naverAdSyncing || !naverAdSelectedRange) ? "not-allowed" : "pointer",
+              }}
+            >{naverAdSyncing ? "⏳ 동기화 중..." : "🔍 동기화 진행"}</button>
+            <button onClick={()=>setShowNaverAdModal(false)} disabled={naverAdSyncing} style={{...secondaryBtn,width:"100%",marginTop:8, opacity:naverAdSyncing?0.5:1, cursor:naverAdSyncing?"not-allowed":"pointer"}}>닫기</button>
           </div>
         </div>
       )}
