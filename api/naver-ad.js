@@ -249,7 +249,23 @@ module.exports = async (req, res) => {
         return res.status(200).json({ keywords: [], _debug: { reason: "no_keywords", adgroupsScanned: activeAdgroupIds.length, warnings, elapsedMs: Date.now() - t0 } });
       }
 
-      // 6. 키워드 stats — 일자별 × 100개 chunk (per-day loop)
+      // 5b. 활성 키워드 식별 — 기간 합산 cost로 사전 필터 (per-day 호출 수 절감)
+      const periodKeywordChunks = chunkIds(allKeywordIds);
+      const periodKwResults = await parallelLimit(periodKeywordChunks, 5, async (chunk) => {
+        const uri = `/stats?ids=${encodeURIComponent(chunk.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
+        const r = await naverAdGet(uri, creds);
+        if (!r.ok) { warnings.push({ stage: "keyword_period_filter", chunkSize: chunk.length, status: r.status }); return []; }
+        return r.data?.data || [];
+      });
+      const activeKeywordIds = periodKwResults
+        .flat()
+        .filter(k => Number(k.salesAmt || 0) > 0)
+        .map(k => k.id);
+      if (activeKeywordIds.length === 0) {
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_active_keywords", keywordsScanned: allKeywordIds.length, adgroupsScanned: activeAdgroupIds.length, warnings, elapsedMs: Date.now() - t0 } });
+      }
+
+      // 6. 활성 키워드 stats — 일자별 × 100개 chunk (per-day loop)
       const keywordFields = JSON.stringify(["impCnt","clkCnt","salesAmt","ccnt","convAmt"]);
       const dates = [];
       let cursor = new Date(`${from}T00:00:00Z`);
@@ -258,7 +274,7 @@ module.exports = async (req, res) => {
         dates.push(cursor.toISOString().slice(0, 10));
         cursor = new Date(cursor.getTime() + 86400000);
       }
-      const keywordChunksPerDay = chunkIds(allKeywordIds);
+      const keywordChunksPerDay = chunkIds(activeKeywordIds);
       const tasks = [];
       for (const day of dates) {
         for (const chunk of keywordChunksPerDay) {
@@ -319,6 +335,7 @@ module.exports = async (req, res) => {
           campaignsScanned: activeCampaignIds.length,
           adgroupsScanned: activeAdgroupIds.length,
           keywordsFetched: allKeywordIds.length,
+          keywordsActiveInPeriod: activeKeywordIds.length,
           keywordsActive: keywords.length,
           dayCount: dates.length,
           warnings,
