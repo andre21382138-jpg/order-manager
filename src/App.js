@@ -2804,6 +2804,7 @@ export default function App() {
                 ? naverKeywordStats.filter(k => k.keyword_id === trendChartTarget.id)
                 : naverCampaignRawRows.filter(r => r.campaign_id === trendChartTarget.id)
             }
+            allDates={naverAdStats.map(s => s.date)}
             fmt={fmt}
           />
         </Suspense>

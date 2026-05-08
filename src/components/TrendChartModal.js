@@ -15,7 +15,7 @@ function formatByMetric(value, metric, fmt) {
   return Number(value).toLocaleString();
 }
 
-export default function TrendChartModal({ open, onClose, title, subtitle, dailyRows, fmt }) {
+export default function TrendChartModal({ open, onClose, title, subtitle, dailyRows, allDates, fmt }) {
   const [metric, setMetric] = useState("cost");
 
   // 모달 새로 열릴 때마다 metric을 default로 초기화 (이전 키워드 선택 잔재 방지)
@@ -30,16 +30,22 @@ export default function TrendChartModal({ open, onClose, title, subtitle, dailyR
 
   if (!open) return null;
 
-  const chartData = (dailyRows || [])
-    .slice()
-    .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
-    .map(r => ({
-      date: r.date,
-      cost: r.cost || 0,
-      clicks: r.clicks || 0,
-      conversions: r.conversions || 0,
-      roas: r.cost > 0 ? Math.round((r.conversion_value || 0) / r.cost * 100) : 0,
-    }));
+  // dailyRows는 cost>0인 날만 저장되어 있을 수 있으므로, allDates(동기화 기간 전체)를 기준으로
+  // 누락된 날짜는 0 row로 padding (트렌드 라인의 일관성 유지)
+  const dateMap = new Map((dailyRows || []).map(r => [r.date, r]));
+  const dates = (allDates && allDates.length > 0)
+    ? [...allDates].sort()
+    : (dailyRows || []).map(r => r.date).sort();
+  const chartData = dates.map(date => {
+    const r = dateMap.get(date);
+    return {
+      date,
+      cost: r?.cost || 0,
+      clicks: r?.clicks || 0,
+      conversions: r?.conversions || 0,
+      roas: r && r.cost > 0 ? Math.round((r.conversion_value || 0) / r.cost * 100) : 0,
+    };
+  });
 
   const values = chartData.map(d => d[metric]);
   const avg = values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
