@@ -249,19 +249,30 @@ module.exports = async (req, res) => {
         return res.status(200).json({ keywords: [], _debug: { reason: "no_keywords", adgroupsScanned: activeAdgroupIds.length, warnings, elapsedMs: Date.now() - t0 } });
       }
 
-      // 6. 키워드 stats bulk (100개씩 chunk, 병렬 5)
+      // 6. 키워드 stats — 일자별 × 100개 chunk (per-day loop)
       const keywordFields = JSON.stringify(["impCnt","clkCnt","salesAmt","ccnt","convAmt"]);
-      const chunks = [];
-      for (let i = 0; i < allKeywordIds.length; i += 100) {
-        chunks.push(allKeywordIds.slice(i, i + 100));
+      const dates = [];
+      let cursor = new Date(`${from}T00:00:00Z`);
+      const endD = new Date(`${to}T00:00:00Z`);
+      while (cursor <= endD) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        cursor = new Date(cursor.getTime() + 86400000);
       }
-      const statsArrays = await parallelLimit(chunks, 5, async (chunk) => {
-        const uri = `/stats?ids=${encodeURIComponent(chunk.join(","))}&fields=${encodeURIComponent(keywordFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
+      const keywordChunksPerDay = chunkIds(allKeywordIds);
+      const tasks = [];
+      for (const day of dates) {
+        for (const chunk of keywordChunksPerDay) {
+          tasks.push({ day, chunk });
+        }
+      }
+      const taskResults = await parallelLimit(tasks, 5, async ({ day, chunk }) => {
+        const dayRange = JSON.stringify({ since: day, until: day });
+        const uri = `/stats?ids=${encodeURIComponent(chunk.join(","))}&fields=${encodeURIComponent(keywordFields)}&timeRange=${encodeURIComponent(dayRange)}&datePreset=custom`;
         const r = await naverAdGet(uri, creds);
-        if (!r.ok) { warnings.push({ stage: "keyword_stats", chunkSize: chunk.length, status: r.status }); return []; }
-        return r.data?.data || [];
+        if (!r.ok) { warnings.push({ stage: "keyword_stats", date: day, status: r.status }); return []; }
+        return (r.data?.data || []).map(s => ({ ...s, _date: day }));
       });
-      const keywordStats = statsArrays.flat();
+      const keywordStats = taskResults.flat();
 
       // 7. 응답 가공: cost > 0 키워드만, 메타 조인
       const keywords = keywordStats
@@ -272,6 +283,7 @@ module.exports = async (req, res) => {
           const camp = idToCampaign[ag.campaign_id] || {};
           return {
             keyword_id: s.id,
+            date: s._date,
             keyword_name: kw.name || s.id,
             ad_group_id: kw.adgroup_id || null,
             ad_group_name: ag.name || null,
@@ -293,6 +305,7 @@ module.exports = async (req, res) => {
           adgroupsScanned: activeAdgroupIds.length,
           keywordsFetched: allKeywordIds.length,
           keywordsActive: keywords.length,
+          dayCount: dates.length,
           warnings,
           elapsedMs: Date.now() - t0,
         },
