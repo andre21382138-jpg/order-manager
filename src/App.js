@@ -594,6 +594,8 @@ export default function App() {
   useEffect(() => {
     if (!currentBrand?.id) { setNaverCampaignRawRows([]); return; }
     if (mainTab !== "광고") return;
+    if (currentMallType !== "자사몰") return;
+    if (!NAVERAD_CONFIGURED_BRANDS.includes(currentBrand.id)) return;
     let alive = true;
     supabase.from("naver_ad_stats")
       .select("*")
@@ -604,7 +606,7 @@ export default function App() {
       .lte("date", filter.to)
       .then(({ data }) => { if (alive) setNaverCampaignRawRows(data || []); });
     return () => { alive = false; };
-  }, [currentBrand?.id, filter.from, filter.to, mainTab]);
+  }, [currentBrand?.id, currentMallType, filter.from, filter.to, mainTab]);
 
   useEffect(() => {
     if (!currentBrand?.id) { setNaverKeywordStats([]); return; }
@@ -1765,6 +1767,7 @@ export default function App() {
                       // raw 일별 row를 캠페인별로 합산 (렌더 시점)
                       const aggCampaigns = {};
                       naverCampaignRawRows.forEach(r => {
+                        if (!r.campaign_id) return;
                         if (!aggCampaigns[r.campaign_id]) aggCampaigns[r.campaign_id] = {
                           campaign_id: r.campaign_id,
                           campaign_name: r.campaign_name || r.campaign_id,
@@ -1930,6 +1933,7 @@ export default function App() {
                       // 일별 row를 키워드별로 합산 (렌더 시점)
                       const aggMap = {};
                       naverKeywordStats.forEach(k => {
+                        if (!k.keyword_id) return;
                         if (!aggMap[k.keyword_id]) aggMap[k.keyword_id] = {
                           keyword_id: k.keyword_id,
                           keyword_name: k.keyword_name,
