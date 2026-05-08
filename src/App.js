@@ -373,6 +373,13 @@ export default function App() {
   const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만
   const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
   const [naverCampaignSort, setNaverCampaignSort] = useState({ key: "cost", dir: "desc" });
+  // 네이버 광고 — 키워드 (Phase 1)
+  const [naverKeywordStats, setNaverKeywordStats] = useState([]);
+  const [naverKeywordSearch, setNaverKeywordSearch] = useState("");
+  const [naverKeywordCampaignFilter, setNaverKeywordCampaignFilter] = useState(null);
+  const [showKeywordCampaignFilter, setShowKeywordCampaignFilter] = useState(false);
+  const [naverKeywordSort, setNaverKeywordSort] = useState({ key: "cost", dir: "desc" });
+  const [syncKeywordsToo, setSyncKeywordsToo] = useState(false);
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
@@ -1132,10 +1139,65 @@ export default function App() {
       });
       setNaverCampaignStats(Object.values(byCampaign).filter(c => c.cost > 0).sort((a, b) => b.cost - a.cost));
       setNaverAdSyncResult(`✅ 일별 ${stats.length}건 + 캠페인 ${Object.keys(byCampaign).length}개 동기화 완료`);
+      if (syncKeywordsToo) {
+        setNaverAdSyncResult(prev => `${prev}\n⏳ 키워드 동기화 중... (15~60초)`);
+        await syncNaverAdKeywords(brand, startDate, endDate);
+      }
     } catch(e) {
       setNaverAdSyncResult("❌ 오류: " + e.message);
     }
     setNaverAdSyncing(false);
+  }
+
+  async function syncNaverAdKeywords(brand, startDate, endDate) {
+    try {
+      const r = await fetch(`/api/naver-ad?action=keywords&brand=${brand.id}&from=${startDate}&to=${endDate}`);
+      const data = await r.json();
+      if (!r.ok) {
+        setNaverAdSyncResult(prev => `${prev}\n❌ 키워드 동기화 실패: ${data.error || r.status}`);
+        return;
+      }
+      // truncate-and-insert (네이버 검색광고는 항상 자사몰 — 캠페인 sync와 동일 패턴)
+      const { error: delErr } = await supabase
+        .from("naver_ad_keyword_stats")
+        .delete()
+        .eq("brand_id", brand.id)
+        .eq("mall_type", "자사몰");
+      if (delErr) {
+        setNaverAdSyncResult(prev => `${prev}\n❌ 기존 키워드 삭제 실패: ${delErr.message}`);
+        return;
+      }
+      const rows = (data.keywords || []).map(k => ({
+        brand_id: brand.id,
+        mall_type: "자사몰",
+        keyword_id: k.keyword_id,
+        keyword_name: k.keyword_name,
+        ad_group_id: k.ad_group_id,
+        ad_group_name: k.ad_group_name,
+        campaign_id: k.campaign_id,
+        campaign_name: k.campaign_name,
+        campaign_type: k.campaign_type,
+        period_start: startDate,
+        period_end: endDate,
+        impressions: k.impressions,
+        clicks: k.clicks,
+        cost: k.cost,
+        conversions: k.conversions,
+        conversion_value: k.conversion_value,
+      }));
+      if (rows.length > 0) {
+        const { error: insErr } = await supabase.from("naver_ad_keyword_stats").insert(rows);
+        if (insErr) {
+          setNaverAdSyncResult(prev => `${prev}\n❌ 키워드 저장 실패: ${insErr.message}`);
+          return;
+        }
+      }
+      setNaverKeywordStats(rows);
+      const sec = Math.round((data._debug?.elapsedMs || 0) / 1000);
+      setNaverAdSyncResult(prev => `${prev}\n✅ 키워드 ${rows.length}개 저장 완료 (${sec}초)`);
+    } catch (e) {
+      setNaverAdSyncResult(prev => `${prev}\n❌ 키워드 동기화 예외: ${e.message}`);
+    }
   }
 
   async function saveCategoryMapping() {
@@ -2519,6 +2581,14 @@ export default function App() {
                 </div>
               )}
             </div>
+            <label style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", marginTop:10, background:"#F8FAFC", borderRadius:8, cursor:"pointer", fontSize:13, color:"#475569" }}>
+              <input
+                type="checkbox"
+                checked={syncKeywordsToo}
+                onChange={e=>setSyncKeywordsToo(e.target.checked)}
+              />
+              <span>🔑 키워드까지 동기화 (시간 +15~60초)</span>
+            </label>
             <button onClick={()=>setShowNaverAdModal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
           </div>
         </div>
