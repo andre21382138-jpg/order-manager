@@ -1677,7 +1677,22 @@ export default function App() {
             return (
               <>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
-                  <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>📣 네이버 검색광고 — {currentBrand.name}</div>
+                  <div>
+                    <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>📣 네이버 검색광고 — {currentBrand.name}</div>
+                    {naverAdStats.length > 0 && (() => {
+                      const sortedDates = [...naverAdStats].map(s => s.date).sort();
+                      const periodStart = sortedDates[0];
+                      const periodEnd = sortedDates[sortedDates.length - 1];
+                      const viewing = naverAdDateFilter
+                        ? formatDateKr(naverAdDateFilter)
+                        : `${periodStart} ~ ${periodEnd}`;
+                      return (
+                        <div style={{ fontSize:12, color:"#64748B", marginTop:3, fontWeight:500 }}>
+                          📅 조회: {viewing}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                     {naverAdStats.length > 0 && (
                       <select
