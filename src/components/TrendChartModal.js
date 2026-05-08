@@ -18,6 +18,9 @@ function formatByMetric(value, metric, fmt) {
 export default function TrendChartModal({ open, onClose, title, subtitle, dailyRows, fmt }) {
   const [metric, setMetric] = useState("cost");
 
+  // 모달 새로 열릴 때마다 metric을 default로 초기화 (이전 키워드 선택 잔재 방지)
+  useEffect(() => { if (open) setMetric("cost"); }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -69,7 +72,7 @@ export default function TrendChartModal({ open, onClose, title, subtitle, dailyR
             <div style={titleStyle} title={title}>{title}</div>
             {subtitle && <div style={subtitleStyle} title={subtitle}>{subtitle}</div>}
           </div>
-          <button onClick={onClose} style={closeBtnStyle} title="닫기 (ESC)">✕</button>
+          <button onClick={onClose} style={closeBtnStyle} title="닫기 (ESC)" aria-label="닫기 (ESC)" autoFocus>✕</button>
         </header>
         <div style={tabsStyle}>
           {METRICS.map(m => {
