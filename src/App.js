@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabase";
@@ -45,6 +45,7 @@ const PROXY_URL = process.env.REACT_APP_PROXY_URL || "http://localhost:3001";
 const PROXY_TOKEN = process.env.REACT_APP_PROXY_TOKEN || "";
 
 const fmt = (n) => new Intl.NumberFormat("ko-KR").format(n) + "원";
+const TrendChartModal = lazy(() => import("./components/TrendChartModal"));
 const KOREAN_DAY = ["일","월","화","수","목","금","토"];
 function formatDateKr(dateStr) {
   if (!dateStr) return "";
@@ -392,6 +393,8 @@ export default function App() {
   const [syncKeywordsToo, setSyncKeywordsToo] = useState(false);
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
   const [naverAdCustomEnd, setNaverAdCustomEnd] = useState("");
+  const [trendChartTarget, setTrendChartTarget] = useState(null);
+  // null = 닫힘, { type: "keyword"|"campaign", id, title, subtitle } = 열림
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
   const [smartstoreSyncResult, setSmartStoreSyncResult] = useState("");
   const [smartstoreCustomStart, setSmartStoreCustomStart] = useState("");
@@ -1949,7 +1952,18 @@ export default function App() {
                                 const cpc = c.clicks>0 ? Math.round(c.cost/c.clicks) : 0;
                                 const roas = c.cost>0 ? (c.conversion_value/c.cost*100).toFixed(0) : "0";
                                 return (
-                                  <tr key={c.campaign_id} style={{ borderBottom:"1px solid #F1F5F9" }}>
+                                  <tr
+                                    key={c.campaign_id}
+                                    onClick={() => setTrendChartTarget({
+                                      type: "campaign",
+                                      id: c.campaign_id,
+                                      title: c.campaign_name,
+                                      subtitle: c.campaign_type ? (CAMPAIGN_TYPE_LABEL[c.campaign_type] || c.campaign_type) : "-",
+                                    })}
+                                    onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
+                                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                    style={{ borderBottom:"1px solid #F1F5F9", cursor:"pointer", transition:"background 0.1s" }}
+                                  >
                                     <td style={{ padding:"8px", fontWeight:600, color:"#1E293B", maxWidth:240, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={c.campaign_name}>{c.campaign_name}</td>
                                     <td style={{ padding:"8px", color:"#64748B" }}>{c.campaign_type ? (CAMPAIGN_TYPE_LABEL[c.campaign_type] || c.campaign_type) : "-"}</td>
                                     <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(c.cost)}</td>
@@ -2126,7 +2140,18 @@ export default function App() {
                                   const cpc = k.clicks>0 ? Math.round(k.cost/k.clicks) : 0;
                                   const roas = k.cost>0 ? (k.conversion_value/k.cost*100).toFixed(0) : '0';
                                   return (
-                                    <tr key={k.keyword_id} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                                    <tr
+                                      key={k.keyword_id}
+                                      onClick={() => setTrendChartTarget({
+                                        type: "keyword",
+                                        id: k.keyword_id,
+                                        title: k.keyword_name,
+                                        subtitle: `${k.campaign_name || "-"} · ${k.campaign_type ? (CAMPAIGN_TYPE_LABEL[k.campaign_type] || k.campaign_type) : "-"}`,
+                                      })}
+                                      onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
+                                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                                      style={{ borderBottom:'1px solid #F1F5F9', cursor:'pointer', transition:'background 0.1s' }}
+                                    >
                                       <td style={{ padding:'8px', fontWeight:600, color:'#1E293B', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={k.keyword_name}>{k.keyword_name}</td>
                                       <td style={{ padding:'8px', color:'#475569', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={k.campaign_name}>{k.campaign_name || '-'}</td>
                                       <td style={{ padding:'8px', color:'#64748B' }}>{k.campaign_type ? (CAMPAIGN_TYPE_LABEL[k.campaign_type] || k.campaign_type) : '-'}</td>
@@ -2754,6 +2779,23 @@ export default function App() {
             <button onClick={()=>setShowSmartstoreModal(false)} style={{...secondaryBtn,width:"100%",marginTop:14}}>닫기</button>
           </div>
         </div>
+      )}
+
+      {trendChartTarget && (
+        <Suspense fallback={null}>
+          <TrendChartModal
+            open
+            onClose={() => setTrendChartTarget(null)}
+            title={trendChartTarget.title}
+            subtitle={trendChartTarget.subtitle}
+            dailyRows={
+              trendChartTarget.type === "keyword"
+                ? naverKeywordStats.filter(k => k.keyword_id === trendChartTarget.id)
+                : naverCampaignRawRows.filter(r => r.campaign_id === trendChartTarget.id)
+            }
+            fmt={fmt}
+          />
+        </Suspense>
       )}
 
       {/* 네이버 검색광고 동기화 모달 */}
