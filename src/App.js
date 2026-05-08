@@ -368,7 +368,7 @@ export default function App() {
   const [showNaverAdModal, setShowNaverAdModal] = useState(false);
   const [naverAdSyncing, setNaverAdSyncing] = useState(false);
   const [naverAdSyncResult, setNaverAdSyncResult] = useState("");
-  const [naverCampaignStats, setNaverCampaignStats] = useState([]);
+  const [naverCampaignRawRows, setNaverCampaignRawRows] = useState([]); // 캠페인별 raw 일별 row (campaign_id != ''인 naver_ad_stats row)
   const [naverCampaignSearch, setNaverCampaignSearch] = useState("");
   const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만
   const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
@@ -592,10 +592,9 @@ export default function App() {
   }, [currentBrand, currentMallType, mainTab, filter.from, filter.to]);
 
   useEffect(() => {
+    if (!currentBrand?.id) { setNaverCampaignRawRows([]); return; }
     if (mainTab !== "광고") return;
-    if (!currentBrand) return;
-    if (currentMallType !== "자사몰") return;
-    if (!NAVERAD_CONFIGURED_BRANDS.includes(currentBrand.id)) return;
+    let alive = true;
     supabase.from("naver_ad_stats")
       .select("*")
       .eq("brand_id", currentBrand.id)
@@ -603,28 +602,9 @@ export default function App() {
       .neq("campaign_id", "")
       .gte("date", filter.from)
       .lte("date", filter.to)
-      .then(({ data }) => {
-        const byCampaign = {};
-        (data || []).forEach(r => {
-          if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = {
-            campaign_id: r.campaign_id,
-            campaign_name: r.campaign_name || r.campaign_id,
-            campaign_type: r.campaign_type || null,
-            impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
-          };
-          const c = byCampaign[r.campaign_id];
-          c.impressions += r.impressions || 0;
-          c.clicks += r.clicks || 0;
-          c.cost += r.cost || 0;
-          c.conversions += r.conversions || 0;
-          c.conversion_value += r.conversion_value || 0;
-        });
-        const filtered = Object.values(byCampaign)
-          .filter(c => c.cost > 0)
-          .sort((a, b) => b.cost - a.cost);
-        setNaverCampaignStats(filtered);
-      });
-  }, [currentBrand, currentMallType, mainTab, filter.from, filter.to]);
+      .then(({ data }) => { if (alive) setNaverCampaignRawRows(data || []); });
+    return () => { alive = false; };
+  }, [currentBrand?.id, filter.from, filter.to, mainTab]);
 
   useEffect(() => {
     if (!currentBrand?.id) { setNaverKeywordStats([]); return; }
@@ -1126,7 +1106,7 @@ export default function App() {
         .lte("date", newTo)
         .order("date");
       setNaverAdStats(refreshed || []);
-      // 캠페인별 row 갱신
+      // 캠페인별 raw 일별 row 갱신 (렌더 시점 합산)
       const { data: refreshedCamp } = await supabase.from("naver_ad_stats")
         .select("*")
         .eq("brand_id", brand.id)
@@ -1134,23 +1114,9 @@ export default function App() {
         .neq("campaign_id", "")
         .gte("date", newFrom)
         .lte("date", newTo);
-      const byCampaign = {};
-      (refreshedCamp || []).forEach(r => {
-        if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = {
-          campaign_id: r.campaign_id,
-          campaign_name: r.campaign_name || r.campaign_id,
-          campaign_type: r.campaign_type || null,
-          impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
-        };
-        const c = byCampaign[r.campaign_id];
-        c.impressions += r.impressions || 0;
-        c.clicks += r.clicks || 0;
-        c.cost += r.cost || 0;
-        c.conversions += r.conversions || 0;
-        c.conversion_value += r.conversion_value || 0;
-      });
-      setNaverCampaignStats(Object.values(byCampaign).filter(c => c.cost > 0).sort((a, b) => b.cost - a.cost));
-      setNaverAdSyncResult(`✅ 일별 ${stats.length}건 + 캠페인 ${Object.keys(byCampaign).length}개 동기화 완료`);
+      setNaverCampaignRawRows(refreshedCamp || []);
+      const uniqueCampaigns = new Set((refreshedCamp || []).map(r => r.campaign_id));
+      setNaverAdSyncResult(`✅ 일별 ${stats.length}건 + 캠페인 ${uniqueCampaigns.size}개 동기화 완료`);
       if (syncKeywordsToo) {
         setNaverAdSyncResult(prev => `${prev}\n⏳ 키워드 동기화 중... (15~60초)`);
         await syncNaverAdKeywords(brand, startDate, endDate);
@@ -1191,8 +1157,7 @@ export default function App() {
         campaign_id: k.campaign_id,
         campaign_name: k.campaign_name,
         campaign_type: k.campaign_type,
-        period_start: startDate,
-        period_end: endDate,
+        date: k.date,
         impressions: k.impressions,
         clicks: k.clicks,
         cost: k.cost,
@@ -1742,20 +1707,20 @@ export default function App() {
                         </table>
                       </div>
                     </div>
-                    {naverCampaignStats.length > 0 && (() => {
+                    {naverCampaignRawRows.length > 0 && (() => {
                       const byType = {};
-                      naverCampaignStats.forEach(c => {
-                        const key = c.campaign_type || "_etc";
+                      naverCampaignRawRows.forEach(r => {
+                        const key = r.campaign_type || "_etc";
                         if (!byType[key]) byType[key] = {
-                          type_code: c.campaign_type || null,
+                          type_code: r.campaign_type || null,
                           impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
                         };
                         const t = byType[key];
-                        t.impressions += c.impressions || 0;
-                        t.clicks += c.clicks || 0;
-                        t.cost += c.cost || 0;
-                        t.conversions += c.conversions || 0;
-                        t.conversion_value += c.conversion_value || 0;
+                        t.impressions += r.impressions || 0;
+                        t.clicks += r.clicks || 0;
+                        t.cost += r.cost || 0;
+                        t.conversions += r.conversions || 0;
+                        t.conversion_value += r.conversion_value || 0;
                       });
                       const typeRows = Object.values(byType).sort((a,b) => b.cost - a.cost);
                       return (
@@ -1796,7 +1761,24 @@ export default function App() {
                         </div>
                       );
                     })()}
-                    {naverCampaignStats.length > 0 && (() => {
+                    {naverCampaignRawRows.length > 0 && (() => {
+                      // raw 일별 row를 캠페인별로 합산 (렌더 시점)
+                      const aggCampaigns = {};
+                      naverCampaignRawRows.forEach(r => {
+                        if (!aggCampaigns[r.campaign_id]) aggCampaigns[r.campaign_id] = {
+                          campaign_id: r.campaign_id,
+                          campaign_name: r.campaign_name || r.campaign_id,
+                          campaign_type: r.campaign_type || null,
+                          impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
+                        };
+                        const c = aggCampaigns[r.campaign_id];
+                        c.impressions += r.impressions || 0;
+                        c.clicks += r.clicks || 0;
+                        c.cost += r.cost || 0;
+                        c.conversions += r.conversions || 0;
+                        c.conversion_value += r.conversion_value || 0;
+                      });
+                      const naverCampaignStats = Object.values(aggCampaigns).filter(c => c.cost > 0).sort((a, b) => b.cost - a.cost);
                       const q = naverCampaignSearch.trim().toLowerCase();
                       const availableTypes = Array.from(new Set(naverCampaignStats.map(c => c.campaign_type || ""))).sort();
                       const typeFilterActive = naverCampaignTypeFilter !== null && naverCampaignTypeFilter.size !== availableTypes.length;
@@ -1945,12 +1927,33 @@ export default function App() {
                       );
                     })()}
                     {naverKeywordStats.length === 0 ? null : (() => {
+                      // 일별 row를 키워드별로 합산 (렌더 시점)
+                      const aggMap = {};
+                      naverKeywordStats.forEach(k => {
+                        if (!aggMap[k.keyword_id]) aggMap[k.keyword_id] = {
+                          keyword_id: k.keyword_id,
+                          keyword_name: k.keyword_name,
+                          ad_group_id: k.ad_group_id,
+                          ad_group_name: k.ad_group_name,
+                          campaign_id: k.campaign_id,
+                          campaign_name: k.campaign_name,
+                          campaign_type: k.campaign_type,
+                          impressions: 0, clicks: 0, cost: 0, conversions: 0, conversion_value: 0
+                        };
+                        const a = aggMap[k.keyword_id];
+                        a.impressions += k.impressions || 0;
+                        a.clicks += k.clicks || 0;
+                        a.cost += k.cost || 0;
+                        a.conversions += k.conversions || 0;
+                        a.conversion_value += k.conversion_value || 0;
+                      });
+                      const aggKeywords = Object.values(aggMap);
                       const q = naverKeywordSearch.trim().toLowerCase();
-                      const availableCampaigns = Array.from(new Set(naverKeywordStats.map(k => k.campaign_id || ''))).sort();
+                      const availableCampaigns = Array.from(new Set(aggKeywords.map(k => k.campaign_id || ''))).sort();
                       const campaignFilterActive = naverKeywordCampaignFilter !== null && naverKeywordCampaignFilter.size !== availableCampaigns.length;
                       const byCampaign = campaignFilterActive
-                        ? naverKeywordStats.filter(k => naverKeywordCampaignFilter.has(k.campaign_id || ''))
-                        : naverKeywordStats;
+                        ? aggKeywords.filter(k => naverKeywordCampaignFilter.has(k.campaign_id || ''))
+                        : aggKeywords;
                       const baseKeywords = q ? byCampaign.filter(k => (k.keyword_name||'').toLowerCase().includes(q)) : byCampaign;
                       const KW_SORT_KEYS = { '광고비':'cost', '노출':'impressions', '클릭':'clicks', 'CTR':'ctr', 'CPC':'cpc', '전환수':'conversions', '전환매출':'conversion_value', 'ROAS':'roas' };
                       const getKwSortVal = (k, key) => {
@@ -1971,7 +1974,7 @@ export default function App() {
                           ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
                           : { key, dir: 'desc' });
                       };
-                      const periodLabel = naverKeywordStats[0] ? naverKeywordStats[0].period_start + ' ~ ' + naverKeywordStats[0].period_end : '';
+                      const periodLabel = "";  // Phase 2a Task 4에서 dateFilter UI 추가 시 표시
                       return (
                         <div style={{...card, marginTop:14}}>
                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:10, flexWrap:'wrap' }}>
