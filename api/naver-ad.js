@@ -41,6 +41,16 @@ async function naverAdGet(uri, creds) {
   return { ok: r.ok, status: r.status, data };
 }
 
+async function parallelLimit(items, limit, fn) {
+  const results = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const chunk = items.slice(i, i + limit);
+    const chunkRes = await Promise.all(chunk.map(fn));
+    results.push(...chunkRes);
+  }
+  return results;
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -134,6 +144,142 @@ module.exports = async (req, res) => {
       });
     } catch (e) {
       return res.status(500).json({ error: e.message });
+    }
+  }
+
+  if (action === "keywords") {
+    if (!from || !to) return res.status(400).json({ error: "from, to 필요" });
+    const t0 = Date.now();
+    try {
+      // 1. 캠페인 목록 + 메타
+      const campResp = await naverAdGet("/ncc/campaigns", creds);
+      if (!campResp.ok) {
+        return res.status(campResp.status).json({ error: "campaigns fetch 실패", raw: campResp.data });
+      }
+      const allCampaigns = Array.isArray(campResp.data) ? campResp.data : [];
+      const allCampaignIds = allCampaigns.map(c => c.nccCampaignId).filter(Boolean);
+      const idToCampaign = {};
+      allCampaigns.forEach(c => {
+        if (c.nccCampaignId) idToCampaign[c.nccCampaignId] = {
+          name: c.name || c.nccCampaignId,
+          type: c.campaignTp || null,
+        };
+      });
+      if (allCampaignIds.length === 0) {
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_campaigns", elapsedMs: Date.now() - t0 } });
+      }
+
+      // 2. 활성 캠페인 식별 — 기간 합산 cost 호출
+      const periodFields = JSON.stringify(["salesAmt"]);
+      const periodTimeRange = JSON.stringify({ since: from, until: to });
+      const campStatsUri = `/stats?ids=${encodeURIComponent(allCampaignIds.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
+      const campStatsResp = await naverAdGet(campStatsUri, creds);
+      if (!campStatsResp.ok) {
+        return res.status(campStatsResp.status).json({ error: "campaign stats fetch 실패", raw: campStatsResp.data });
+      }
+      const activeCampaignIds = (campStatsResp.data?.data || [])
+        .filter(c => Number(c.salesAmt || 0) > 0)
+        .map(c => c.id);
+      if (activeCampaignIds.length === 0) {
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_active_campaigns", elapsedMs: Date.now() - t0 } });
+      }
+
+      // 3. 활성 캠페인의 광고그룹 fetch (병렬 5)
+      const adgroupArrays = await parallelLimit(activeCampaignIds, 5, async (id) => {
+        const r = await naverAdGet(`/ncc/adgroups?nccCampaignId=${encodeURIComponent(id)}`, creds);
+        return r.ok && Array.isArray(r.data) ? r.data : [];
+      });
+      const allAdgroups = adgroupArrays.flat();
+      const allAdgroupIds = allAdgroups.map(g => g.nccAdgroupId).filter(Boolean);
+      const idToAdgroup = {};
+      allAdgroups.forEach(g => {
+        if (g.nccAdgroupId) idToAdgroup[g.nccAdgroupId] = {
+          name: g.name || g.nccAdgroupId,
+          campaign_id: g.nccCampaignId,
+        };
+      });
+
+      // 4. 활성 광고그룹 식별 — 광고그룹 합산 cost
+      let activeAdgroupIds = [];
+      if (allAdgroupIds.length > 0) {
+        const groupStatsUri = `/stats?ids=${encodeURIComponent(allAdgroupIds.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
+        const groupStatsResp = await naverAdGet(groupStatsUri, creds);
+        if (groupStatsResp.ok) {
+          activeAdgroupIds = (groupStatsResp.data?.data || [])
+            .filter(g => Number(g.salesAmt || 0) > 0)
+            .map(g => g.id);
+        }
+      }
+      if (activeAdgroupIds.length === 0) {
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_active_adgroups", campaignsScanned: activeCampaignIds.length, elapsedMs: Date.now() - t0 } });
+      }
+
+      // 5. 활성 광고그룹의 키워드 fetch (병렬 5)
+      const keywordArrays = await parallelLimit(activeAdgroupIds, 5, async (id) => {
+        const r = await naverAdGet(`/ncc/keywords?nccAdgroupId=${encodeURIComponent(id)}`, creds);
+        return r.ok && Array.isArray(r.data) ? r.data : [];
+      });
+      const allKeywords = keywordArrays.flat();
+      const idToKeyword = {};
+      allKeywords.forEach(k => {
+        if (k.nccKeywordId) idToKeyword[k.nccKeywordId] = {
+          name: k.keyword || k.nccKeywordId,
+          adgroup_id: k.nccAdgroupId,
+        };
+      });
+      const allKeywordIds = Object.keys(idToKeyword);
+      if (allKeywordIds.length === 0) {
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_keywords", adgroupsScanned: activeAdgroupIds.length, elapsedMs: Date.now() - t0 } });
+      }
+
+      // 6. 키워드 stats bulk (100개씩 chunk, 병렬 5)
+      const keywordFields = JSON.stringify(["impCnt","clkCnt","salesAmt","ccnt","convAmt"]);
+      const chunks = [];
+      for (let i = 0; i < allKeywordIds.length; i += 100) {
+        chunks.push(allKeywordIds.slice(i, i + 100));
+      }
+      const statsArrays = await parallelLimit(chunks, 5, async (chunk) => {
+        const uri = `/stats?ids=${encodeURIComponent(chunk.join(","))}&fields=${encodeURIComponent(keywordFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
+        const r = await naverAdGet(uri, creds);
+        return r.ok ? (r.data?.data || []) : [];
+      });
+      const keywordStats = statsArrays.flat();
+
+      // 7. 응답 가공: cost > 0 키워드만, 메타 조인
+      const keywords = keywordStats
+        .filter(s => Number(s.salesAmt || 0) > 0)
+        .map(s => {
+          const kw = idToKeyword[s.id] || {};
+          const ag = idToAdgroup[kw.adgroup_id] || {};
+          const camp = idToCampaign[ag.campaign_id] || {};
+          return {
+            keyword_id: s.id,
+            keyword_name: kw.name || s.id,
+            ad_group_id: kw.adgroup_id || null,
+            ad_group_name: ag.name || null,
+            campaign_id: ag.campaign_id || null,
+            campaign_name: camp.name || null,
+            campaign_type: camp.type || null,
+            impressions: Number(s.impCnt || 0),
+            clicks: Number(s.clkCnt || 0),
+            cost: Number(s.salesAmt || 0),
+            conversions: Number(s.ccnt || 0),
+            conversion_value: Number(s.convAmt || 0),
+          };
+        });
+
+      return res.status(200).json({
+        keywords,
+        _debug: {
+          campaignsScanned: activeCampaignIds.length,
+          adgroupsScanned: activeAdgroupIds.length,
+          keywordsFetched: allKeywordIds.length,
+          keywordsActive: keywords.length,
+          elapsedMs: Date.now() - t0,
+        },
+      });
+    } catch (e) {
+      return res.status(500).json({ error: e.message, elapsedMs: Date.now() - t0 });
     }
   }
 
