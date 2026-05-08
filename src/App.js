@@ -636,7 +636,7 @@ export default function App() {
       .eq("mall_type", "자사몰")
       .then(({ data }) => { if (alive) setNaverKeywordStats(data || []); });
     return () => { alive = false; };
-  }, [currentBrand?.id, currentMallType, mainTab]);
+  }, [currentBrand?.id, mainTab]);
 
   useEffect(() => {
     if (visibleBrands.length === 0) {
