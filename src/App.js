@@ -630,6 +630,11 @@ export default function App() {
     return () => { alive = false; };
   }, [currentBrand?.id, mainTab]);
 
+  // 브랜드/몰 전환 시 날짜 필터 초기화 (이전 선택값이 새 데이터에 없을 수 있음)
+  useEffect(() => {
+    setNaverAdDateFilter("");
+  }, [currentBrand?.id, currentMallType]);
+
   useEffect(() => {
     if (visibleBrands.length === 0) {
       if (currentBrandId !== null) setCurrentBrandId(null);
