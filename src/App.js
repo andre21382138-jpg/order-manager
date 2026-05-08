@@ -380,8 +380,9 @@ export default function App() {
   const [naverAdSyncResult, setNaverAdSyncResult] = useState("");
   const [naverCampaignRawRows, setNaverCampaignRawRows] = useState([]); // 캠페인별 raw 일별 row (campaign_id != ''인 naver_ad_stats row)
   const [naverCampaignSearch, setNaverCampaignSearch] = useState("");
-  const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만
+  const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만 (확정된 필터)
   const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
+  const [naverCampaignTypeFilterDraft, setNaverCampaignTypeFilterDraft] = useState(null); // 팝업 안에서 편집 중인 임시 상태 (확인 누르면 commit)
   const [naverCampaignSort, setNaverCampaignSort] = useState({ key: "cost", dir: "desc" });
   const [naverAdDateFilter, setNaverAdDateFilter] = useState(""); // "" = 전체 기간, "YYYY-MM-DD" = 특정 날짜
   // 네이버 광고 — 키워드 (Phase 1)
@@ -389,6 +390,7 @@ export default function App() {
   const [naverKeywordSearch, setNaverKeywordSearch] = useState("");
   const [naverKeywordCampaignFilter, setNaverKeywordCampaignFilter] = useState(null);
   const [showKeywordCampaignFilter, setShowKeywordCampaignFilter] = useState(false);
+  const [naverKeywordCampaignFilterDraft, setNaverKeywordCampaignFilterDraft] = useState(null);
   const [naverKeywordSort, setNaverKeywordSort] = useState({ key: "cost", dir: "desc" });
   const [syncKeywordsToo, setSyncKeywordsToo] = useState(false);
   const [naverAdCustomStart, setNaverAdCustomStart] = useState("");
@@ -1881,7 +1883,7 @@ export default function App() {
                                   <span>광고영역</span>
                                   <button
                                     type="button"
-                                    onClick={()=>setShowCampaignTypeFilter(v=>!v)}
+                                    onClick={()=>{ setNaverCampaignTypeFilterDraft(naverCampaignTypeFilter); setShowCampaignTypeFilter(v=>!v); }}
                                     title="광고영역 필터"
                                     style={{
                                       marginLeft:6, padding:"1px 6px", border:"none", cursor:"pointer",
@@ -1899,12 +1901,12 @@ export default function App() {
                                         border:"1px solid #E2E8F0", padding:10, minWidth:180, zIndex:51, fontWeight:400
                                       }}>
                                         <div style={{ display:"flex", gap:6, marginBottom:8, paddingBottom:8, borderBottom:"1px solid #F1F5F9" }}>
-                                          <button type="button" onClick={()=>setNaverCampaignTypeFilter(null)} style={{ flex:1, padding:"5px", fontSize:11, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#475569" }}>전체</button>
-                                          <button type="button" onClick={()=>setNaverCampaignTypeFilter(new Set())} style={{ flex:1, padding:"5px", fontSize:11, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#475569" }}>해제</button>
+                                          <button type="button" onClick={()=>setNaverCampaignTypeFilterDraft(null)} style={{ flex:1, padding:"5px", fontSize:11, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#475569" }}>전체</button>
+                                          <button type="button" onClick={()=>setNaverCampaignTypeFilterDraft(new Set())} style={{ flex:1, padding:"5px", fontSize:11, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#475569" }}>해제</button>
                                         </div>
                                         <div style={{ maxHeight:240, overflowY:"auto" }}>
                                           {availableTypes.map(t => {
-                                            const checked = naverCampaignTypeFilter === null || naverCampaignTypeFilter.has(t);
+                                            const checked = naverCampaignTypeFilterDraft === null || naverCampaignTypeFilterDraft.has(t);
                                             const label = t ? (CAMPAIGN_TYPE_LABEL[t] || t) : "(미분류)";
                                             return (
                                               <label key={t || "_none"} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", fontSize:13, color:"#1E293B", cursor:"pointer" }}>
@@ -1912,7 +1914,7 @@ export default function App() {
                                                   type="checkbox"
                                                   checked={checked}
                                                   onChange={()=>{
-                                                    setNaverCampaignTypeFilter(prev => {
+                                                    setNaverCampaignTypeFilterDraft(prev => {
                                                       const base = prev === null ? new Set(availableTypes) : new Set(prev);
                                                       if (base.has(t)) base.delete(t); else base.add(t);
                                                       return base;
@@ -1923,6 +1925,10 @@ export default function App() {
                                               </label>
                                             );
                                           })}
+                                        </div>
+                                        <div style={{ display:"flex", gap:6, marginTop:8, paddingTop:8, borderTop:"1px solid #F1F5F9" }}>
+                                          <button type="button" onClick={()=>setShowCampaignTypeFilter(false)} style={{ flex:1, padding:"6px", fontSize:12, border:"1px solid #E2E8F0", borderRadius:6, background:"white", cursor:"pointer", color:"#64748B", fontWeight:600 }}>취소</button>
+                                          <button type="button" onClick={()=>{ setNaverCampaignTypeFilter(naverCampaignTypeFilterDraft); setShowCampaignTypeFilter(false); }} style={{ flex:1, padding:"6px", fontSize:12, border:"1px solid #3B82F6", borderRadius:6, background:"#3B82F6", cursor:"pointer", color:"white", fontWeight:700 }}>확인</button>
                                         </div>
                                       </div>
                                     </>
@@ -2067,7 +2073,7 @@ export default function App() {
                                     <span>캠페인</span>
                                     <button
                                       type='button'
-                                      onClick={()=>setShowKeywordCampaignFilter(v=>!v)}
+                                      onClick={()=>{ setNaverKeywordCampaignFilterDraft(naverKeywordCampaignFilter); setShowKeywordCampaignFilter(v=>!v); }}
                                       title='캠페인 필터'
                                       style={{
                                         marginLeft:6, padding:'1px 6px', border:'none', cursor:'pointer',
@@ -2085,12 +2091,12 @@ export default function App() {
                                           border:'1px solid #E2E8F0', padding:10, minWidth:240, zIndex:51, fontWeight:400
                                         }}>
                                           <div style={{ display:'flex', gap:6, marginBottom:8, paddingBottom:8, borderBottom:'1px solid #F1F5F9' }}>
-                                            <button type='button' onClick={()=>setNaverKeywordCampaignFilter(null)} style={{ flex:1, padding:'5px', fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#475569' }}>전체</button>
-                                            <button type='button' onClick={()=>setNaverKeywordCampaignFilter(new Set())} style={{ flex:1, padding:'5px', fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#475569' }}>해제</button>
+                                            <button type='button' onClick={()=>setNaverKeywordCampaignFilterDraft(null)} style={{ flex:1, padding:'5px', fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#475569' }}>전체</button>
+                                            <button type='button' onClick={()=>setNaverKeywordCampaignFilterDraft(new Set())} style={{ flex:1, padding:'5px', fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#475569' }}>해제</button>
                                           </div>
                                           <div style={{ maxHeight:240, overflowY:'auto' }}>
                                             {availableCampaigns.map(cid => {
-                                              const checked = naverKeywordCampaignFilter === null || naverKeywordCampaignFilter.has(cid);
+                                              const checked = naverKeywordCampaignFilterDraft === null || naverKeywordCampaignFilterDraft.has(cid);
                                               const sample = naverKeywordStats.find(k => (k.campaign_id || '') === cid);
                                               const label = sample ? (sample.campaign_name || cid || '(미분류)') : (cid || '(미분류)');
                                               return (
@@ -2099,7 +2105,7 @@ export default function App() {
                                                     type='checkbox'
                                                     checked={checked}
                                                     onChange={()=>{
-                                                      setNaverKeywordCampaignFilter(prev => {
+                                                      setNaverKeywordCampaignFilterDraft(prev => {
                                                         const base = prev === null ? new Set(availableCampaigns) : new Set(prev);
                                                         if (base.has(cid)) base.delete(cid); else base.add(cid);
                                                         return base;
@@ -2110,6 +2116,10 @@ export default function App() {
                                                 </label>
                                               );
                                             })}
+                                          </div>
+                                          <div style={{ display:'flex', gap:6, marginTop:8, paddingTop:8, borderTop:'1px solid #F1F5F9' }}>
+                                            <button type='button' onClick={()=>setShowKeywordCampaignFilter(false)} style={{ flex:1, padding:'6px', fontSize:12, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#64748B', fontWeight:600 }}>취소</button>
+                                            <button type='button' onClick={()=>{ setNaverKeywordCampaignFilter(naverKeywordCampaignFilterDraft); setShowKeywordCampaignFilter(false); }} style={{ flex:1, padding:'6px', fontSize:12, border:'1px solid #3B82F6', borderRadius:6, background:'#3B82F6', cursor:'pointer', color:'white', fontWeight:700 }}>확인</button>
                                           </div>
                                         </div>
                                       </>
