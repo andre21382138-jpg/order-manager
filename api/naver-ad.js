@@ -184,10 +184,12 @@ module.exports = async (req, res) => {
         return res.status(200).json({ keywords: [], _debug: { reason: "no_active_campaigns", elapsedMs: Date.now() - t0 } });
       }
 
-      // 3. 활성 캠페인의 광고그룹 fetch (병렬 5)
+      // 3. 활성 캠페인의 광고그룹 fetch (병렬 5) — 개별 호출 실패는 _debug.warnings에 기록
+      const warnings = [];
       const adgroupArrays = await parallelLimit(activeCampaignIds, 5, async (id) => {
         const r = await naverAdGet(`/ncc/adgroups?nccCampaignId=${encodeURIComponent(id)}`, creds);
-        return r.ok && Array.isArray(r.data) ? r.data : [];
+        if (!r.ok) { warnings.push({ stage: "adgroups", id, status: r.status }); return []; }
+        return Array.isArray(r.data) ? r.data : [];
       });
       const allAdgroups = adgroupArrays.flat();
       const allAdgroupIds = allAdgroups.map(g => g.nccAdgroupId).filter(Boolean);
@@ -199,25 +201,27 @@ module.exports = async (req, res) => {
         };
       });
 
-      // 4. 활성 광고그룹 식별 — 광고그룹 합산 cost
+      // 4. 활성 광고그룹 식별 — 광고그룹 합산 cost (실패 시 명시 에러)
       let activeAdgroupIds = [];
       if (allAdgroupIds.length > 0) {
         const groupStatsUri = `/stats?ids=${encodeURIComponent(allAdgroupIds.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
         const groupStatsResp = await naverAdGet(groupStatsUri, creds);
-        if (groupStatsResp.ok) {
-          activeAdgroupIds = (groupStatsResp.data?.data || [])
-            .filter(g => Number(g.salesAmt || 0) > 0)
-            .map(g => g.id);
+        if (!groupStatsResp.ok) {
+          return res.status(groupStatsResp.status).json({ error: "adgroup stats fetch 실패", raw: groupStatsResp.data });
         }
+        activeAdgroupIds = (groupStatsResp.data?.data || [])
+          .filter(g => Number(g.salesAmt || 0) > 0)
+          .map(g => g.id);
       }
       if (activeAdgroupIds.length === 0) {
-        return res.status(200).json({ keywords: [], _debug: { reason: "no_active_adgroups", campaignsScanned: activeCampaignIds.length, elapsedMs: Date.now() - t0 } });
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_active_adgroups", campaignsScanned: activeCampaignIds.length, warnings, elapsedMs: Date.now() - t0 } });
       }
 
-      // 5. 활성 광고그룹의 키워드 fetch (병렬 5)
+      // 5. 활성 광고그룹의 키워드 fetch (병렬 5) — 개별 호출 실패는 warnings에 기록
       const keywordArrays = await parallelLimit(activeAdgroupIds, 5, async (id) => {
         const r = await naverAdGet(`/ncc/keywords?nccAdgroupId=${encodeURIComponent(id)}`, creds);
-        return r.ok && Array.isArray(r.data) ? r.data : [];
+        if (!r.ok) { warnings.push({ stage: "keywords", id, status: r.status }); return []; }
+        return Array.isArray(r.data) ? r.data : [];
       });
       const allKeywords = keywordArrays.flat();
       const idToKeyword = {};
@@ -229,7 +233,7 @@ module.exports = async (req, res) => {
       });
       const allKeywordIds = Object.keys(idToKeyword);
       if (allKeywordIds.length === 0) {
-        return res.status(200).json({ keywords: [], _debug: { reason: "no_keywords", adgroupsScanned: activeAdgroupIds.length, elapsedMs: Date.now() - t0 } });
+        return res.status(200).json({ keywords: [], _debug: { reason: "no_keywords", adgroupsScanned: activeAdgroupIds.length, warnings, elapsedMs: Date.now() - t0 } });
       }
 
       // 6. 키워드 stats bulk (100개씩 chunk, 병렬 5)
@@ -241,7 +245,8 @@ module.exports = async (req, res) => {
       const statsArrays = await parallelLimit(chunks, 5, async (chunk) => {
         const uri = `/stats?ids=${encodeURIComponent(chunk.join(","))}&fields=${encodeURIComponent(keywordFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
         const r = await naverAdGet(uri, creds);
-        return r.ok ? (r.data?.data || []) : [];
+        if (!r.ok) { warnings.push({ stage: "keyword_stats", chunkSize: chunk.length, status: r.status }); return []; }
+        return r.data?.data || [];
       });
       const keywordStats = statsArrays.flat();
 
@@ -275,6 +280,7 @@ module.exports = async (req, res) => {
           adgroupsScanned: activeAdgroupIds.length,
           keywordsFetched: allKeywordIds.length,
           keywordsActive: keywords.length,
+          warnings,
           elapsedMs: Date.now() - t0,
         },
       });
