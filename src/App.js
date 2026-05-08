@@ -2575,17 +2575,21 @@ export default function App() {
                   </div>
                 );
               })()}
-              {naverAdSyncResult && (
-                <div style={{ padding:"10px 14px", borderRadius:10, fontSize:13, background:naverAdSyncResult.startsWith("✅")?"#F0FDF4":"#FEF2F2", border:naverAdSyncResult.startsWith("✅")?"1px solid #BBF7D0":"1px solid #FCA5A5", color:naverAdSyncResult.startsWith("✅")?"#065F46":"#DC2626" }}>
-                  {naverAdSyncResult}
-                </div>
-              )}
+              {naverAdSyncResult && (() => {
+                const hasError = naverAdSyncResult.includes("❌");
+                return (
+                  <div style={{ padding:"10px 14px", borderRadius:10, fontSize:13, whiteSpace:"pre-line", background:hasError?"#FEF2F2":"#F0FDF4", border:hasError?"1px solid #FCA5A5":"1px solid #BBF7D0", color:hasError?"#DC2626":"#065F46" }}>
+                    {naverAdSyncResult}
+                  </div>
+                );
+              })()}
             </div>
-            <label style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", marginTop:10, background:"#F8FAFC", borderRadius:8, cursor:"pointer", fontSize:13, color:"#475569" }}>
+            <label style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", marginTop:10, background:"#F8FAFC", borderRadius:8, cursor:naverAdSyncing?"not-allowed":"pointer", fontSize:13, color:"#475569", opacity:naverAdSyncing?0.6:1 }}>
               <input
                 type="checkbox"
                 checked={syncKeywordsToo}
                 onChange={e=>setSyncKeywordsToo(e.target.checked)}
+                disabled={naverAdSyncing}
               />
               <span>🔑 키워드까지 동기화 (시간 +15~60초)</span>
             </label>
