@@ -1962,7 +1962,7 @@ export default function App() {
                                     })}
                                     onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
                                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                                    style={{ borderBottom:"1px solid #F1F5F9", cursor:"pointer", transition:"background 0.1s" }}
+                                    style={{ borderBottom:"1px solid #F1F5F9", cursor:"pointer", transition:"background 0.1s", background:"transparent" }}
                                   >
                                     <td style={{ padding:"8px", fontWeight:600, color:"#1E293B", maxWidth:240, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={c.campaign_name}>{c.campaign_name}</td>
                                     <td style={{ padding:"8px", color:"#64748B" }}>{c.campaign_type ? (CAMPAIGN_TYPE_LABEL[c.campaign_type] || c.campaign_type) : "-"}</td>
@@ -2150,7 +2150,7 @@ export default function App() {
                                       })}
                                       onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
                                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                                      style={{ borderBottom:'1px solid #F1F5F9', cursor:'pointer', transition:'background 0.1s' }}
+                                      style={{ borderBottom:'1px solid #F1F5F9', cursor:'pointer', transition:'background 0.1s', background:'transparent' }}
                                     >
                                       <td style={{ padding:'8px', fontWeight:600, color:'#1E293B', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={k.keyword_name}>{k.keyword_name}</td>
                                       <td style={{ padding:'8px', color:'#475569', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={k.campaign_name}>{k.campaign_name || '-'}</td>
