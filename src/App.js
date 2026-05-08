@@ -45,6 +45,15 @@ const PROXY_URL = process.env.REACT_APP_PROXY_URL || "http://localhost:3001";
 const PROXY_TOKEN = process.env.REACT_APP_PROXY_TOKEN || "";
 
 const fmt = (n) => new Intl.NumberFormat("ko-KR").format(n) + "원";
+const KOREAN_DAY = ["일","월","화","수","목","금","토"];
+function formatDateKr(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const m = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const wk = KOREAN_DAY[d.getUTCDay()];
+  return `${m}월 ${day}일 (${wk})`;
+}
 const today = () => { const d = new Date(Date.now() + 9*60*60*1000); return d.toISOString().slice(0, 10); }; // KST 기준
 const yesterday = () => { const d = new Date(Date.now() + 9*60*60*1000 - 86400000); return d.toISOString().slice(0, 10); }; // KST 기준 어제
 const pad = n => String(n).padStart(2,"0");
@@ -373,6 +382,7 @@ export default function App() {
   const [naverCampaignTypeFilter, setNaverCampaignTypeFilter] = useState(null); // null=전체, Set=선택된 광고영역 코드만
   const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
   const [naverCampaignSort, setNaverCampaignSort] = useState({ key: "cost", dir: "desc" });
+  const [naverAdDateFilter, setNaverAdDateFilter] = useState(""); // "" = 전체 기간, "YYYY-MM-DD" = 특정 날짜
   // 네이버 광고 — 키워드 (Phase 1)
   const [naverKeywordStats, setNaverKeywordStats] = useState([]);
   const [naverKeywordSearch, setNaverKeywordSearch] = useState("");
@@ -1646,15 +1656,32 @@ export default function App() {
             const salesByDate = {};
             orders.filter(o => o.brandId === currentBrand.id && o.mallType === "자사몰" && !o.isCancelled)
               .forEach(o => { salesByDate[o.date] = (salesByDate[o.date]||0) + (o.totalAmount||0); });
-            const totalCost = naverAdStats.reduce((s,r)=>s+(r.cost||0), 0);
-            const totalImpr = naverAdStats.reduce((s,r)=>s+(r.impressions||0), 0);
-            const totalClk = naverAdStats.reduce((s,r)=>s+(r.clicks||0), 0);
+            const filteredAdStats = naverAdDateFilter
+              ? naverAdStats.filter(r => r.date === naverAdDateFilter)
+              : naverAdStats;
+            const totalCost = filteredAdStats.reduce((s,r)=>s+(r.cost||0), 0);
+            const totalImpr = filteredAdStats.reduce((s,r)=>s+(r.impressions||0), 0);
+            const totalClk = filteredAdStats.reduce((s,r)=>s+(r.clicks||0), 0);
             const ctr = totalImpr>0 ? (totalClk/totalImpr*100).toFixed(2) : "0";
             return (
               <>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
                   <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>📣 네이버 검색광고 — {currentBrand.name}</div>
-                  <button onClick={()=>{ setShowNaverAdModal(true); setNaverAdSyncResult(""); }} style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:700 }}>🔍 동기화</button>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    {naverAdStats.length > 0 && (
+                      <select
+                        value={naverAdDateFilter}
+                        onChange={e=>setNaverAdDateFilter(e.target.value)}
+                        style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, background:"white", cursor:"pointer", color:"#1E293B" }}
+                      >
+                        <option value="">📅 전체 기간</option>
+                        {[...naverAdStats].sort((a,b)=>a.date.localeCompare(b.date)).map(s => (
+                          <option key={s.date} value={s.date}>{formatDateKr(s.date)}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button onClick={()=>{ setShowNaverAdModal(true); setNaverAdSyncResult(""); }} style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:700 }}>🔍 동기화</button>
+                  </div>
                 </div>
                 {naverAdStats.length === 0 ? (
                   <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
@@ -1677,41 +1704,46 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    <div style={card}>
-                      <h2 style={{...cardTitle, marginBottom:14}}>📅 일별 광고 성과</h2>
-                      <div style={{ overflowY:"auto", maxHeight:520 }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-                          <thead>
-                            <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
-                              {["날짜","광고비","노출","클릭","CTR","CPC","자사몰매출"].map(h=>(
-                                <th key={h} style={{ padding:"8px", textAlign:h==="날짜"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {naverAdStats.map(r=>{
-                              const sales = salesByDate[r.date] || 0;
-                              const dayCtr = r.impressions>0?(r.clicks/r.impressions*100).toFixed(2):"0";
-                              const dayCpc = r.clicks>0?Math.round(r.cost/r.clicks):0;
-                              return (
-                                <tr key={r.date} style={{ borderBottom:"1px solid #F1F5F9" }}>
-                                  <td style={{ padding:"8px", fontWeight:600, color:"#1E293B" }}>{r.date}</td>
-                                  <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(r.cost)}</td>
-                                  <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(r.impressions||0).toLocaleString()}</td>
-                                  <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(r.clicks||0).toLocaleString()}</td>
-                                  <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{dayCtr}%</td>
-                                  <td style={{ padding:"8px", textAlign:"right", color:"#F59E0B" }}>{fmt(dayCpc)}</td>
-                                  <td style={{ padding:"8px", textAlign:"right", color:"#1E293B" }}>{fmt(sales)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                    {naverAdDateFilter === "" && (
+                      <div style={card}>
+                        <h2 style={{...cardTitle, marginBottom:14}}>📅 일별 광고 성과</h2>
+                        <div style={{ overflowY:"auto", maxHeight:520 }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                            <thead>
+                              <tr style={{ borderBottom:"2px solid #E2E8F0" }}>
+                                {["날짜","광고비","노출","클릭","CTR","CPC","자사몰매출"].map(h=>(
+                                  <th key={h} style={{ padding:"8px", textAlign:h==="날짜"?"left":"right", fontWeight:700, color:"#64748B" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {naverAdStats.map(r=>{
+                                const sales = salesByDate[r.date] || 0;
+                                const dayCtr = r.impressions>0?(r.clicks/r.impressions*100).toFixed(2):"0";
+                                const dayCpc = r.clicks>0?Math.round(r.cost/r.clicks):0;
+                                return (
+                                  <tr key={r.date} style={{ borderBottom:"1px solid #F1F5F9" }}>
+                                    <td style={{ padding:"8px", fontWeight:600, color:"#1E293B" }}>{r.date}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#EF4444", fontWeight:600 }}>{fmt(r.cost)}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#3B82F6" }}>{(r.impressions||0).toLocaleString()}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#10B981" }}>{(r.clicks||0).toLocaleString()}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#8B5CF6" }}>{dayCtr}%</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#F59E0B" }}>{fmt(dayCpc)}</td>
+                                    <td style={{ padding:"8px", textAlign:"right", color:"#1E293B" }}>{fmt(sales)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {naverCampaignRawRows.length > 0 && (() => {
+                      const filteredRawRows = naverAdDateFilter
+                        ? naverCampaignRawRows.filter(r => r.date === naverAdDateFilter)
+                        : naverCampaignRawRows;
                       const byType = {};
-                      naverCampaignRawRows.forEach(r => {
+                      filteredRawRows.forEach(r => {
                         const key = r.campaign_type || "_etc";
                         if (!byType[key]) byType[key] = {
                           type_code: r.campaign_type || null,
@@ -1765,8 +1797,11 @@ export default function App() {
                     })()}
                     {naverCampaignRawRows.length > 0 && (() => {
                       // raw 일별 row를 캠페인별로 합산 (렌더 시점)
+                      const filteredRawRows = naverAdDateFilter
+                        ? naverCampaignRawRows.filter(r => r.date === naverAdDateFilter)
+                        : naverCampaignRawRows;
                       const aggCampaigns = {};
-                      naverCampaignRawRows.forEach(r => {
+                      filteredRawRows.forEach(r => {
                         if (!r.campaign_id) return;
                         if (!aggCampaigns[r.campaign_id]) aggCampaigns[r.campaign_id] = {
                           campaign_id: r.campaign_id,
@@ -1930,9 +1965,13 @@ export default function App() {
                       );
                     })()}
                     {naverKeywordStats.length === 0 ? null : (() => {
+                      const filteredKwRows = naverAdDateFilter
+                        ? naverKeywordStats.filter(k => k.date === naverAdDateFilter)
+                        : naverKeywordStats;
+                      if (filteredKwRows.length === 0) return null;  // 그 날짜에 키워드 없음
                       // 일별 row를 키워드별로 합산 (렌더 시점)
                       const aggMap = {};
-                      naverKeywordStats.forEach(k => {
+                      filteredKwRows.forEach(k => {
                         if (!k.keyword_id) return;
                         if (!aggMap[k.keyword_id]) aggMap[k.keyword_id] = {
                           keyword_id: k.keyword_id,
@@ -1978,7 +2017,7 @@ export default function App() {
                           ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
                           : { key, dir: 'desc' });
                       };
-                      const periodLabel = "";  // Phase 2a Task 4에서 dateFilter UI 추가 시 표시
+                      const periodLabel = naverAdDateFilter ? formatDateKr(naverAdDateFilter) : "전체 기간";
                       return (
                         <div style={{...card, marginTop:14}}>
                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:10, flexWrap:'wrap' }}>
