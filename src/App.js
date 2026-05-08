@@ -1166,7 +1166,9 @@ export default function App() {
       const r = await fetch(`/api/naver-ad?action=keywords&brand=${brand.id}&from=${startDate}&to=${endDate}`);
       const data = await r.json();
       if (!r.ok) {
-        setNaverAdSyncResult(prev => `${prev}\n❌ 키워드 동기화 실패: ${data.error || r.status}`);
+        const rawSnippet = data.raw ? ` [${JSON.stringify(data.raw).slice(0, 200)}]` : "";
+        const debugSnippet = data._debug ? ` (${JSON.stringify(data._debug)})` : "";
+        setNaverAdSyncResult(prev => `${prev}\n❌ 키워드 동기화 실패: ${data.error || r.status}${rawSnippet}${debugSnippet}`);
         return;
       }
       // truncate-and-insert (네이버 검색광고는 항상 자사몰 — 캠페인 sync와 동일 패턴)

@@ -169,15 +169,26 @@ module.exports = async (req, res) => {
         return res.status(200).json({ keywords: [], _debug: { reason: "no_campaigns", elapsedMs: Date.now() - t0 } });
       }
 
-      // 2. 활성 캠페인 식별 — 기간 합산 cost 호출
+      // 2. 활성 캠페인 식별 — 기간 합산 cost (100개씩 chunk, /stats ID 한도/URL 길이 보호)
       const periodFields = JSON.stringify(["salesAmt"]);
       const periodTimeRange = JSON.stringify({ since: from, until: to });
-      const campStatsUri = `/stats?ids=${encodeURIComponent(allCampaignIds.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
-      const campStatsResp = await naverAdGet(campStatsUri, creds);
-      if (!campStatsResp.ok) {
-        return res.status(campStatsResp.status).json({ error: "campaign stats fetch 실패", raw: campStatsResp.data });
+      const fetchPeriodCost = async (ids) => {
+        const uri = `/stats?ids=${encodeURIComponent(ids.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
+        return naverAdGet(uri, creds);
+      };
+      const chunkIds = (arr) => {
+        const out = [];
+        for (let i = 0; i < arr.length; i += 100) out.push(arr.slice(i, i + 100));
+        return out;
+      };
+      const campChunks = chunkIds(allCampaignIds);
+      const campStatsResults = await parallelLimit(campChunks, 5, fetchPeriodCost);
+      const failedCampChunk = campStatsResults.find(r => !r.ok);
+      if (failedCampChunk) {
+        return res.status(failedCampChunk.status).json({ error: "campaign stats fetch 실패", raw: failedCampChunk.data });
       }
-      const activeCampaignIds = (campStatsResp.data?.data || [])
+      const activeCampaignIds = campStatsResults
+        .flatMap(r => r.data?.data || [])
         .filter(c => Number(c.salesAmt || 0) > 0)
         .map(c => c.id);
       if (activeCampaignIds.length === 0) {
@@ -201,15 +212,17 @@ module.exports = async (req, res) => {
         };
       });
 
-      // 4. 활성 광고그룹 식별 — 광고그룹 합산 cost (실패 시 명시 에러)
+      // 4. 활성 광고그룹 식별 — 광고그룹 합산 cost (100개씩 chunk, 병렬 5)
       let activeAdgroupIds = [];
       if (allAdgroupIds.length > 0) {
-        const groupStatsUri = `/stats?ids=${encodeURIComponent(allAdgroupIds.join(","))}&fields=${encodeURIComponent(periodFields)}&timeRange=${encodeURIComponent(periodTimeRange)}&datePreset=custom`;
-        const groupStatsResp = await naverAdGet(groupStatsUri, creds);
-        if (!groupStatsResp.ok) {
-          return res.status(groupStatsResp.status).json({ error: "adgroup stats fetch 실패", raw: groupStatsResp.data });
+        const groupChunks = chunkIds(allAdgroupIds);
+        const groupStatsResults = await parallelLimit(groupChunks, 5, fetchPeriodCost);
+        const failedGroupChunk = groupStatsResults.find(r => !r.ok);
+        if (failedGroupChunk) {
+          return res.status(failedGroupChunk.status).json({ error: "adgroup stats fetch 실패", raw: failedGroupChunk.data, _debug: { adgroupCount: allAdgroupIds.length, chunkCount: groupChunks.length } });
         }
-        activeAdgroupIds = (groupStatsResp.data?.data || [])
+        activeAdgroupIds = groupStatsResults
+          .flatMap(r => r.data?.data || [])
           .filter(g => Number(g.salesAmt || 0) > 0)
           .map(g => g.id);
       }
