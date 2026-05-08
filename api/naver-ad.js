@@ -265,6 +265,13 @@ module.exports = async (req, res) => {
           tasks.push({ day, chunk });
         }
       }
+      // Task 수 가드 — Vercel 60초 한도 내 안전. 100 task 초과 시 명시 거부.
+      if (tasks.length > 100) {
+        return res.status(400).json({
+          error: `task_limit_exceeded: ${tasks.length} tasks (max 100)`,
+          _debug: { dayCount: dates.length, keywordChunks: keywordChunksPerDay.length, elapsedMs: Date.now() - t0 },
+        });
+      }
       const taskResults = await parallelLimit(tasks, 5, async ({ day, chunk }) => {
         const dayRange = JSON.stringify({ since: day, until: day });
         const uri = `/stats?ids=${encodeURIComponent(chunk.join(","))}&fields=${encodeURIComponent(keywordFields)}&timeRange=${encodeURIComponent(dayRange)}&datePreset=custom`;
@@ -272,6 +279,14 @@ module.exports = async (req, res) => {
         if (!r.ok) { warnings.push({ stage: "keyword_stats", date: day, status: r.status }); return []; }
         return (r.data?.data || []).map(s => ({ ...s, _date: day }));
       });
+      // 키워드 stats 단계 실패율 30% 초과 시 502 (silent 부분 결과로 인한 데이터 오염 방지)
+      const kwStatFailures = warnings.filter(w => w.stage === "keyword_stats").length;
+      if (tasks.length > 0 && kwStatFailures / tasks.length > 0.3) {
+        return res.status(502).json({
+          error: `keyword_stats 실패율 과다: ${kwStatFailures}/${tasks.length}`,
+          _debug: { dayCount: dates.length, warnings, elapsedMs: Date.now() - t0 },
+        });
+      }
       const keywordStats = taskResults.flat();
 
       // 7. 응답 가공: cost > 0 키워드만, 메타 조인
