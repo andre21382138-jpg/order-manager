@@ -1,3 +1,5 @@
+// crontab 등록 시 반드시 cd로 디렉토리 진입 후 실행 — dotenv는 cwd의 .env를 읽음
+// 예: 0 8 * * * cd /home/USER/order-manager-server && node sync-ad.js >> sync-ad.log 2>&1
 require("dotenv").config();
 const crypto = require("crypto");
 
@@ -98,6 +100,9 @@ function thisMonthRange() {
   const m = now.getUTCMonth() + 1;
   const yest = new Date(Date.now() + 9 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
   const firstDay = `${y}-${String(m).padStart(2, '0')}-01`;
+  // 월초 케이스 (예: 5/1 08:00 → start=2026-05-01, end=2026-04-30) → start=end으로 보정해서
+  // 어제(전월 말일) 한 날치만 동기화. 이 처리 안 하면 매월 말일 데이터가 영구 누락됨.
+  if (firstDay > yest) return { start: yest, end: yest };
   return { start: firstDay, end: yest };
 }
 
@@ -173,8 +178,12 @@ async function syncCampaigns(brand, creds, from, to) {
   }
 
   const allRows = [...dailyRows, ...campaignRows];
-  const r = await supabaseRequest("naver_ad_stats", "POST", "?on_conflict=brand_id%2Cdate%2Ccampaign_id", allRows, true);
-  if (!r.ok) throw new Error(`naver_ad_stats upsert 실패: ${r.status} ${JSON.stringify(r.data).slice(0, 200)}`);
+  // 1000행씩 chunk upsert (Supabase body 한도 + gateway timeout 방어)
+  for (let i = 0; i < allRows.length; i += 1000) {
+    const batch = allRows.slice(i, i + 1000);
+    const r = await supabaseRequest("naver_ad_stats", "POST", "?on_conflict=brand_id%2Cdate%2Ccampaign_id", batch, true);
+    if (!r.ok) throw new Error(`naver_ad_stats upsert 실패: ${r.status} ${JSON.stringify(r.data).slice(0, 200)}`);
+  }
   console.log(`    ✅ 일별 ${dailyRows.length}건 + 캠페인 ${campaignRows.length}건 저장`);
   return { dailyRows: dailyRows.length, campaignRows: campaignRows.length };
 }
@@ -264,6 +273,8 @@ async function syncKeywords(brand, creds, from, to) {
   }
 
   const periodKwResults = await parallelLimit(chunkIds(allKeywordIds), 5, fetchPeriodCost);
+  const failedKw = periodKwResults.find(r => !r.ok);
+  if (failedKw) throw new Error(`keyword period filter 실패: ${failedKw.status}`);
   const activeKeywordIds = periodKwResults.flatMap(r => r.data?.data || [])
     .filter(k => Number(k.salesAmt || 0) > 0)
     .map(k => k.id);
@@ -342,12 +353,7 @@ async function syncKeywords(brand, creds, from, to) {
   console.log("=".repeat(60));
 
   const { start, end } = thisMonthRange();
-  console.log(`📅 동기화 기간: ${start} ~ ${end} (당월)`);
-
-  if (start > end) {
-    console.log("ℹ️  start > end (월초 케이스) — 종료");
-    process.exit(0);
-  }
+  console.log(`📅 동기화 기간: ${start} ~ ${end}${start === end ? " (월초 1일치)" : " (당월)"}`);
 
   const brands = await getBrands();
   const targets = brands.filter(b => BRAND_ALIAS[b.id]);
