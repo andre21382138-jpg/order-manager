@@ -627,6 +627,18 @@ export default function App() {
   }, [currentBrand, currentMallType, mainTab, filter.from, filter.to]);
 
   useEffect(() => {
+    if (!currentBrand?.id) { setNaverKeywordStats([]); return; }
+    if (mainTab !== "광고") return;
+    let alive = true;
+    supabase.from("naver_ad_keyword_stats")
+      .select("*")
+      .eq("brand_id", currentBrand.id)
+      .eq("mall_type", "자사몰")
+      .then(({ data }) => { if (alive) setNaverKeywordStats(data || []); });
+    return () => { alive = false; };
+  }, [currentBrand?.id, currentMallType, mainTab]);
+
+  useEffect(() => {
     if (visibleBrands.length === 0) {
       if (currentBrandId !== null) setCurrentBrandId(null);
       if (mallDrawerBrandId !== null) setMallDrawerBrandId(null);
@@ -1928,6 +1940,158 @@ export default function App() {
                           </table>
                         </div>
                       </div>
+                      );
+                    })()}
+                    {naverKeywordStats.length === 0 ? null : (() => {
+                      const q = naverKeywordSearch.trim().toLowerCase();
+                      const availableCampaigns = Array.from(new Set(naverKeywordStats.map(k => k.campaign_id || ''))).sort();
+                      const campaignFilterActive = naverKeywordCampaignFilter !== null && naverKeywordCampaignFilter.size !== availableCampaigns.length;
+                      const byCampaign = campaignFilterActive
+                        ? naverKeywordStats.filter(k => naverKeywordCampaignFilter.has(k.campaign_id || ''))
+                        : naverKeywordStats;
+                      const baseKeywords = q ? byCampaign.filter(k => (k.keyword_name||'').toLowerCase().includes(q)) : byCampaign;
+                      const KW_SORT_KEYS = { '광고비':'cost', '노출':'impressions', '클릭':'clicks', 'CTR':'ctr', 'CPC':'cpc', '전환수':'conversions', '전환매출':'conversion_value', 'ROAS':'roas' };
+                      const getKwSortVal = (k, key) => {
+                        if (key === 'ctr') return k.impressions>0 ? k.clicks/k.impressions : 0;
+                        if (key === 'cpc') return k.clicks>0 ? k.cost/k.clicks : 0;
+                        if (key === 'roas') return k.cost>0 ? k.conversion_value/k.cost : 0;
+                        return Number(k[key]) || 0;
+                      };
+                      const filteredKeywords = [...baseKeywords].sort((a,b) => {
+                        const va = getKwSortVal(a, naverKeywordSort.key);
+                        const vb = getKwSortVal(b, naverKeywordSort.key);
+                        return naverKeywordSort.dir === 'desc' ? vb - va : va - vb;
+                      });
+                      const toggleKwSort = (label) => {
+                        const key = KW_SORT_KEYS[label];
+                        if (!key) return;
+                        setNaverKeywordSort(prev => prev.key === key
+                          ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+                          : { key, dir: 'desc' });
+                      };
+                      const periodLabel = naverKeywordStats[0] ? naverKeywordStats[0].period_start + ' ~ ' + naverKeywordStats[0].period_end : '';
+                      return (
+                        <div style={{...card, marginTop:14}}>
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:10, flexWrap:'wrap' }}>
+                            <h2 style={{...cardTitle, marginBottom:0}}>🔑 키워드별 광고 성과 {periodLabel && <span style={{ fontSize:12, fontWeight:500, color:'#94A3B8', marginLeft:8 }}>({periodLabel})</span>}</h2>
+                            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                              {campaignFilterActive && (
+                                <button
+                                  type='button'
+                                  onClick={()=>setNaverKeywordCampaignFilter(null)}
+                                  style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #BFDBFE', background:'#EFF6FF', color:'#3B82F6', fontSize:12, fontWeight:700, cursor:'pointer' }}
+                                >✕ 캠페인 필터 해제</button>
+                              )}
+                              <input
+                                type='text'
+                                placeholder='🔍 키워드 검색...'
+                                value={naverKeywordSearch}
+                                onChange={e=>setNaverKeywordSearch(e.target.value)}
+                                style={{ padding:'7px 12px', borderRadius:8, border:'1px solid #E2E8F0', fontSize:13, width:240, maxWidth:'100%' }}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ overflowY:'auto', maxHeight:520 }}>
+                            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                              <thead>
+                                <tr style={{ borderBottom:'2px solid #E2E8F0' }}>
+                                  <th style={{ padding:'8px', textAlign:'left', fontWeight:700, color:'#64748B' }}>키워드</th>
+                                  <th style={{ padding:'8px', textAlign:'left', fontWeight:700, color:'#64748B', position:'relative' }}>
+                                    <span>캠페인</span>
+                                    <button
+                                      type='button'
+                                      onClick={()=>setShowKeywordCampaignFilter(v=>!v)}
+                                      title='캠페인 필터'
+                                      style={{
+                                        marginLeft:6, padding:'1px 6px', border:'none', cursor:'pointer',
+                                        background: campaignFilterActive ? '#DBEAFE' : 'transparent',
+                                        color: campaignFilterActive ? '#3B82F6' : '#94A3B8',
+                                        fontSize:11, borderRadius:4, fontWeight:700, lineHeight:1.4
+                                      }}
+                                    >▼</button>
+                                    {showKeywordCampaignFilter && (
+                                      <>
+                                        <div onClick={()=>setShowKeywordCampaignFilter(false)} style={{ position:'fixed', inset:0, zIndex:50 }} />
+                                        <div style={{
+                                          position:'absolute', top:'100%', left:0, marginTop:4,
+                                          background:'white', borderRadius:8, boxShadow:'0 4px 20px rgba(0,0,0,0.15)',
+                                          border:'1px solid #E2E8F0', padding:10, minWidth:240, zIndex:51, fontWeight:400
+                                        }}>
+                                          <div style={{ display:'flex', gap:6, marginBottom:8, paddingBottom:8, borderBottom:'1px solid #F1F5F9' }}>
+                                            <button type='button' onClick={()=>setNaverKeywordCampaignFilter(null)} style={{ flex:1, padding:'5px', fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#475569' }}>전체</button>
+                                            <button type='button' onClick={()=>setNaverKeywordCampaignFilter(new Set())} style={{ flex:1, padding:'5px', fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, background:'white', cursor:'pointer', color:'#475569' }}>해제</button>
+                                          </div>
+                                          <div style={{ maxHeight:240, overflowY:'auto' }}>
+                                            {availableCampaigns.map(cid => {
+                                              const checked = naverKeywordCampaignFilter === null || naverKeywordCampaignFilter.has(cid);
+                                              const sample = naverKeywordStats.find(k => (k.campaign_id || '') === cid);
+                                              const label = sample ? (sample.campaign_name || cid || '(미분류)') : (cid || '(미분류)');
+                                              return (
+                                                <label key={cid || '_none'} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 4px', fontSize:13, color:'#1E293B', cursor:'pointer' }}>
+                                                  <input
+                                                    type='checkbox'
+                                                    checked={checked}
+                                                    onChange={()=>{
+                                                      setNaverKeywordCampaignFilter(prev => {
+                                                        const base = prev === null ? new Set(availableCampaigns) : new Set(prev);
+                                                        if (base.has(cid)) base.delete(cid); else base.add(cid);
+                                                        return base;
+                                                      });
+                                                    }}
+                                                  />
+                                                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }} title={label}>{label}</span>
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </th>
+                                  <th style={{ padding:'8px', textAlign:'left', fontWeight:700, color:'#64748B' }}>광고영역</th>
+                                  {['광고비','노출','클릭','CTR','CPC','전환수','전환매출','ROAS'].map(h=>{
+                                    const isActive = naverKeywordSort.key === KW_SORT_KEYS[h];
+                                    const arrow = isActive ? (naverKeywordSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+                                    return (
+                                      <th
+                                        key={h}
+                                        onClick={()=>toggleKwSort(h)}
+                                        title={h + ' 기준 정렬'}
+                                        style={{ padding:'8px', textAlign:'right', fontWeight:700, color: isActive?'#3B82F6':'#64748B', cursor:'pointer', userSelect:'none' }}
+                                      >{h}{arrow}</th>
+                                    );
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredKeywords.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={11} style={{ padding:'24px', textAlign:'center', color:'#94A3B8', fontSize:13 }}>🔍 조건에 일치하는 키워드 없음</td>
+                                  </tr>
+                                ) : filteredKeywords.map(k=>{
+                                  const ctr = k.impressions>0 ? (k.clicks/k.impressions*100).toFixed(2) : '0';
+                                  const cpc = k.clicks>0 ? Math.round(k.cost/k.clicks) : 0;
+                                  const roas = k.cost>0 ? (k.conversion_value/k.cost*100).toFixed(0) : '0';
+                                  return (
+                                    <tr key={k.keyword_id} style={{ borderBottom:'1px solid #F1F5F9' }}>
+                                      <td style={{ padding:'8px', fontWeight:600, color:'#1E293B', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={k.keyword_name}>{k.keyword_name}</td>
+                                      <td style={{ padding:'8px', color:'#475569', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={k.campaign_name}>{k.campaign_name || '-'}</td>
+                                      <td style={{ padding:'8px', color:'#64748B' }}>{k.campaign_type ? (CAMPAIGN_TYPE_LABEL[k.campaign_type] || k.campaign_type) : '-'}</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#EF4444', fontWeight:600 }}>{fmt(k.cost)}</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#3B82F6' }}>{(k.impressions||0).toLocaleString()}</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#10B981' }}>{(k.clicks||0).toLocaleString()}</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#8B5CF6' }}>{ctr}%</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#F59E0B' }}>{fmt(cpc)}</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#475569' }}>{(k.conversions||0).toLocaleString()}건</td>
+                                      <td style={{ padding:'8px', textAlign:'right', color:'#10B981', fontWeight:600 }}>{fmt(k.conversion_value)}</td>
+                                      <td style={{ padding:'8px', textAlign:'right', fontWeight:700, color:'#10B981' }}>{roas}%</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       );
                     })()}
                   </>
