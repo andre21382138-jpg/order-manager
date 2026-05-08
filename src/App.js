@@ -384,7 +384,7 @@ export default function App() {
   const [showCampaignTypeFilter, setShowCampaignTypeFilter] = useState(false);
   const [naverCampaignTypeFilterDraft, setNaverCampaignTypeFilterDraft] = useState(null); // 팝업 안에서 편집 중인 임시 상태 (확인 누르면 commit)
   const [naverCampaignSort, setNaverCampaignSort] = useState({ key: "cost", dir: "desc" });
-  const [naverAdDateFilter, setNaverAdDateFilter] = useState(""); // "" = 전체 기간, "YYYY-MM-DD" = 특정 날짜
+  const [naverAdDateFilter, setNaverAdDateFilter] = useState(null); // null = 전체 기간, { from, to } = 기간 (단일 날짜는 from===to)
   // 네이버 광고 — 키워드 (Phase 1)
   const [naverKeywordStats, setNaverKeywordStats] = useState([]);
   const [naverKeywordSearch, setNaverKeywordSearch] = useState("");
@@ -638,7 +638,7 @@ export default function App() {
 
   // 브랜드/몰 전환 시 날짜 필터 초기화 (이전 선택값이 새 데이터에 없을 수 있음)
   useEffect(() => {
-    setNaverAdDateFilter("");
+    setNaverAdDateFilter(null);
   }, [currentBrand?.id, currentMallType]);
 
   useEffect(() => {
@@ -1668,7 +1668,7 @@ export default function App() {
             orders.filter(o => o.brandId === currentBrand.id && o.mallType === "자사몰" && !o.isCancelled)
               .forEach(o => { salesByDate[o.date] = (salesByDate[o.date]||0) + (o.totalAmount||0); });
             const filteredAdStats = naverAdDateFilter
-              ? naverAdStats.filter(r => r.date === naverAdDateFilter)
+              ? naverAdStats.filter(r => r.date >= naverAdDateFilter.from && r.date <= naverAdDateFilter.to)
               : naverAdStats;
             const totalCost = filteredAdStats.reduce((s,r)=>s+(r.cost||0), 0);
             const totalImpr = filteredAdStats.reduce((s,r)=>s+(r.impressions||0), 0);
@@ -1684,7 +1684,9 @@ export default function App() {
                       const periodStart = sortedDates[0];
                       const periodEnd = sortedDates[sortedDates.length - 1];
                       const viewing = naverAdDateFilter
-                        ? formatDateKr(naverAdDateFilter)
+                        ? (naverAdDateFilter.from === naverAdDateFilter.to
+                            ? formatDateKr(naverAdDateFilter.from)
+                            : `${naverAdDateFilter.from} ~ ${naverAdDateFilter.to}`)
                         : `${periodStart} ~ ${periodEnd}`;
                       return (
                         <div style={{ fontSize:12, color:"#64748B", marginTop:3, fontWeight:500 }}>
@@ -1694,18 +1696,53 @@ export default function App() {
                     })()}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    {naverAdStats.length > 0 && (
-                      <select
-                        value={naverAdDateFilter}
-                        onChange={e=>setNaverAdDateFilter(e.target.value)}
-                        style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, background:"white", cursor:"pointer", color:"#1E293B" }}
-                      >
-                        <option value="">📅 전체 기간</option>
-                        {[...naverAdStats].sort((a,b)=>a.date.localeCompare(b.date)).map(s => (
-                          <option key={s.date} value={s.date}>{formatDateKr(s.date)}</option>
-                        ))}
-                      </select>
-                    )}
+                    {naverAdStats.length > 0 && (() => {
+                      const sortedDates = [...naverAdStats].map(s => s.date).sort();
+                      const minDate = sortedDates[0];
+                      const maxDate = sortedDates[sortedDates.length - 1];
+                      return (
+                        <>
+                          <button
+                            onClick={() => setNaverAdDateFilter(null)}
+                            style={{
+                              padding:"7px 12px", borderRadius:8,
+                              border: !naverAdDateFilter ? "1px solid #3B82F6" : "1px solid #E2E8F0",
+                              background: !naverAdDateFilter ? "#EFF6FF" : "white",
+                              color: !naverAdDateFilter ? "#3B82F6" : "#475569",
+                              fontSize:13, fontWeight:!naverAdDateFilter?700:600, cursor:"pointer",
+                            }}
+                            title="전체 기간 보기"
+                          >📅 전체</button>
+                          <input
+                            type="date"
+                            value={naverAdDateFilter?.from || ""}
+                            min={minDate}
+                            max={maxDate}
+                            onChange={e => {
+                              const from = e.target.value;
+                              if (!from) { setNaverAdDateFilter(null); return; }
+                              const to = naverAdDateFilter?.to && naverAdDateFilter.to >= from ? naverAdDateFilter.to : from;
+                              setNaverAdDateFilter({ from, to });
+                            }}
+                            style={{ padding:"6px 8px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, color:"#1E293B" }}
+                          />
+                          <span style={{fontSize:12,color:"#94A3B8"}}>~</span>
+                          <input
+                            type="date"
+                            value={naverAdDateFilter?.to || ""}
+                            min={naverAdDateFilter?.from || minDate}
+                            max={maxDate}
+                            onChange={e => {
+                              const to = e.target.value;
+                              if (!to) { setNaverAdDateFilter(null); return; }
+                              const from = naverAdDateFilter?.from && naverAdDateFilter.from <= to ? naverAdDateFilter.from : to;
+                              setNaverAdDateFilter({ from, to });
+                            }}
+                            style={{ padding:"6px 8px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, color:"#1E293B" }}
+                          />
+                        </>
+                      );
+                    })()}
                     <button onClick={()=>{ setShowNaverAdModal(true); setNaverAdSyncResult(""); }} style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #BFDBFE", background:"#EFF6FF", color:"#3B82F6", cursor:"pointer", fontSize:13, fontWeight:700 }}>🔍 동기화</button>
                   </div>
                 </div>
@@ -1730,7 +1767,7 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    {naverAdDateFilter === "" && (
+                    {!(naverAdDateFilter && naverAdDateFilter.from === naverAdDateFilter.to) && (
                       <div style={card}>
                         <h2 style={{...cardTitle, marginBottom:14}}>📅 일별 광고 성과</h2>
                         <div style={{ overflowY:"auto", maxHeight:520 }}>
@@ -1743,7 +1780,7 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody>
-                              {naverAdStats.map(r=>{
+                              {filteredAdStats.map(r=>{
                                 const sales = salesByDate[r.date] || 0;
                                 const dayCtr = r.impressions>0?(r.clicks/r.impressions*100).toFixed(2):"0";
                                 const dayCpc = r.clicks>0?Math.round(r.cost/r.clicks):0;
@@ -1766,7 +1803,7 @@ export default function App() {
                     )}
                     {naverCampaignRawRows.length > 0 && (() => {
                       const filteredRawRows = naverAdDateFilter
-                        ? naverCampaignRawRows.filter(r => r.date === naverAdDateFilter)
+                        ? naverCampaignRawRows.filter(r => r.date >= naverAdDateFilter.from && r.date <= naverAdDateFilter.to)
                         : naverCampaignRawRows;
                       const byType = {};
                       filteredRawRows.forEach(r => {
@@ -1824,7 +1861,7 @@ export default function App() {
                     {naverCampaignRawRows.length > 0 && (() => {
                       // raw 일별 row를 캠페인별로 합산 (렌더 시점)
                       const filteredRawRows = naverAdDateFilter
-                        ? naverCampaignRawRows.filter(r => r.date === naverAdDateFilter)
+                        ? naverCampaignRawRows.filter(r => r.date >= naverAdDateFilter.from && r.date <= naverAdDateFilter.to)
                         : naverCampaignRawRows;
                       const aggCampaigns = {};
                       filteredRawRows.forEach(r => {
@@ -2007,7 +2044,7 @@ export default function App() {
                     })()}
                     {naverKeywordStats.length === 0 ? null : (() => {
                       const filteredKwRows = naverAdDateFilter
-                        ? naverKeywordStats.filter(k => k.date === naverAdDateFilter)
+                        ? naverKeywordStats.filter(k => k.date >= naverAdDateFilter.from && k.date <= naverAdDateFilter.to)
                         : naverKeywordStats;
                       if (filteredKwRows.length === 0) return null;  // 그 날짜에 키워드 없음
                       // 일별 row를 키워드별로 합산 (렌더 시점)
@@ -2058,7 +2095,11 @@ export default function App() {
                           ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
                           : { key, dir: 'desc' });
                       };
-                      const periodLabel = naverAdDateFilter ? formatDateKr(naverAdDateFilter) : "전체 기간";
+                      const periodLabel = naverAdDateFilter
+                        ? (naverAdDateFilter.from === naverAdDateFilter.to
+                            ? formatDateKr(naverAdDateFilter.from)
+                            : `${naverAdDateFilter.from} ~ ${naverAdDateFilter.to}`)
+                        : "전체 기간";
                       return (
                         <div style={{...card, marginTop:14}}>
                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:10, flexWrap:'wrap' }}>
