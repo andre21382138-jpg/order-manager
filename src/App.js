@@ -659,16 +659,47 @@ export default function App() {
     setCafe24ProductsLoading(true);
     setCafe24ProductsError("");
     try {
+      // 1. access_token 갱신 시도 (refresh_token으로 새 토큰 받기)
       let accessToken = token.access_token;
+      let refreshSucceeded = false;
+      let refreshErrorMsg = null;
       try {
         const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
         const rData = await rRes.json();
-        if (rData.access_token) accessToken = rData.access_token;
-      } catch {}
+        if (rData.access_token) {
+          accessToken = rData.access_token;
+          refreshSucceeded = true;
+          // 새 토큰 Supabase에 저장 + 로컬 state 갱신
+          const updated = {
+            access_token: rData.access_token,
+            refresh_token: rData.refresh_token || token.refresh_token,
+            expires_at: rData.expires_at || token.expires_at,
+            refresh_token_expires_at: rData.refresh_token_expires_at || token.refresh_token_expires_at,
+          };
+          await supabase.from("cafe24_tokens").update(updated).eq("brand_id", brand.id);
+          setCafe24Tokens(prev => ({ ...prev, [brand.id]: { ...prev[brand.id], ...updated } }));
+        } else if (rData.error) {
+          refreshErrorMsg = typeof rData.error === "string" ? rData.error : JSON.stringify(rData.error);
+        }
+      } catch (e) {
+        refreshErrorMsg = e.message;
+      }
+
+      // 2. 상품 호출 (갱신된 또는 기존 토큰으로)
       const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
       const out = await r.json();
       if (out.error) {
-        setCafe24ProductsError(typeof out.error === "string" ? out.error : JSON.stringify(out.error));
+        // 401 같은 인증 오류면 refresh 실패가 진짜 원인
+        const errMsg = typeof out.error === "string" ? out.error : JSON.stringify(out.error);
+        const isAuth = /invalid_token|unauthorized|401/i.test(errMsg);
+        if (isAuth && !refreshSucceeded) {
+          setCafe24ProductsError(
+            `❌ 카페24 토큰이 만료되었습니다 (refresh도 실패). 사이드바 ${brand.name} 옆 🔗 버튼으로 재연동해주세요.\n` +
+            (refreshErrorMsg ? `   refresh 실패 사유: ${refreshErrorMsg}` : "")
+          );
+        } else {
+          setCafe24ProductsError(`${errMsg}` + (refreshErrorMsg ? `\n(refresh 시도: ${refreshErrorMsg})` : ""));
+        }
         setCafe24Products([]);
         setCafe24ProductsLoadedFor("");
       } else {
@@ -1775,8 +1806,8 @@ export default function App() {
                     ⏳ 카페24 상품 목록 가져오는 중...
                   </div>
                 ) : cafe24ProductsError ? (
-                  <div style={{ background:"#FEF2F2", borderRadius:14, padding:24, border:"1px solid #FCA5A5", color:"#DC2626", fontSize:13 }}>
-                    ❌ {cafe24ProductsError}
+                  <div style={{ background:"#FEF2F2", borderRadius:14, padding:24, border:"1px solid #FCA5A5", color:"#DC2626", fontSize:13, whiteSpace:"pre-line" }}>
+                    {cafe24ProductsError.startsWith("❌") ? cafe24ProductsError : `❌ ${cafe24ProductsError}`}
                   </div>
                 ) : (
                   <div style={{...card}}>
