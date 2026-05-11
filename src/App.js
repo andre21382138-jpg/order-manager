@@ -398,6 +398,12 @@ export default function App() {
   const [naverAdSelectedRange, setNaverAdSelectedRange] = useState(null); // { start, end, label } — 동기화 모달에서 선택한 기간
   const [trendChartTarget, setTrendChartTarget] = useState(null);
   // null = 닫힘, { type: "keyword"|"campaign", id, title, subtitle } = 열림
+  // 상품 탭 (카페24 마스터)
+  const [cafe24Products, setCafe24Products] = useState([]);
+  const [cafe24ProductsLoading, setCafe24ProductsLoading] = useState(false);
+  const [cafe24ProductsError, setCafe24ProductsError] = useState("");
+  const [cafe24ProductsSearch, setCafe24ProductsSearch] = useState("");
+  const [cafe24ProductsSort, setCafe24ProductsSort] = useState({ key: "product_no", dir: "asc" });
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
   const [smartstoreSyncResult, setSmartStoreSyncResult] = useState("");
   const [smartstoreCustomStart, setSmartStoreCustomStart] = useState("");
@@ -640,6 +646,43 @@ export default function App() {
   useEffect(() => {
     setNaverAdDateFilter(null);
   }, [currentBrand?.id, currentMallType]);
+
+  // 상품 탭: 카페24 상품 마스터 fetch (자사몰 + 카페24 토큰 등록 브랜드 한정)
+  useEffect(() => {
+    if (mainTab !== "상품") return;
+    if (!currentBrand?.id) { setCafe24Products([]); return; }
+    if (currentMallType !== "자사몰") { setCafe24Products([]); return; }
+    const token = cafe24Tokens[currentBrand.id];
+    if (!token) { setCafe24Products([]); setCafe24ProductsError("카페24 연동이 필요합니다."); return; }
+    let alive = true;
+    setCafe24ProductsLoading(true);
+    setCafe24ProductsError("");
+    (async () => {
+      try {
+        // access_token 갱신 시도 (만료 대비)
+        let accessToken = token.access_token;
+        try {
+          const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
+          const rData = await rRes.json();
+          if (rData.access_token) accessToken = rData.access_token;
+        } catch {}
+        const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
+        const out = await r.json();
+        if (!alive) return;
+        if (out.error) {
+          setCafe24ProductsError(typeof out.error === "string" ? out.error : JSON.stringify(out.error));
+          setCafe24Products([]);
+        } else {
+          setCafe24Products(out.products || []);
+        }
+      } catch (e) {
+        if (alive) { setCafe24ProductsError(e.message); setCafe24Products([]); }
+      } finally {
+        if (alive) setCafe24ProductsLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [mainTab, currentBrand?.id, currentMallType, cafe24Tokens]);
 
   useEffect(() => {
     if (visibleBrands.length === 0) {
@@ -1569,7 +1612,7 @@ export default function App() {
                 <>
                   {/* Main 탭 */}
                   <div style={{ display:"flex", gap:4, marginBottom:14, background:"white", borderRadius:12, padding:"6px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
-                    {[["매출","💰"],["광고","📣"],["원가","📊"]].map(([t,icon]) => {
+                    {[["매출","💰"],["광고","📣"],["상품","🛒"],["원가","📊"]].map(([t,icon]) => {
                       const active = mainTab === t;
                       return (
                         <button
@@ -1640,6 +1683,134 @@ export default function App() {
               <div style={{ color:"#94A3B8", fontSize:13 }}>{currentBrand.name} {currentMallType} 원가 기능은 준비 중입니다.</div>
             </div>
           )}
+
+          {/* ── 상품 탭 ── */}
+          {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="상품" && (() => {
+            if (currentMallType !== "자사몰") {
+              return (
+                <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+                  <div style={{ fontSize:30, marginBottom:10 }}>🛒</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:6 }}>{currentMallType}는 아직 지원하지 않습니다</div>
+                  <div style={{ fontSize:12, color:"#94A3B8" }}>현재 상품 목록은 카페24(자사몰) 연동 브랜드만 조회 가능합니다.</div>
+                </div>
+              );
+            }
+            if (!cafe24Tokens[currentBrand.id]) {
+              return (
+                <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center" }}>
+                  <div style={{ fontSize:30, marginBottom:10 }}>🔗</div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#1E293B", marginBottom:6 }}>카페24 연동이 필요합니다</div>
+                  <div style={{ fontSize:12, color:"#94A3B8" }}>사이드바 브랜드 옆 🔗 버튼으로 연동 후 이용 가능합니다.</div>
+                </div>
+              );
+            }
+            const q = cafe24ProductsSearch.trim().toLowerCase();
+            const filtered = q
+              ? cafe24Products.filter(p => (p.product_name||"").toLowerCase().includes(q) || String(p.product_no).includes(q))
+              : cafe24Products;
+            const SORT_KEYS = { "상품번호":"product_no", "상품명":"product_name", "판매가":"price", "정상가":"retail_price", "공급가":"supply_price" };
+            const getSortVal = (p, key) => {
+              if (key === "product_name") return (p.product_name || "").toLowerCase();
+              if (key === "product_no") return Number(p.product_no) || 0;
+              return Number(p[key]) || 0;
+            };
+            const sorted = [...filtered].sort((a,b) => {
+              const va = getSortVal(a, cafe24ProductsSort.key);
+              const vb = getSortVal(b, cafe24ProductsSort.key);
+              if (typeof va === "string") {
+                return cafe24ProductsSort.dir === "desc" ? vb.localeCompare(va) : va.localeCompare(vb);
+              }
+              return cafe24ProductsSort.dir === "desc" ? vb - va : va - vb;
+            });
+            const toggleSort = (label) => {
+              const key = SORT_KEYS[label];
+              if (!key) return;
+              setCafe24ProductsSort(prev => prev.key === key
+                ? { key, dir: prev.dir === "desc" ? "asc" : "desc" }
+                : { key, dir: key === "product_name" ? "asc" : "desc" });
+            };
+            return (
+              <>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, gap:10, flexWrap:"wrap" }}>
+                  <div>
+                    <div style={{ fontSize:18, fontWeight:800, color:"#1E293B" }}>🛒 상품 목록 — {currentBrand.name}</div>
+                    {!cafe24ProductsLoading && !cafe24ProductsError && (
+                      <div style={{ fontSize:12, color:"#64748B", marginTop:3, fontWeight:500 }}>
+                        📦 총 {cafe24Products.length}개 (현재 판매중)
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="🔍 상품명/번호 검색..."
+                    value={cafe24ProductsSearch}
+                    onChange={e=>setCafe24ProductsSearch(e.target.value)}
+                    disabled={cafe24ProductsLoading}
+                    style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, width:240, maxWidth:"100%" }}
+                  />
+                </div>
+                {cafe24ProductsLoading ? (
+                  <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center", color:"#64748B", fontSize:13 }}>
+                    ⏳ 카페24 상품 목록 가져오는 중...
+                  </div>
+                ) : cafe24ProductsError ? (
+                  <div style={{ background:"#FEF2F2", borderRadius:14, padding:24, border:"1px solid #FCA5A5", color:"#DC2626", fontSize:13 }}>
+                    ❌ {cafe24ProductsError}
+                  </div>
+                ) : (
+                  <div style={{...card}}>
+                    <div style={{ overflowY:"auto", maxHeight:720 }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                        <thead>
+                          <tr style={{ borderBottom:"2px solid #E2E8F0", position:"sticky", top:0, background:"white", zIndex:1 }}>
+                            {["상품번호","상품명","판매가","정상가","공급가","상품구분"].map(h => {
+                              const key = SORT_KEYS[h];
+                              const isActive = key && cafe24ProductsSort.key === key;
+                              const arrow = isActive ? (cafe24ProductsSort.dir === "desc" ? " ▼" : " ▲") : "";
+                              const isNumeric = ["판매가","정상가","공급가"].includes(h);
+                              return (
+                                <th
+                                  key={h}
+                                  onClick={key ? ()=>toggleSort(h) : undefined}
+                                  title={key ? `${h} 기준 정렬` : ""}
+                                  style={{
+                                    padding:"8px",
+                                    textAlign: isNumeric ? "right" : "left",
+                                    fontWeight:700,
+                                    color: isActive ? "#3B82F6" : "#64748B",
+                                    cursor: key ? "pointer" : "default",
+                                    userSelect:"none",
+                                  }}
+                                >{h}{arrow}</th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sorted.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>
+                                {cafe24Products.length === 0 ? "📦 상품이 없습니다" : "🔍 검색어와 일치하는 상품 없음"}
+                              </td>
+                            </tr>
+                          ) : sorted.map(p => (
+                            <tr key={p.product_no} style={{ borderBottom:"1px solid #F1F5F9" }}>
+                              <td style={{ padding:"8px", color:"#475569", fontWeight:600 }}>{p.product_no}</td>
+                              <td style={{ padding:"8px", color:"#1E293B", maxWidth:480, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={p.product_name}>{p.product_name}</td>
+                              <td style={{ padding:"8px", textAlign:"right", color:"#1E293B", fontWeight:600 }}>{fmt(Number(p.price) || 0)}</td>
+                              <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{p.retail_price ? fmt(Number(p.retail_price)) : "-"}</td>
+                              <td style={{ padding:"8px", textAlign:"right", color:"#64748B" }}>{p.supply_price ? fmt(Number(p.supply_price)) : "-"}</td>
+                              <td style={{ padding:"8px", color:"#CBD5E1", fontSize:12 }}>-</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* ── 광고 탭 ── */}
           {currentBrand && mallDrawerBrandId !== currentBrand.id && isCurrentMallSupported && mainTab==="광고" && (() => {
@@ -2610,7 +2781,7 @@ export default function App() {
       {/* 모바일 하단 탭바 */}
       {isMobile && (
         <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"white", borderTop:"1px solid #E2E8F0", display:"flex", zIndex:100, boxShadow:"0 -2px 10px rgba(0,0,0,0.08)" }}>
-          {[["매출","💰"],["광고","📣"],["원가","📊"]].map(([t,icon])=>(
+          {[["매출","💰"],["광고","📣"],["상품","🛒"],["원가","📊"]].map(([t,icon])=>(
             <button key={t} onClick={()=>{ setMainTab(t); if(t==="매출") setSalesSubTab("결산조회"); }} style={{ flex:1, padding:"10px 0", border:"none", cursor:"pointer", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
               <span style={{ fontSize:20 }}>{icon}</span>
               <span style={{ fontSize:11, fontWeight:700, color:mainTab===t?"#3B82F6":"#94A3B8" }}>{t}</span>
