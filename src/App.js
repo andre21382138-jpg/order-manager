@@ -404,6 +404,8 @@ export default function App() {
   const [cafe24ProductsError, setCafe24ProductsError] = useState("");
   const [cafe24ProductsSearch, setCafe24ProductsSearch] = useState("");
   const [cafe24ProductsSort, setCafe24ProductsSort] = useState({ key: "product_no", dir: "asc" });
+  const [cafe24ProductsLoadedFor, setCafe24ProductsLoadedFor] = useState(""); // "brandId|mallType" — 마지막 성공 fetch 키
+  const [cafe24ProductsFetchedAt, setCafe24ProductsFetchedAt] = useState(null); // 마지막 fetch 시각
   const [smartstoreSyncing, setSmartStoreSyncing] = useState(false);
   const [smartstoreSyncResult, setSmartStoreSyncResult] = useState("");
   const [smartstoreCustomStart, setSmartStoreCustomStart] = useState("");
@@ -647,42 +649,48 @@ export default function App() {
     setNaverAdDateFilter(null);
   }, [currentBrand?.id, currentMallType]);
 
-  // 상품 탭: 카페24 상품 마스터 fetch (자사몰 + 카페24 토큰 등록 브랜드 한정)
-  useEffect(() => {
-    if (mainTab !== "상품") return;
-    if (!currentBrand?.id) { setCafe24Products([]); return; }
-    if (currentMallType !== "자사몰") { setCafe24Products([]); return; }
-    const token = cafe24Tokens[currentBrand.id];
+  // 상품 fetch 함수 (재사용 — useEffect + 새로고침 버튼)
+  const fetchCafe24Products = React.useCallback(async (brand, mallType, force = false) => {
+    if (!brand?.id || mallType !== "자사몰") return;
+    const token = cafe24Tokens[brand.id];
     if (!token) { setCafe24Products([]); setCafe24ProductsError("카페24 연동이 필요합니다."); return; }
-    let alive = true;
+    const key = `${brand.id}|${mallType}`;
+    if (!force && cafe24ProductsLoadedFor === key && cafe24Products.length > 0) return; // 캐시 hit
     setCafe24ProductsLoading(true);
     setCafe24ProductsError("");
-    (async () => {
+    try {
+      let accessToken = token.access_token;
       try {
-        // access_token 갱신 시도 (만료 대비)
-        let accessToken = token.access_token;
-        try {
-          const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
-          const rData = await rRes.json();
-          if (rData.access_token) accessToken = rData.access_token;
-        } catch {}
-        const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
-        const out = await r.json();
-        if (!alive) return;
-        if (out.error) {
-          setCafe24ProductsError(typeof out.error === "string" ? out.error : JSON.stringify(out.error));
-          setCafe24Products([]);
-        } else {
-          setCafe24Products(out.products || []);
-        }
-      } catch (e) {
-        if (alive) { setCafe24ProductsError(e.message); setCafe24Products([]); }
-      } finally {
-        if (alive) setCafe24ProductsLoading(false);
+        const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
+        const rData = await rRes.json();
+        if (rData.access_token) accessToken = rData.access_token;
+      } catch {}
+      const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
+      const out = await r.json();
+      if (out.error) {
+        setCafe24ProductsError(typeof out.error === "string" ? out.error : JSON.stringify(out.error));
+        setCafe24Products([]);
+        setCafe24ProductsLoadedFor("");
+      } else {
+        setCafe24Products(out.products || []);
+        setCafe24ProductsLoadedFor(key);
+        setCafe24ProductsFetchedAt(Date.now());
       }
-    })();
-    return () => { alive = false; };
-  }, [mainTab, currentBrand?.id, currentMallType, cafe24Tokens]);
+    } catch (e) {
+      setCafe24ProductsError(e.message);
+      setCafe24Products([]);
+      setCafe24ProductsLoadedFor("");
+    } finally {
+      setCafe24ProductsLoading(false);
+    }
+  }, [cafe24Tokens, cafe24ProductsLoadedFor, cafe24Products.length]);
+
+  // 상품 탭 진입 또는 브랜드/몰 전환 시 fetch (캐시 hit 시 skip)
+  useEffect(() => {
+    if (mainTab !== "상품") return;
+    if (currentMallType !== "자사몰") { setCafe24Products([]); setCafe24ProductsLoadedFor(""); return; }
+    fetchCafe24Products(currentBrand, currentMallType, false);
+  }, [mainTab, currentBrand?.id, currentMallType, fetchCafe24Products, currentBrand]);
 
   useEffect(() => {
     if (visibleBrands.length === 0) {
@@ -1737,17 +1745,30 @@ export default function App() {
                     {!cafe24ProductsLoading && !cafe24ProductsError && (
                       <div style={{ fontSize:12, color:"#64748B", marginTop:3, fontWeight:500 }}>
                         📦 총 {cafe24Products.length}개 (현재 판매중)
+                        {cafe24ProductsFetchedAt && (
+                          <span style={{ marginLeft:8, color:"#94A3B8", fontWeight:400 }}>
+                            · 최근 갱신: {new Date(cafe24ProductsFetchedAt).toLocaleString("ko-KR", { timeZone:"Asia/Seoul", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="🔍 상품명/번호 검색..."
-                    value={cafe24ProductsSearch}
-                    onChange={e=>setCafe24ProductsSearch(e.target.value)}
-                    disabled={cafe24ProductsLoading}
-                    style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, width:240, maxWidth:"100%" }}
-                  />
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 상품명/번호 검색..."
+                      value={cafe24ProductsSearch}
+                      onChange={e=>setCafe24ProductsSearch(e.target.value)}
+                      disabled={cafe24ProductsLoading}
+                      style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #E2E8F0", fontSize:13, width:240, maxWidth:"100%" }}
+                    />
+                    <button
+                      onClick={()=>fetchCafe24Products(currentBrand, currentMallType, true)}
+                      disabled={cafe24ProductsLoading}
+                      style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #BFDBFE", background: cafe24ProductsLoading?"#F1F5F9":"#EFF6FF", color: cafe24ProductsLoading?"#94A3B8":"#3B82F6", cursor: cafe24ProductsLoading?"not-allowed":"pointer", fontSize:13, fontWeight:700 }}
+                      title="카페24에서 다시 가져오기"
+                    >🔄 새로고침</button>
+                  </div>
                 </div>
                 {cafe24ProductsLoading ? (
                   <div style={{ background:"white", borderRadius:14, padding:32, boxShadow:"0 1px 4px rgba(0,0,0,0.07)", textAlign:"center", color:"#64748B", fontSize:13 }}>
