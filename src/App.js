@@ -404,8 +404,7 @@ export default function App() {
   const [cafe24ProductsError, setCafe24ProductsError] = useState("");
   const [cafe24ProductsSearch, setCafe24ProductsSearch] = useState("");
   const [cafe24ProductsSort, setCafe24ProductsSort] = useState({ key: "product_no", dir: "asc" });
-  const [cafe24ProductsLoadedFor, setCafe24ProductsLoadedFor] = useState(""); // "brandId|mallType" — 마지막 성공 fetch 키
-  const [cafe24ProductsFetchedAt, setCafe24ProductsFetchedAt] = useState(null); // 마지막 fetch 시각
+  const [cafe24ProductsFetchedAt, setCafe24ProductsFetchedAt] = useState(null); // 마지막 fetch 시각 (catalog_products.updated_at 최대값 기반)
   const [productCategoryMap, setProductCategoryMap] = useState({}); // { product_no: category } — 현재 브랜드 매핑
   const [showCategoryImportModal, setShowCategoryImportModal] = useState(false);
   const [categoryImportPreview, setCategoryImportPreview] = useState(null); // { matches:[], divergent:[], excelOnly:[], cafe24Only:[] }
@@ -653,17 +652,36 @@ export default function App() {
     setNaverAdDateFilter(null);
   }, [currentBrand?.id, currentMallType]);
 
-  // 상품 fetch 함수 (재사용 — useEffect + 새로고침 버튼)
-  const fetchCafe24Products = React.useCallback(async (brand, mallType, force = false) => {
-    if (!brand?.id || mallType !== "자사몰") return;
+  // catalog_products 캐시에서 상품 로드 (DB만, 카페24 API 호출 없음)
+  const loadCachedProducts = React.useCallback(async (brandId) => {
+    if (!brandId) { setCafe24Products([]); setCafe24ProductsFetchedAt(null); return; }
+    setCafe24ProductsLoading(true);
+    setCafe24ProductsError("");
+    const { data, error } = await supabase
+      .from("catalog_products")
+      .select("product_no,product_name,price,retail_price,supply_price,small_image,updated_at")
+      .eq("brand_id", brandId)
+      .order("product_no");
+    if (error) {
+      setCafe24ProductsError(error.message);
+      setCafe24Products([]);
+    } else {
+      setCafe24Products(data || []);
+      const latest = (data || []).reduce((max, r) => (r.updated_at && r.updated_at > max ? r.updated_at : max), "");
+      setCafe24ProductsFetchedAt(latest ? new Date(latest).getTime() : null);
+    }
+    setCafe24ProductsLoading(false);
+  }, []);
+
+  // 카페24 API에서 강제 새로고침 → catalog_products 저장 → 캐시 reload
+  const refreshFromCafe24 = React.useCallback(async (brand) => {
+    if (!brand?.id) return;
     const token = cafe24Tokens[brand.id];
-    if (!token) { setCafe24Products([]); setCafe24ProductsError("카페24 연동이 필요합니다."); return; }
-    const key = `${brand.id}|${mallType}`;
-    if (!force && cafe24ProductsLoadedFor === key && cafe24Products.length > 0) return; // 캐시 hit
+    if (!token) { setCafe24ProductsError("카페24 연동이 필요합니다."); return; }
     setCafe24ProductsLoading(true);
     setCafe24ProductsError("");
     try {
-      // 1. access_token 갱신 시도 (refresh_token으로 새 토큰 받기)
+      // 1. access_token 갱신
       let accessToken = token.access_token;
       let refreshSucceeded = false;
       let refreshErrorMsg = null;
@@ -673,7 +691,6 @@ export default function App() {
         if (rData.access_token) {
           accessToken = rData.access_token;
           refreshSucceeded = true;
-          // 새 토큰 Supabase에 저장 + 로컬 state 갱신
           const updated = {
             access_token: rData.access_token,
             refresh_token: rData.refresh_token || token.refresh_token,
@@ -685,47 +702,44 @@ export default function App() {
         } else if (rData.error) {
           refreshErrorMsg = typeof rData.error === "string" ? rData.error : JSON.stringify(rData.error);
         }
-      } catch (e) {
-        refreshErrorMsg = e.message;
-      }
+      } catch (e) { refreshErrorMsg = e.message; }
 
-      // 2. 상품 호출 (갱신된 또는 기존 토큰으로)
+      // 2. 상품 호출
       const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
       const out = await r.json();
       if (out.error) {
-        // 401 같은 인증 오류면 refresh 실패가 진짜 원인
         const errMsg = typeof out.error === "string" ? out.error : JSON.stringify(out.error);
-        const isAuth = /invalid_token|unauthorized|401/i.test(errMsg);
+        const isAuth = /invalid_token|unauthorized|401|invalid_grant/i.test(errMsg + (refreshErrorMsg || ""));
         if (isAuth && !refreshSucceeded) {
           setCafe24ProductsError(
             `❌ 카페24 토큰이 만료되었습니다 (refresh도 실패). 사이드바 ${brand.name} 옆 🔗 버튼으로 재연동해주세요.\n` +
-            (refreshErrorMsg ? `   refresh 실패 사유: ${refreshErrorMsg}` : "")
+            (refreshErrorMsg ? `   refresh 실패 사유: ${refreshErrorMsg}\n` : "") +
+            `   참고: 캐시된 상품은 그대로 보입니다 (아래로 스크롤). 재연동 후 다시 새로고침하시면 신규/변경 상품이 반영됩니다.`
           );
         } else {
           setCafe24ProductsError(`${errMsg}` + (refreshErrorMsg ? `\n(refresh 시도: ${refreshErrorMsg})` : ""));
         }
-        setCafe24Products([]);
-        setCafe24ProductsLoadedFor("");
+        // 에러여도 캐시는 그대로 두기 (재 로드 안 함)
       } else {
-        setCafe24Products(out.products || []);
-        setCafe24ProductsLoadedFor(key);
-        setCafe24ProductsFetchedAt(Date.now());
+        // 3. catalog_products에 저장 + 캐시 reload
+        await saveCatalogProducts(brand.id, out.products || []);
+        await loadCachedProducts(brand.id);
+        return; // loadCachedProducts가 loading false 처리
       }
     } catch (e) {
       setCafe24ProductsError(e.message);
-      setCafe24Products([]);
-      setCafe24ProductsLoadedFor("");
     } finally {
       setCafe24ProductsLoading(false);
     }
-  }, [cafe24Tokens, cafe24ProductsLoadedFor, cafe24Products.length]);
+  }, [cafe24Tokens, loadCachedProducts]);
 
-  // 상품 탭 진입 또는 브랜드/몰 전환 시 fetch (캐시 hit 시 skip)
+  // 상품 탭 진입 또는 브랜드/몰 전환 시 — 캐시에서 로드만 (API 호출 없음)
   useEffect(() => {
     if (mainTab !== "상품") return;
-    if (currentMallType !== "자사몰") { setCafe24Products([]); setCafe24ProductsLoadedFor(""); return; }
-    fetchCafe24Products(currentBrand, currentMallType, false);
-  }, [mainTab, currentBrand?.id, currentMallType, fetchCafe24Products, currentBrand]);
+    if (!currentBrand?.id) { setCafe24Products([]); setCafe24ProductsFetchedAt(null); return; }
+    if (currentMallType !== "자사몰") { setCafe24Products([]); setCafe24ProductsFetchedAt(null); return; }
+    loadCachedProducts(currentBrand.id);
+  }, [mainTab, currentBrand?.id, currentMallType, loadCachedProducts]);
 
   // 상품 탭: 카테고리 매핑 fetch
   const loadProductCategoryMap = React.useCallback(async (brandId) => {
@@ -933,6 +947,7 @@ export default function App() {
       product_no: String(p.product_no),
       product_name: p.product_name || "",
       price: Number(p.price || 0),
+      retail_price: Number(p.retail_price || 0),
       supply_price: Number(p.supply_price || 0),
       small_image: p.small_image || "",
       summary_description: p.summary_description || "",
@@ -1824,11 +1839,11 @@ export default function App() {
                       title="Excel 파일로 상품구분 일괄 가져오기"
                     >📥 매핑 가져오기</button>
                     <button
-                      onClick={()=>fetchCafe24Products(currentBrand, currentMallType, true)}
+                      onClick={()=>refreshFromCafe24(currentBrand)}
                       disabled={cafe24ProductsLoading}
                       style={{ padding:"7px 12px", borderRadius:8, border:"1px solid #BFDBFE", background: cafe24ProductsLoading?"#F1F5F9":"#EFF6FF", color: cafe24ProductsLoading?"#94A3B8":"#3B82F6", cursor: cafe24ProductsLoading?"not-allowed":"pointer", fontSize:13, fontWeight:700 }}
-                      title="카페24에서 다시 가져오기"
-                    >🔄 새로고침</button>
+                      title="카페24에서 다시 가져와서 캐시 갱신 (신규/수정 상품 반영)"
+                    >🔄 카페24 새로고침</button>
                   </div>
                 </div>
                 {cafe24ProductsLoading ? (
@@ -1872,7 +1887,7 @@ export default function App() {
                           {sorted.length === 0 ? (
                             <tr>
                               <td colSpan={6} style={{ padding:"24px", textAlign:"center", color:"#94A3B8", fontSize:13 }}>
-                                {cafe24Products.length === 0 ? "📦 상품이 없습니다" : "🔍 검색어와 일치하는 상품 없음"}
+                                {cafe24Products.length === 0 ? "📦 캐시된 상품이 없습니다 — 우측 상단 \"🔄 카페24 새로고침\"으로 최초 1회 가져오세요" : "🔍 검색어와 일치하는 상품 없음"}
                               </td>
                             </tr>
                           ) : sorted.map(p => {
