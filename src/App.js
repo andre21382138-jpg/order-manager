@@ -673,7 +673,33 @@ export default function App() {
     setCafe24ProductsLoading(false);
   }, []);
 
+  // 카페24 API에서 상품 호출 (token이 주어졌을 때) — 내부 헬퍼
+  const fetchProductsWithToken = async (brand, token) => {
+    let accessToken = token.access_token;
+    let refreshErrorMsg = null;
+    try {
+      const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
+      const rData = await rRes.json();
+      if (rData.access_token) {
+        accessToken = rData.access_token;
+        const updated = {
+          access_token: rData.access_token,
+          refresh_token: rData.refresh_token || token.refresh_token,
+          expires_at: rData.expires_at || token.expires_at,
+        };
+        await supabase.from("cafe24_tokens").update(updated).eq("brand_id", brand.id);
+        setCafe24Tokens(prev => ({ ...prev, [brand.id]: { ...prev[brand.id], ...updated } }));
+      } else if (rData.error) {
+        refreshErrorMsg = typeof rData.error === "string" ? rData.error : JSON.stringify(rData.error);
+      }
+    } catch (e) { refreshErrorMsg = e.message; }
+    const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
+    const out = await r.json();
+    return { out, refreshErrorMsg };
+  };
+
   // 카페24 API에서 강제 새로고침 → catalog_products 저장 → 캐시 reload
+  // 토큰 만료 시: OAuth 팝업 자동 오픈 → 새 토큰으로 재시도
   const refreshFromCafe24 = React.useCallback(async (brand) => {
     if (!brand?.id) return;
     const token = cafe24Tokens[brand.id];
@@ -681,50 +707,36 @@ export default function App() {
     setCafe24ProductsLoading(true);
     setCafe24ProductsError("");
     try {
-      // 1. access_token 갱신
-      let accessToken = token.access_token;
-      let refreshSucceeded = false;
-      let refreshErrorMsg = null;
-      try {
-        const rRes = await fetch(`/api/cafe24?action=refresh&mall_id=${token.mall_id}&refresh_token=${token.refresh_token}`);
-        const rData = await rRes.json();
-        if (rData.access_token) {
-          accessToken = rData.access_token;
-          refreshSucceeded = true;
-          const updated = {
-            access_token: rData.access_token,
-            refresh_token: rData.refresh_token || token.refresh_token,
-            expires_at: rData.expires_at || token.expires_at,
-            refresh_token_expires_at: rData.refresh_token_expires_at || token.refresh_token_expires_at,
-          };
-          await supabase.from("cafe24_tokens").update(updated).eq("brand_id", brand.id);
-          setCafe24Tokens(prev => ({ ...prev, [brand.id]: { ...prev[brand.id], ...updated } }));
-        } else if (rData.error) {
-          refreshErrorMsg = typeof rData.error === "string" ? rData.error : JSON.stringify(rData.error);
-        }
-      } catch (e) { refreshErrorMsg = e.message; }
+      // 1차 시도
+      let { out, refreshErrorMsg } = await fetchProductsWithToken(brand, token);
 
-      // 2. 상품 호출
-      const r = await fetch(`/api/cafe24?action=products&mall_id=${token.mall_id}&access_token=${encodeURIComponent(accessToken)}`);
-      const out = await r.json();
+      // 토큰 만료면 OAuth 팝업 자동 오픈
+      const isAuthError = (resp, rfErr) => {
+        const errMsg = (typeof resp?.error === "string" ? resp.error : JSON.stringify(resp?.error || "")) + (rfErr || "");
+        return /invalid_token|unauthorized|401|invalid_grant/i.test(errMsg);
+      };
+      if (out.error && isAuthError(out, refreshErrorMsg)) {
+        setCafe24ProductsError("🔐 토큰 만료 — 카페24 로그인 창을 열었습니다. 로그인 완료 후 자동으로 상품을 가져옵니다...");
+        const newToken = await openCafe24Auth(brand, token.mall_id, { silent: true });
+        if (!newToken) {
+          setCafe24ProductsError("재연동이 취소되었습니다. 다시 시도하려면 새로고침 버튼을 눌러주세요.");
+          return;
+        }
+        // 2차 시도: 새 토큰으로
+        const retry = await fetchProductsWithToken(brand, newToken);
+        out = retry.out;
+        refreshErrorMsg = retry.refreshErrorMsg;
+        setCafe24ProductsError("");
+      }
+
       if (out.error) {
         const errMsg = typeof out.error === "string" ? out.error : JSON.stringify(out.error);
-        const isAuth = /invalid_token|unauthorized|401|invalid_grant/i.test(errMsg + (refreshErrorMsg || ""));
-        if (isAuth && !refreshSucceeded) {
-          setCafe24ProductsError(
-            `❌ 카페24 토큰이 만료되었습니다 (refresh도 실패). 사이드바 ${brand.name} 옆 🔗 버튼으로 재연동해주세요.\n` +
-            (refreshErrorMsg ? `   refresh 실패 사유: ${refreshErrorMsg}\n` : "") +
-            `   참고: 캐시된 상품은 그대로 보입니다 (아래로 스크롤). 재연동 후 다시 새로고침하시면 신규/변경 상품이 반영됩니다.`
-          );
-        } else {
-          setCafe24ProductsError(`${errMsg}` + (refreshErrorMsg ? `\n(refresh 시도: ${refreshErrorMsg})` : ""));
-        }
-        // 에러여도 캐시는 그대로 두기 (재 로드 안 함)
+        setCafe24ProductsError(errMsg + (refreshErrorMsg ? `\n(refresh: ${refreshErrorMsg})` : ""));
+        // 에러여도 캐시는 그대로 두기
       } else {
-        // 3. catalog_products에 저장 + 캐시 reload
         await saveCatalogProducts(brand.id, out.products || []);
         await loadCachedProducts(brand.id);
-        return; // loadCachedProducts가 loading false 처리
+        return;
       }
     } catch (e) {
       setCafe24ProductsError(e.message);
@@ -872,28 +884,52 @@ export default function App() {
     supabase.from("cafe24_tokens").select("*").then(({ data }) => { if (data) { const map = {}; data.forEach(t => { map[t.brand_id]=t; }); setCafe24Tokens(map); } });
   }, [session]);
 
-  function openCafe24Auth(brand, mallId) {
+  function openCafe24Auth(brand, mallId, opts = {}) {
     const CLIENT_IDS = { afrimo: process.env.REACT_APP_CAFE24_CLIENT_ID_AFRIMO, cocoel: process.env.REACT_APP_CAFE24_CLIENT_ID_COCOEL, cocoel021: process.env.REACT_APP_CAFE24_CLIENT_ID_COCOEL };
     const clientId = CLIENT_IDS[mallId] || process.env.REACT_APP_CAFE24_CLIENT_ID;
     const redirectUri = encodeURIComponent("https://order-manager-kappa.vercel.app/auth/cafe24.html");
     const scope = "mall.read_order,mall.write_order,mall.read_analytics,mall.read_product,mall.read_category";
-    window.open(`https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&state=${brand.id}&redirect_uri=${redirectUri}&scope=${scope}`, "cafe24auth", "width=600,height=700");
-    function handleMessage(e) { if (e.data?.type === "CAFE24_CODE" && e.data.state === brand.id) { window.removeEventListener("message", handleMessage); fetchCafe24Token(brand, mallId, e.data.code); } }
-    window.addEventListener("message", handleMessage);
+    return new Promise((resolve) => {
+      const popup = window.open(`https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&state=${brand.id}&redirect_uri=${redirectUri}&scope=${scope}`, "cafe24auth", "width=600,height=700");
+      function handleMessage(e) {
+        if (e.data?.type === "CAFE24_CODE" && e.data.state === brand.id) {
+          window.removeEventListener("message", handleMessage);
+          fetchCafe24Token(brand, mallId, e.data.code, { silent: !!opts.silent }).then(token => resolve(token));
+        }
+      }
+      window.addEventListener("message", handleMessage);
+      // 사용자가 팝업 닫으면 resolve(null) — 무한 대기 방지
+      const closeWatcher = setInterval(() => {
+        if (popup && popup.closed) {
+          clearInterval(closeWatcher);
+          window.removeEventListener("message", handleMessage);
+          resolve(null);
+        }
+      }, 500);
+    });
   }
-  async function fetchCafe24Token(brand, mallId, code) {
+  async function fetchCafe24Token(brand, mallId, code, opts = {}) {
     setSaving(true);
     try {
       const res = await fetch(`/api/cafe24?action=token&mall_id=${mallId}&code=${code}`);
       const data = await res.json();
       if (data.access_token) {
         const expiresAt = new Date(Date.now() + 7200*1000).toISOString();
-        await supabase.from("cafe24_tokens").upsert({ brand_id:brand.id, mall_id:mallId, access_token:data.access_token, refresh_token:data.refresh_token, expires_at:expiresAt }, { onConflict:"brand_id" });
-        setCafe24Tokens(prev => ({ ...prev, [brand.id]:{ brand_id:brand.id, mall_id:mallId, access_token:data.access_token, refresh_token:data.refresh_token } }));
-        alert(`✅ ${brand.name} 카페24 연동 완료!`);
-      } else { alert("토큰 발급 실패: " + JSON.stringify(data)); }
-    } catch(e) { alert("연동 오류: " + e.message); }
-    setSaving(false);
+        const newRow = { brand_id:brand.id, mall_id:mallId, access_token:data.access_token, refresh_token:data.refresh_token, expires_at:expiresAt };
+        await supabase.from("cafe24_tokens").upsert(newRow, { onConflict:"brand_id" });
+        setCafe24Tokens(prev => ({ ...prev, [brand.id]: newRow }));
+        if (!opts.silent) alert(`✅ ${brand.name} 카페24 연동 완료!`);
+        return newRow;
+      } else {
+        if (!opts.silent) alert("토큰 발급 실패: " + JSON.stringify(data));
+        return null;
+      }
+    } catch(e) {
+      if (!opts.silent) alert("연동 오류: " + e.message);
+      return null;
+    } finally {
+      setSaving(false);
+    }
   }
   async function refreshCafe24Token(brand, token) {
     try {
