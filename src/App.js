@@ -3179,9 +3179,9 @@ export default function App() {
           <div style={{...modalBox, width:600}} onClick={e=>e.stopPropagation()}>
             <h3 style={modalTitle}>📥 상품구분 매핑 가져오기 — {currentBrand.name}</h3>
             <div style={{ marginBottom:14, padding:"10px 14px", background:"#F0F9FF", borderRadius:10, border:"1px solid #BAE6FD", fontSize:12, color:"#075985", lineHeight:1.5 }}>
-              Excel 파일에서 <strong>"자사몰 상품구분"</strong> 시트를 읽어 <strong>"{currentBrand.name} 카페24"</strong> 시작하는 row의<br />
-              상품번호 ↔ 상품구분을 product_category_map에 일괄 저장합니다.<br />
-              같은 상품번호에 옵션별로 다른 상품구분이 있으면 <strong>최다 빈도(mode)</strong>를 사용합니다.
+              Excel "자사몰 상품구분" 시트의 <strong>주문상품명</strong>과 카페24 마스터의 <strong>상품명</strong>을 정확히 매칭하여 상품구분을 채웁니다.<br />
+              "<strong>{currentBrand.name} 카페24</strong>" 시작 row만 사용. 이름 비교 시 HTML 태그(&lt;br&gt; 등) + 여분 공백 자동 정규화.<br />
+              같은 카페24 상품에 여러 Excel row가 매칭되면 <strong>최다 빈도(mode)</strong> 카테고리 채택.
             </div>
 
             {!categoryImportPreview && !categoryImportSaving && (
@@ -3207,44 +3207,58 @@ export default function App() {
                       const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
                       const HDR = rows[1] || [];
                       const colName = (name) => HDR.indexOf(name);
-                      const cBrand = colName("브랜드"), cCat = colName("상품구분"), cPno = colName("상품번호"), cStore = colName("스토어 구분");
-                      if (cCat < 0 || cPno < 0 || cStore < 0) { alert("필수 컬럼(상품구분/상품번호/스토어 구분)을 찾을 수 없습니다."); return; }
+                      const cCat = colName("상품구분"), cOrderName = colName("주문상품명"), cStore = colName("스토어 구분");
+                      if (cCat < 0 || cOrderName < 0 || cStore < 0) { alert("필수 컬럼(상품구분/주문상품명/스토어 구분)을 찾을 수 없습니다."); return; }
 
                       const storePrefix = `${currentBrand.name} 카페24`;
-                      const cafeIds = new Set(cafe24Products.map(p => String(p.product_no)));
 
-                      // 상품번호별 카테고리 수집
-                      const byPno = new Map(); // pno → { catCount: Map<cat, n>, total: n }
+                      // 이름 정규화 (HTML 태그 제거 + 공백 정리)
+                      const normalizeName = (s) => (s || "").toString().replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+
+                      // 카페24 상품명 → product_no 조회 맵
+                      const cafeByName = new Map();
+                      cafe24Products.forEach(p => {
+                        const key = normalizeName(p.product_name);
+                        if (key && !cafeByName.has(key)) cafeByName.set(key, String(p.product_no));
+                      });
+
+                      // Excel row 순회: 주문상품명 ↔ 카페24 상품명 매칭
+                      const byPno = new Map(); // 매칭된 product_no → { catCount, samples }
+                      const unmatched = []; // Cafe24 이름과 일치하지 않는 Excel row
                       for (let i = 2; i < rows.length; i++) {
                         const r = rows[i];
                         if (!r || r.length === 0) continue;
                         const store = String(r[cStore] || "");
                         if (!store.startsWith(storePrefix)) continue;
-                        const pno = r[cPno];
+                        const orderName = normalizeName(r[cOrderName]);
                         const cat = String(r[cCat] || "").trim();
-                        if (pno == null || pno === "" || !cat) continue;
-                        const key = String(pno);
-                        if (!byPno.has(key)) byPno.set(key, { catCount: new Map(), total: 0 });
-                        const entry = byPno.get(key);
+                        if (!orderName || !cat) continue;
+                        const pno = cafeByName.get(orderName);
+                        if (!pno) {
+                          unmatched.push({ orderName, cat });
+                          continue;
+                        }
+                        if (!byPno.has(pno)) byPno.set(pno, { catCount: new Map(), samples: [] });
+                        const entry = byPno.get(pno);
                         entry.catCount.set(cat, (entry.catCount.get(cat) || 0) + 1);
-                        entry.total += 1;
+                        entry.samples.push(orderName);
                       }
 
-                      // mode + cafe24 매핑 분리
-                      const matches = [], divergent = [], excelOnly = [];
+                      // 분류 결과
+                      const matches = [], divergent = [];
                       byPno.forEach((entry, pno) => {
                         const sortedCats = [...entry.catCount.entries()].sort((a,b)=>b[1]-a[1]);
                         const chosen = sortedCats[0][0];
-                        const isDivergent = sortedCats.length > 1;
-                        const inCafe = cafeIds.has(pno);
                         const rec = { pno, category: chosen, alternatives: sortedCats.slice(1).map(([c])=>c) };
-                        if (!inCafe) excelOnly.push(rec);
-                        else if (isDivergent) divergent.push(rec);
+                        if (sortedCats.length > 1) divergent.push(rec);
                         else matches.push(rec);
                       });
-                      const cafe24Only = [...cafeIds].filter(id => !byPno.has(id));
+                      const matchedPnos = new Set([...byPno.keys()]);
+                      const cafe24Only = cafe24Products
+                        .filter(p => !matchedPnos.has(String(p.product_no)))
+                        .map(p => ({ pno: String(p.product_no), product_name: p.product_name }));
 
-                      setCategoryImportPreview({ matches, divergent, excelOnly, cafe24Only, totalToSave: matches.length + divergent.length });
+                      setCategoryImportPreview({ matches, divergent, excelOnly: [], unmatched, cafe24Only, totalToSave: matches.length + divergent.length });
                     } catch (err) {
                       alert("파일 읽기 오류: " + err.message);
                     }
@@ -3258,16 +3272,16 @@ export default function App() {
               <div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
                   <div style={{ padding:"10px 14px", background:"#F0FDF4", borderRadius:8, border:"1px solid #BBF7D0" }}>
-                    <div style={{ fontSize:11, color:"#065F46", fontWeight:600 }}>✅ Cafe24와 매칭 (저장 대상)</div>
+                    <div style={{ fontSize:11, color:"#065F46", fontWeight:600 }}>✅ 이름 매칭 (저장 대상)</div>
                     <div style={{ fontSize:18, color:"#15803D", fontWeight:800 }}>{categoryImportPreview.matches.length + categoryImportPreview.divergent.length}개</div>
                   </div>
                   <div style={{ padding:"10px 14px", background:"#FFFBEB", borderRadius:8, border:"1px solid #FDE68A" }}>
-                    <div style={{ fontSize:11, color:"#78350F", fontWeight:600 }}>⚠️ 옵션별 발산 (mode 사용)</div>
+                    <div style={{ fontSize:11, color:"#78350F", fontWeight:600 }}>⚠️ 카테고리 발산 (mode)</div>
                     <div style={{ fontSize:18, color:"#B45309", fontWeight:800 }}>{categoryImportPreview.divergent.length}개</div>
                   </div>
                   <div style={{ padding:"10px 14px", background:"#FEF2F2", borderRadius:8, border:"1px solid #FCA5A5" }}>
-                    <div style={{ fontSize:11, color:"#7F1D1D", fontWeight:600 }}>❌ Excel-only (단종 추정, 제외)</div>
-                    <div style={{ fontSize:18, color:"#DC2626", fontWeight:800 }}>{categoryImportPreview.excelOnly.length}개</div>
+                    <div style={{ fontSize:11, color:"#7F1D1D", fontWeight:600 }}>❌ Excel-only (Cafe24 이름 매치 없음)</div>
+                    <div style={{ fontSize:18, color:"#DC2626", fontWeight:800 }}>{categoryImportPreview.unmatched ? categoryImportPreview.unmatched.length : 0}개</div>
                   </div>
                   <div style={{ padding:"10px 14px", background:"#F1F5F9", borderRadius:8, border:"1px solid #CBD5E1" }}>
                     <div style={{ fontSize:11, color:"#475569", fontWeight:600 }}>📦 Cafe24-only (매핑 없음)</div>
@@ -3284,6 +3298,20 @@ export default function App() {
                           <strong>[{d.pno}]</strong> 선택: <span style={{color:"#15803D"}}>{d.category}</span> · 기타: {d.alternatives.join(", ")}
                         </div>
                       ))}
+                    </div>
+                  </details>
+                )}
+
+                {categoryImportPreview.cafe24Only.length > 0 && (
+                  <details style={{ marginBottom:10, fontSize:12 }}>
+                    <summary style={{ cursor:"pointer", color:"#475569", fontWeight:600 }}>📦 Cafe24-only 펼쳐보기 ({categoryImportPreview.cafe24Only.length}개 — 향후 인라인 편집으로 채우기)</summary>
+                    <div style={{ maxHeight:200, overflowY:"auto", padding:8, background:"#F8FAFC", borderRadius:6, marginTop:6 }}>
+                      {categoryImportPreview.cafe24Only.slice(0, 100).map(p => (
+                        <div key={p.pno} style={{ padding:"4px 0", borderBottom:"1px dashed #E2E8F0" }}>
+                          <strong>[{p.pno}]</strong> {p.product_name}
+                        </div>
+                      ))}
+                      {categoryImportPreview.cafe24Only.length > 100 && <div style={{padding:"4px 0", color:"#94A3B8"}}>... 외 {categoryImportPreview.cafe24Only.length - 100}개</div>}
                     </div>
                   </details>
                 )}
