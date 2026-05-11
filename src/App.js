@@ -1816,17 +1816,21 @@ export default function App() {
             const filtered = q
               ? cafe24Products.filter(p => (p.product_name||"").toLowerCase().includes(q) || String(p.product_no).includes(q))
               : cafe24Products;
-            const SORT_KEYS = { "상품번호":"product_no", "상품명":"product_name", "판매가":"price", "정상가":"retail_price", "공급가":"supply_price" };
+            const SORT_KEYS = { "상품번호":"product_no", "상품명":"product_name", "판매가":"price", "정상가":"retail_price", "공급가":"supply_price", "상품구분":"category" };
             const getSortVal = (p, key) => {
               if (key === "product_name") return (p.product_name || "").toLowerCase();
               if (key === "product_no") return Number(p.product_no) || 0;
+              if (key === "category") return (productCategoryMap[String(p.product_no)] || "").toLowerCase();
               return Number(p[key]) || 0;
             };
             const sorted = [...filtered].sort((a,b) => {
               const va = getSortVal(a, cafe24ProductsSort.key);
               const vb = getSortVal(b, cafe24ProductsSort.key);
               if (typeof va === "string") {
-                return cafe24ProductsSort.dir === "desc" ? vb.localeCompare(va) : va.localeCompare(vb);
+                // 빈 문자열은 항상 끝으로 (asc/desc 무관) — 매핑 안 된 상품을 찾기 쉽게
+                if (!va && vb) return 1;
+                if (va && !vb) return -1;
+                return cafe24ProductsSort.dir === "desc" ? vb.localeCompare(va, "ko") : va.localeCompare(vb, "ko");
               }
               return cafe24ProductsSort.dir === "desc" ? vb - va : va - vb;
             });
@@ -1835,7 +1839,7 @@ export default function App() {
               if (!key) return;
               setCafe24ProductsSort(prev => prev.key === key
                 ? { key, dir: prev.dir === "desc" ? "asc" : "desc" }
-                : { key, dir: key === "product_name" ? "asc" : "desc" });
+                : { key, dir: (key === "product_name" || key === "category") ? "asc" : "desc" });
             };
             return (
               <>
