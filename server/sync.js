@@ -16,7 +16,7 @@ const CANCEL_STATUSES = ["CANCEL_DONE", "RETURN_DONE", "EXCHANGE_DONE", "CANCEL_
 const SMARTSTORE_TARGETS = [
   { brandId: "fd66b113-548b-44b0-8510-b7f49e302145", mallType: "브랜드스토어", credAlias: "PALEO" },
   { brandId: "fd66b113-548b-44b0-8510-b7f49e302145", mallType: "도깨비나라",   credAlias: "DOKEBI" },
-  { brandId: "0a37b281-f262-4402-979c-e63a739bee53", mallType: "스마트스토어",  credAlias: "COCOEL" },
+  // { brandId: "0a37b281-f262-4402-979c-e63a739bee53", mallType: "스마트스토어",  credAlias: "COCOEL" }, // Plan 6b: SaaS sync-worker로 이관 (2026-06-30)
 ];
 
 function todayKST() {
